@@ -1,0 +1,286 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens - from design-system/live-event-albums/MASTER.md ("Project Overrides").
+ * Each event theme swaps the semantic variables; components only use semantic tokens.
+ */
+:root,
+[data-theme="general"] {
+  --primary: #18181b;
+  --on-primary: #ffffff;
+  --accent: #18181b;
+  --on-accent: #ffffff;
+  --bg: #fafafa;
+  --fg: #09090b;
+  --card: #ffffff;
+  --muted: #f4f4f5;
+  --muted-fg: #52525b;
+  --border: #e4e4e7;
+  --ring: #18181b;
+  --font-display: "Heebo", system-ui, sans-serif;
+}
+[data-theme="wedding"] {
+  --primary: #db2777;
+  --on-primary: #ffffff;
+  --accent: #a16207;
+  --on-accent: #ffffff;
+  --bg: #fdf2f8;
+  --fg: #831843;
+  --card: #ffffff;
+  --muted: #f0edf4;
+  --muted-fg: #475569;
+  --border: #fbcfe8;
+  --ring: #db2777;
+  --font-display: "Bellefair", "Heebo", serif;
+}
+[data-theme="birthday"] {
+  --primary: #f97316;
+  --on-primary: #0f172a;
+  --accent: #2563eb;
+  --on-accent: #ffffff;
+  --bg: #fff7ed;
+  --fg: #9a3412;
+  --card: #ffffff;
+  --muted: #ffedd5;
+  --muted-fg: #57534e;
+  --border: #fed7aa;
+  --ring: #2563eb;
+  --font-display: "Suez One", "Heebo", serif;
+}
+[data-theme="family"] {
+  --primary: #7c3aed;
+  --on-primary: #ffffff;
+  --accent: #ea580c;
+  --on-accent: #000000;
+  --bg: #faf5ff;
+  --fg: #4c1d95;
+  --card: #ffffff;
+  --muted: #f3e8ff;
+  --muted-fg: #52525b;
+  --border: #e9d5ff;
+  --ring: #7c3aed;
+  --font-display: "Bellefair", "Heebo", serif;
+}
+[data-theme="party"] {
+  --primary: #4338ca;
+  --on-primary: #ffffff;
+  --accent: #7c3aed;
+  --on-accent: #ffffff;
+  --bg: #0f172a;
+  --fg: #ffffff;
+  --card: #1e293b;
+  --muted: #1e293b;
+  --muted-fg: #cbd5e1;
+  --border: #334155;
+  --ring: #a78bfa;
+  --font-display: "Suez One", "Heebo", serif;
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-fg: var(--muted-fg);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-destructive: #dc2626;
+  --color-canvas: #09090b;
+  --font-sans: "Heebo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-display);
+  --font-brand: "Rubik Moonrocks", "Suez One", "Heebo", sans-serif;
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.05), 0 4px 12px rgb(0 0 0 / 0.06);
+  --shadow-lift: 0 10px 30px rgb(0 0 0 / 0.12);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  /* Mobile safety net: off-screen slide-in animations must never widen the page (clip keeps sticky working). */
+  overflow-x: clip;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  min-height: 100dvh;
+}
+
+/* Visible focus for keyboard users (MASTER: "Invisible focus states" forbidden). */
+:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+button,
+[role="button"],
+a,
+label[for],
+summary {
+  cursor: pointer;
+}
+
+/* Brand wordmark "אירוע פרוע", styled like the logo sticker: logo purple fill, white sticker edge,
+   lavender 3D offset (all three colors sampled from the logo), slight playful tilt. */
+.brand-wordmark {
+  font-family: var(--font-brand);
+  line-height: 1.2;
+  color: #3b1d5e;
+  transform: rotate(-2deg);
+  text-shadow:
+    0.03em 0 0 #fff, -0.03em 0 0 #fff, 0 0.03em 0 #fff, 0 -0.03em 0 #fff,
+    0.02em 0.02em 0 #fff, -0.02em -0.02em 0 #fff, 0.02em -0.02em 0 #fff, -0.02em 0.02em 0 #fff,
+    0.06em 0.07em 0 #d8c0d8,
+    0.1em 0.14em 0.22em rgb(48 24 72 / 0.28);
+}
+
+/* Sparkle layer on top of the approved wordmark (snapshot: design-system/brand/approved/).
+   Remove .brand-sparkle + <BrandStars/> in Landing.tsx to get the approved version back exactly.
+   Gold glitter dots + a light sweep (right to left, 3 times then stops) + twinkling stars. */
+.brand-wordmark { position: relative; display: inline-block; }
+.brand-sparkle {
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  text-shadow: none;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgb(255 214 102 / 0.75) 0 0.011em, transparent 0.017em),
+    linear-gradient(105deg, transparent 44%, rgb(255 226 140 / 0.95) 49%, #fff6d5 50%, rgb(255 226 140 / 0.95) 51%, transparent 56%);
+  background-size: 0.075em 0.075em, 300% 100%;
+  background-position: 0 0, 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: brand-sweep 2.6s ease-in-out 0.8s 3 both;
+}
+@keyframes brand-sweep {
+  from { background-position: 0 0, 0% 0; }
+  to { background-position: 0 0, 100% 0; }
+}
+.brand-star {
+  position: absolute;
+  width: 0.3em;
+  height: 0.3em;
+  stroke: #3b1d5e;
+  stroke-width: 1.6;
+  paint-order: stroke;
+  overflow: visible;
+  filter: drop-shadow(0 2px 3px rgb(48 24 72 / 0.25));
+  animation: brand-twinkle 1.6s ease-in-out var(--d, 0s) 4 both;
+}
+@keyframes brand-twinkle {
+  0%, 100% { transform: scale(var(--s, 1)) rotate(0deg); opacity: 1; }
+  50% { transform: scale(calc(var(--s, 1) * 0.55)) rotate(25deg); opacity: 0.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------- background presets */
+.bg-preset-wedding-blush {
+  background:
+    radial-gradient(120% 80% at 100% 0%, #fbcfe8 0%, transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, #fde68a 0%, transparent 50%),
+    linear-gradient(160deg, #fdf2f8, #fff7f2);
+}
+.bg-preset-wedding-gold {
+  background:
+    radial-gradient(80% 60% at 50% 0%, rgb(161 98 7 / 0.35), transparent 60%),
+    linear-gradient(180deg, #3b0a24, #1c0612);
+}
+.bg-preset-birthday-confetti {
+  background:
+    radial-gradient(circle at 15% 20%, #fdba74 0 6px, transparent 7px),
+    radial-gradient(circle at 80% 30%, #93c5fd 0 5px, transparent 6px),
+    radial-gradient(circle at 30% 80%, #f9a8d4 0 7px, transparent 8px),
+    radial-gradient(circle at 70% 75%, #86efac 0 5px, transparent 6px),
+    radial-gradient(circle at 50% 50%, #fde047 0 4px, transparent 5px),
+    linear-gradient(135deg, #fff7ed, #ffedd5);
+  background-size: 180px 180px, 220px 220px, 200px 200px, 160px 160px, 140px 140px, auto;
+}
+.bg-preset-birthday-sunset {
+  background: linear-gradient(160deg, #f97316 0%, #db2777 55%, #7c3aed 100%);
+}
+.bg-preset-family-lavender {
+  background:
+    radial-gradient(100% 70% at 0% 0%, #e9d5ff, transparent 60%),
+    radial-gradient(100% 70% at 100% 100%, #fed7aa, transparent 55%),
+    linear-gradient(180deg, #faf5ff, #fff);
+}
+.bg-preset-party-neon {
+  background:
+    radial-gradient(60% 50% at 20% 20%, rgb(124 58 237 / 0.55), transparent 60%),
+    radial-gradient(60% 50% at 80% 70%, rgb(67 56 202 / 0.6), transparent 60%),
+    radial-gradient(40% 30% at 60% 10%, rgb(236 72 153 / 0.35), transparent 60%),
+    #0b1020;
+}
+.bg-preset-general-mono {
+  background:
+    radial-gradient(90% 60% at 100% 0%, #e4e4e7, transparent 60%),
+    linear-gradient(180deg, #fafafa, #f4f4f5);
+}
+.bg-preset-general-night {
+  background: linear-gradient(180deg, #18181b, #09090b);
+}
+
+/* ---------------------------------------------------------------- motion utilities */
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--rot, 0deg));
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) rotate(calc(var(--rot, 0deg) * -1));
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.animate-pop-in {
+  animation: pop-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.skeleton {
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.04), rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.04));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}

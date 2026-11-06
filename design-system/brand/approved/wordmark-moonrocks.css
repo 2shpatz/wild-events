@@ -1,0 +1,13 @@
+/* Brand wordmark "אירוע פרוע", styled like the logo sticker: logo purple fill, white sticker edge,
+   lavender 3D offset (all three colors sampled from the logo), slight playful tilt. */
+.brand-wordmark {
+  font-family: var(--font-brand);
+  line-height: 1.2;
+  color: #3b1d5e;
+  transform: rotate(-2deg);
+  text-shadow:
+    0.03em 0 0 #fff, -0.03em 0 0 #fff, 0 0.03em 0 #fff, 0 -0.03em 0 #fff,
+    0.02em 0.02em 0 #fff, -0.02em -0.02em 0 #fff, 0.02em -0.02em 0 #fff, -0.02em 0.02em 0 #fff,
+    0.06em 0.07em 0 #d8c0d8,
+    0.1em 0.14em 0.22em rgb(48 24 72 / 0.28);
+}

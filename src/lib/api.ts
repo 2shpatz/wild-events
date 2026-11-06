@@ -1,0 +1,77 @@
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public code: string,
+    public detail?: string,
+  ) {
+    super(code);
+  }
+}
+
+/** Hebrew, human messages for every error code the server can return. */
+const MESSAGES: Record<string, string> = {
+  event_not_found: "האירוע לא נמצא. כדאי לבדוק שהקישור נכון.",
+  login_required: "צריך להתחבר כדי להמשיך.",
+  not_allowed: "אין לך הרשאה לפעולה הזו.",
+  owner_only: "רק בעל האירוע (שמחובר עם Google) יכול לבצע את הפעולה הזו.",
+  guest_required: "צריך להזדהות בשם לפני העלאה.",
+  album_not_found: "האלבום לא נמצא - אולי הוא הוסר.",
+  uploads_closed: "בעל האירוע סגר את ההעלאות לאירוע הזה.",
+  unsupported_type: "אפשר להעלות רק תמונות וסרטונים.",
+  too_large: "הקובץ גדול מדי.",
+  storage_full: "נגמר המקום באחסון של בעל האירוע ב-Google. כדאי להודיע לו.",
+  owner_reauth: "החיבור של בעל האירוע ל-Google פג. בעל האירוע צריך להתחבר מחדש.",
+  google_rate_limited: "Google עמוסה כרגע. ננסה שוב בעוד רגע.",
+  google_error: "Google החזירה שגיאה. ננסה שוב.",
+  too_many_attempts: "יותר מדי ניסיונות. כדאי לחכות כמה דקות.",
+  bad_password: "הסיסמה שגויה.",
+  password_too_short: "הסיסמה קצרה מדי (לפחות 4 תווים).",
+  bad_setup_token: "קוד ההגדרה שגוי.",
+  setup_locked: "צריך את קישור ההגדרה כדי להיכנס לכאן.",
+  bad_client_id: "ה-Client ID לא נראה תקין. הוא אמור להסתיים ב-apps.googleusercontent.com.",
+  bad_client_secret: "ה-Client Secret לא נראה תקין.",
+  bad_email: "כתובת האימייל לא נראית תקינה.",
+  title_required: "צריך לתת שם לאירוע.",
+  bad_code: "הכתובת יכולה להכיל רק אותיות באנגלית, ספרות ומקף (3-40 תווים), וחלק מהמילים שמורות לאתר.",
+  code_taken: "הכתובת הזו כבר תפוסה. נסו כתובת אחרת.",
+  name_required: "צריך לכתוב שם.",
+  cannot_delete_host_album: "את האלבום של בעלי השמחה אי אפשר למחוק.",
+  job_not_found: "הייבוא לא נמצא.",
+  not_ready: "הבחירה עוד לא הסתיימה.",
+  network: "אין חיבור לאינטרנט. ננסה שוב כשהחיבור יחזור.",
+  server_error: "משהו השתבש אצלנו. ננסה שוב.",
+};
+
+export function errorMessage(e: unknown): string {
+  if (e instanceof ApiError) return MESSAGES[e.code] || MESSAGES.server_error;
+  if (e instanceof TypeError) return MESSAGES.network;
+  return MESSAGES.server_error;
+}
+
+export async function api<T = any>(
+  path: string,
+  init: RequestInit & { json?: unknown; guest?: string | null } = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  let body = init.body;
+  if (init.json !== undefined) {
+    headers.set("Content-Type", "application/json");
+    body = JSON.stringify(init.json);
+  }
+  if (init.guest) headers.set("X-Guest", init.guest);
+  const res = await fetch(`/api${path}`, { ...init, headers, body, credentials: "same-origin" });
+  if (!res.ok) {
+    let code = "server_error";
+    let detail: string | undefined;
+    try {
+      const j = await res.json();
+      code = j.error || code;
+      detail = j.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new ApiError(res.status, code, detail);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}

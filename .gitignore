@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.deploy-state.json
+*.local
+.claude/
+*.log
+.DS_Store
+Thumbs.db
