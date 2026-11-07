@@ -4,7 +4,7 @@ import type { AppEnv, Env } from "../env";
 import { eventCode, hashPassword, randomId } from "../lib/crypto";
 import { createAlbum, ownerToken, storageQuota } from "../lib/google";
 import { cleanName, cleanTime, createEventAlbum } from "../lib/db";
-import { requireOwner } from "../lib/session";
+import { rateLimit, requireOwner } from "../lib/session";
 import type { OwnerEventSummary, StorageInfo } from "../../shared/types";
 import { isValidSlug, suggestSlug } from "../../shared/slug";
 
@@ -99,6 +99,8 @@ owner.post("/events", async (c) => {
   }>();
   const title = cleanName(b.title || "", 80);
   if (!title) throw new HTTPException(400, { message: "title_required" });
+  if (b.adminPassword && b.adminPassword.length < 4) throw new HTTPException(400, { message: "password_too_short" });
+  await rateLimit(c.env, `newevent:${ownerId}`, 20, 86_400_000);
   const type = EVENT_TYPES.includes(b.type || "") ? b.type! : "general";
   const theme = EVENT_TYPES.includes(b.theme || "") ? b.theme! : type;
   const quality = b.quality === "original" ? "original" : "compressed";

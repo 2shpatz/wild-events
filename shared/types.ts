@@ -1,3 +1,5 @@
+import type { EventDesign } from "./design";
+
 export type EventType = "wedding" | "birthday" | "family" | "party" | "general";
 export type ThemeId = EventType;
 export type Quality = "compressed" | "original";
@@ -25,6 +27,10 @@ export interface PublicEvent {
   invitationVersion: string | null;
   /** featured (representative) photos uploaded by the host, shown on the invitation page */
   featured: { slot: number; v: string }[];
+  /** images of the flexible-design image blocks ('i0'..'i9') */
+  images: { slot: number; v: string }[];
+  /** guest page layout + title styling (flexible design) */
+  design: EventDesign;
   quality: Quality;
   keepGps: boolean;
   defaultView: ViewMode;
@@ -56,6 +62,8 @@ export interface MediaDTO {
   url: string | null; // Google base URL (append size params)
   exp: number; // url expiry (ms epoch)
   processing: boolean;
+  /** Tag of the uploading device (see shared/deviceTag.ts) - lets a guest's phone show delete on its own items. */
+  by?: string | null;
 }
 
 export interface FeedResponse {
@@ -102,9 +110,17 @@ export interface OwnerEventSummary {
   createdAt: number;
 }
 
+/** An event album that mirrors an album the owner has in Google Photos (copied in, re-synced on demand). */
+export interface AlbumLink {
+  sourceUrl: string | null; // the share link the owner pasted, if any
+  syncedAt: number; // 0 = never finished a sync
+}
+
+export type ManageAlbum = AlbumDTO & { googleAlbumId: string | null; link: AlbumLink | null };
+
 export interface ManageEvent extends PublicEvent {
   hasPassword: boolean;
-  albums: (AlbumDTO & { googleAlbumId: string | null })[];
+  albums: ManageAlbum[];
 }
 
 export interface ImportJobDTO {
@@ -118,6 +134,7 @@ export interface ImportJobDTO {
   already: number;
   estBytes: number;
   albumId: string;
+  linked: boolean; // links or re-syncs a whole Google Photos album
   error?: string | null;
 }
 

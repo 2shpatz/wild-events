@@ -9,6 +9,7 @@ import { ownerToken, renameAlbum } from "../lib/google";
 import { ownerStorage, slugTaken } from "./owner";
 import { isValidSlug } from "../../shared/slug";
 import { MAX_FEATURED, type ManageEvent } from "../../shared/types";
+import { MAX_IMAGES, sanitizeDesign, usedImageSlots } from "../../shared/design";
 
 export const manage = new Hono<AppEnv>();
 
@@ -74,9 +75,23 @@ manage.patch("/e/:code/manage", async (c) => {
     if (await slugTaken(c.env, code)) throw new HTTPException(409, { message: "code_taken" });
     set("code", code);
   }
+  const extra: D1PreparedStatement[] = [];
+  if (b.design !== undefined) {
+    if (JSON.stringify(b.design ?? null).length > 32 * 1024) throw new HTTPException(413, { message: "too_large" });
+    const design = sanitizeDesign(b.design);
+    set("design", JSON.stringify(design));
+    // Pictures of image blocks that are no longer in the design are deleted with it.
+    const keep = usedImageSlots(design).map((n) => `'i${n}'`);
+    extra.push(
+      c.env.DB.prepare(
+        `DELETE FROM event_assets WHERE event_id = ? AND kind GLOB 'i[0-9]'${keep.length ? ` AND kind NOT IN (${keep.join(",")})` : ""}`,
+      ).bind(ev.id),
+    );
+  }
   if (!sets.length) return c.json({ ok: true });
   await c.env.DB.batch([
     c.env.DB.prepare(`UPDATE events SET ${sets.join(", ")} WHERE id = ?`).bind(...vals, ev.id),
+    ...extra,
     changeStmt(c.env, ev.id, "event", null),
   ]);
   return c.json({ ok: true, code: typeof b.code === "string" ? b.code.toLowerCase().trim() : ev.code });
@@ -136,6 +151,18 @@ manage.delete("/e/:code/manage/featured/:slot", async (c) => {
     changeStmt(c.env, ev.id, "event", null),
   ]);
   return c.json({ ok: true });
+});
+
+/** Pictures of the flexible-design image blocks ('i0'..'i9'); unreferenced ones are removed when the design is saved. */
+manage.put("/e/:code/manage/image/:slot", async (c) => {
+  const ev = await managedEvent(c);
+  const slot = Number(c.req.param("slot"));
+  if (!Number.isInteger(slot) || slot < 0 || slot >= MAX_IMAGES) throw new HTTPException(400, { message: "bad_slot" });
+  const img = await readImage(c);
+  await c.env.DB.prepare("INSERT OR REPLACE INTO event_assets (event_id, kind, mime, data, etag) VALUES (?, ?, ?, ?, ?)")
+    .bind(ev.id, `i${slot}`, img.mime, img.data, img.etag)
+    .run();
+  return c.json({ ok: true, v: img.etag });
 });
 
 /** Header image shown at the top of every guest page. */

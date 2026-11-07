@@ -113,6 +113,26 @@ body {
   min-height: 100dvh;
 }
 
+/* Event title font (flexible design): set --title-font / --title-weight on an ancestor, defaults to the theme. */
+.font-title {
+  font-family: var(--title-font, var(--font-display));
+  font-weight: var(--title-weight, 400);
+}
+
+/* Flexible-design editor preview (iframe): hover / selected outlines on the page's blocks. */
+[data-preview] [data-block-id] {
+  cursor: pointer;
+  transition: outline-color 150ms ease;
+}
+[data-preview] [data-block-id]:hover {
+  outline: 2px dashed rgb(56 189 248 / 0.9);
+  outline-offset: -2px;
+}
+[data-preview] [data-block-id][data-selected] {
+  outline: 3px solid #38bdf8;
+  outline-offset: -3px;
+}
+
 /* Visible focus for keyboard users (MASTER: "Invisible focus states" forbidden). */
 :focus-visible {
   outline: 3px solid var(--ring);

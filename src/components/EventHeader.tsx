@@ -4,6 +4,8 @@ import { ArrowRight } from "lucide-react";
 import type { PublicEvent } from "../../shared/types";
 import { backgroundProps } from "../lib/themes";
 import { cx } from "./ui";
+import { titleFontVars, useFonts } from "../lib/fonts";
+import { pagesTitleFont } from "../../shared/design";
 
 export const headerImageUrl = (ev: PublicEvent) =>
   ev.headerVersion ? `/api/e/${ev.code}/asset/hd?v=${encodeURIComponent(ev.headerVersion)}` : null;
@@ -59,6 +61,8 @@ export function EventHeader({
 
   const img = headerImageUrl(event);
   const bg = backgroundProps(event);
+  const font = pagesTitleFont(event.design);
+  useFonts(font);
 
   return (
     <header ref={ref} className="group/header sticky z-30 text-white" style={{ top: -BANNER }}>
@@ -82,8 +86,8 @@ export function EventHeader({
       />
 
       {/* Banner strip (scrolls away): big event title. */}
-      <div className="relative flex items-end px-4 pb-2" style={{ height: BANNER, opacity: 1 - t }}>
-        <p className="mx-auto w-full max-w-[1600px] truncate font-display text-3xl drop-shadow-[0_2px_8px_rgb(0_0_0/0.5)] sm:text-4xl">{event.title}</p>
+      <div className="relative flex items-end px-4 pb-2" style={{ height: BANNER, opacity: 1 - t, ...titleFontVars(font) }}>
+        <p className="mx-auto w-full max-w-[1600px] truncate font-title text-3xl drop-shadow-[0_2px_8px_rgb(0_0_0/0.5)] sm:text-4xl">{event.title}</p>
       </div>
 
       {/* Sticky bar. */}

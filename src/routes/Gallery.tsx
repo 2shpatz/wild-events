@@ -31,6 +31,7 @@ import { Lightbox } from "../components/gallery/Lightbox";
 import { MediaImg } from "../components/gallery/MediaImg";
 import { seededRank } from "../lib/media";
 import { savedIdentity } from "../lib/device";
+import { deviceTag } from "../../shared/deviceTag";
 import { api, errorMessage } from "../lib/api";
 import type { MediaDTO, ViewMode, ViewOrder } from "../../shared/types";
 
@@ -73,6 +74,8 @@ export default function Gallery() {
   const [open, setOpen] = useState<number | null>(null);
   const [seenFresh, setSeenFresh] = useState(0);
   const identity = savedIdentity(code);
+  // Guest token is "<albumId>.<deviceId>.<sig>"; its device id is the one the server checks on delete.
+  const myTag = useMemo(() => deviceTag(identity?.token.split(".")[1]), [identity?.token]);
   const isMobile = useIsMobile();
   const [sheet, setSheet] = useState(false);
   const [immersive, setImmersive] = useState(false);
@@ -142,7 +145,8 @@ export default function Gallery() {
 
   if (!event) return <EventStatus error={error} loading />;
 
-  const canDelete = (m: MediaDTO) => event.canManage || (!!identity && identity.album.id === m.album);
+  // Guests delete only what this phone uploaded (the server enforces the same rule).
+  const canDelete = (m: MediaDTO) => event.canManage || (!!identity && identity.album.id === m.album && !!m.by && m.by === myTag);
   const onDelete = async (m: MediaDTO) => {
     try {
       if (event.canManage) await api(`/e/${code}/manage/media/hide`, { method: "POST", json: { ids: [m.id] } });

@@ -37,6 +37,8 @@ const MESSAGES: Record<string, string> = {
   name_required: "צריך לכתוב שם.",
   cannot_delete_host_album: "את האלבום של בעלי השמחה אי אפשר למחוק.",
   job_not_found: "הייבוא לא נמצא.",
+  bad_album_link: "הקישור לא נראה כמו קישור לאלבום ב-Google Photos. הוא אמור להתחיל ב-https://photos.app.goo.gl/ או ב-https://photos.google.com/.",
+  not_linked: "האלבום הזה לא מקושר לאלבום ב-Google Photos.",
   not_ready: "הבחירה עוד לא הסתיימה.",
   network: "אין חיבור לאינטרנט. ננסה שוב כשהחיבור יחזור.",
   server_error: "משהו השתבש אצלנו. ננסה שוב.",

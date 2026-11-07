@@ -82,12 +82,26 @@ function canonicalRedirect(request: Request, env: Env): Response | null {
   return Response.redirect(`${target.origin}${url.pathname}${url.search}`, 302);
 }
 
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "X-Frame-Options": "SAMEORIGIN",
+};
+
+/** Basic browser protections on every page and API response. */
+function withSecurityHeaders(res: Response): Response {
+  if (res.status === 101) return res;
+  const out = new Response(res.body, res);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) if (!out.headers.has(k)) out.headers.set(k, v);
+  return out;
+}
+
 export default {
-  fetch(request, env, ctx) {
+  async fetch(request, env, ctx) {
     const redirect = canonicalRedirect(request, env);
     if (redirect) return redirect;
-    if (new URL(request.url).pathname.startsWith("/api/")) return app.fetch(request, env, ctx);
-    return env.ASSETS.fetch(request);
+    if (new URL(request.url).pathname.startsWith("/api/")) return withSecurityHeaders(await app.fetch(request, env, ctx));
+    return withSecurityHeaders(await env.ASSETS.fetch(request));
   },
   scheduled,
 } satisfies ExportedHandler<Env>;

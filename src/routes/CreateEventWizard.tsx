@@ -15,6 +15,7 @@ import { EventTitle } from "../components/EventChrome";
 import { SlugField, type SlugState } from "../components/SlugField";
 import { TimeField } from "../components/TimeField";
 import { suggestSlug } from "../../shared/slug";
+import { defaultDesign } from "../../shared/design";
 
 const STEPS = ["סוג האירוע", "פרטים", "עיצוב", "איכות העלאה", "שיתוף"];
 const ICONS: Record<EventType, React.ReactNode> = {
@@ -82,6 +83,8 @@ export default function CreateEventWizard() {
       headerVersion: null,
       invitationVersion: null,
       featured: [],
+      images: [],
+      design: defaultDesign(),
       quality,
       keepGps: false,
       defaultView: "masonry",
@@ -140,7 +143,7 @@ export default function CreateEventWizard() {
     }
   };
 
-  const canNext = step === 0 || (step === 1 && title.trim() && (codeState === "ok" || !code)) || step === 2 || step === 3;
+  const canNext = step === 0 || (step === 1 && title.trim() && (codeState === "ok" || !code) && (!password || password.length >= 4)) || step === 2 || step === 3;
   const bg = backgroundProps(preview);
   const dark = background === "custom" ? true : isDarkBackground(preview.background, theme);
 
@@ -229,7 +232,7 @@ export default function CreateEventWizard() {
               </button>
               {advanced && (
                 <div className="space-y-5 rounded-2xl bg-muted p-4">
-                  <Field label="סיסמת ניהול לשותפים" htmlFor="ev-pass" hint="מי שיש לו את הסיסמה יוכל לנהל את האירוע בלי חשבון Google (למשל בן/בת הזוג או הצלם)">
+                  <Field label="סיסמת ניהול לשותפים" htmlFor="ev-pass" hint="מי שיש לו את הסיסמה יוכל לנהל את האירוע בלי חשבון Google (למשל בן/בת הזוג או הצלם). לפחות 4 תווים.">
                     <input id="ev-pass" type="password" className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={4} />
                   </Field>
                 </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FolderPlus, Pencil, Trash2, Users, Crown, Camera } from "lucide-react";
+import { FolderPlus, Pencil, Trash2, Users, Crown, Camera, Link2 } from "lucide-react";
 import type { ManageEvent } from "../../../shared/types";
 import { api, errorMessage } from "../../lib/api";
 import { Button, ConfirmDialog, Field, Modal, inputClass, useToast } from "../ui";
@@ -44,11 +44,13 @@ export function AlbumsManager({ event, onChanged }: { event: ManageEvent; onChan
         {event.albums.map((a) => (
           <li key={a.id} className="flex items-center gap-3 px-4 py-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-fg" aria-hidden>
-              {a.kind === "host" ? <Crown className="size-5" /> : a.kind === "custom" ? <Camera className="size-5" /> : <Users className="size-5" />}
+              {a.kind === "host" ? <Crown className="size-5" /> : a.link ? <Link2 className="size-5" /> : a.kind === "custom" ? <Camera className="size-5" /> : <Users className="size-5" />}
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{a.name}</p>
-              <p className="text-sm text-muted-fg">{a.count.toLocaleString("he-IL")} פריטים</p>
+              <p className="text-sm text-muted-fg">
+                {a.count.toLocaleString("he-IL")} פריטים{a.link && " · מקושר לאלבום ב-Google Photos"}
+              </p>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setRename({ id: a.id, name: a.name })} icon={<Pencil className="size-4" aria-hidden />} aria-label={`שינוי שם לאלבום ${a.name}`}>
               <span className="hidden sm:inline">שינוי שם</span>

@@ -1,8 +1,10 @@
 import { HTTPException } from "hono/http-exception";
 import type { Env } from "../env";
-import type { AlbumDTO, MediaDTO, PublicEvent } from "../../shared/types";
+import type { AlbumDTO, ManageAlbum, MediaDTO, PublicEvent } from "../../shared/types";
 import { batchGet, createAlbum, ownerToken } from "./google";
 import { randomId } from "./crypto";
+import { parseDesign } from "../../shared/design";
+import { deviceTag } from "../../shared/deviceTag";
 
 export interface EventRow {
   id: string;
@@ -26,6 +28,7 @@ export interface EventRow {
   default_view: string;
   default_order: string;
   uploads_open: number;
+  design: string | null;
   created_at: number;
 }
 
@@ -38,6 +41,9 @@ export interface AlbumRow {
   google_album_id: string | null;
   created_at: number;
   hidden: number;
+  linked: number;
+  source_url: string | null;
+  synced_at: number;
 }
 
 export interface MediaRow {
@@ -54,6 +60,7 @@ export interface MediaRow {
   base_url_exp: number;
   processing: number;
   hidden: number;
+  device_id: string | null;
 }
 
 /** "HH:MM" or null. */
@@ -86,7 +93,11 @@ export async function eventAssets(env: Env, eventId: string) {
     .filter((a) => /^f\d$/.test(a.kind))
     .map((a) => ({ slot: Number(a.kind.slice(1)), v: a.etag }))
     .sort((a, b) => a.slot - b.slot);
-  return { bg, header, invitation, featured };
+  const images = r.results
+    .filter((a) => /^i\d$/.test(a.kind))
+    .map((a) => ({ slot: Number(a.kind.slice(1)), v: a.etag }))
+    .sort((a, b) => a.slot - b.slot);
+  return { bg, header, invitation, featured, images };
 }
 
 export async function toPublicEvent(
@@ -119,6 +130,8 @@ export async function toPublicEvent(
     headerVersion: assets.header,
     invitationVersion: assets.invitation,
     featured: assets.featured,
+    images: assets.images,
+    design: parseDesign(ev.design),
     quality: ev.quality as PublicEvent["quality"],
     keepGps: !!ev.keep_gps,
     defaultView: ev.default_view as PublicEvent["defaultView"],
@@ -132,9 +145,9 @@ export async function toPublicEvent(
   };
 }
 
-export async function listAlbums(env: Env, eventId: string, includeEmpty = false): Promise<(AlbumDTO & { googleAlbumId: string | null })[]> {
+export async function listAlbums(env: Env, eventId: string, includeEmpty = false): Promise<ManageAlbum[]> {
   const rows = await env.DB.prepare(
-    `SELECT a.id, a.name, a.kind, a.google_album_id,
+    `SELECT a.id, a.name, a.kind, a.google_album_id, a.linked, a.source_url, a.synced_at,
             (SELECT COUNT(*) FROM media m WHERE m.album_id = a.id AND m.hidden = 0) AS count,
             (SELECT m.id FROM media m WHERE m.album_id = a.id AND m.hidden = 0 AND m.kind = 'photo'
                ORDER BY m.uploaded_at DESC LIMIT 1) AS cover
@@ -142,7 +155,17 @@ export async function listAlbums(env: Env, eventId: string, includeEmpty = false
       ORDER BY CASE a.kind WHEN 'host' THEN 0 WHEN 'custom' THEN 1 ELSE 2 END, a.created_at`,
   )
     .bind(eventId)
-    .all<{ id: string; name: string; kind: string; google_album_id: string | null; count: number; cover: string | null }>();
+    .all<{
+      id: string;
+      name: string;
+      kind: string;
+      google_album_id: string | null;
+      linked: number;
+      source_url: string | null;
+      synced_at: number;
+      count: number;
+      cover: string | null;
+    }>();
   return rows.results
     .filter((r) => includeEmpty || r.count > 0)
     .map((r) => ({
@@ -152,6 +175,7 @@ export async function listAlbums(env: Env, eventId: string, includeEmpty = false
       count: r.count,
       cover: r.cover,
       googleAlbumId: r.google_album_id,
+      link: r.linked ? { sourceUrl: r.source_url, syncedAt: r.synced_at } : null,
     }));
 }
 
@@ -168,6 +192,7 @@ export function toMediaDTO(r: MediaRow): MediaDTO {
     url: valid ? r.base_url : null,
     exp: valid ? r.base_url_exp : 0,
     processing: !!r.processing,
+    by: deviceTag(r.device_id),
   };
 }
 
@@ -247,6 +272,9 @@ export async function createEventAlbum(
     google_album_id: g.id,
     created_at: Date.now(),
     hidden: 0,
+    linked: 0,
+    source_url: null,
+    synced_at: 0,
   };
   await env.DB.batch([
     env.DB.prepare(

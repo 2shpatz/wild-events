@@ -4,6 +4,9 @@
 > (hero carries date + location, CTA sticky + repeated at the end), adapted so photo sharing is the main job.
 
 ## Section order
+The order is set by the flexible design (`events.design`, see `manage-design.md`): blocks before the hero → hero → blocks after it.
+Events without a saved design use the default below. The hero's title font / colors / date style come from `design.hero`.
+
 1. Hero: header image, title, subtitle, invitation-style date, time + static countdown, venue (tap = scroll to details),
    then the hosts' welcome message (glass quote card). No action buttons in the hero (user decision 2026-11-06).
 2. Invitation image (optional, asset `inv`, uploaded by the host): white "paper" card, tap opens a full-screen

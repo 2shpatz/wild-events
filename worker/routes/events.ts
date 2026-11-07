@@ -22,8 +22,8 @@ import type { FeedResponse, GuestIdentity } from "../../shared/types";
 
 export const events = new Hono<AppEnv>();
 
-/** Guests don't need internal Google ids. */
-const publicAlbums = (list: Awaited<ReturnType<typeof listAlbums>>) => list.map(({ googleAlbumId: _g, ...a }) => a);
+/** Guests don't need internal Google ids or the owner's linked-album details. */
+const publicAlbums = (list: Awaited<ReturnType<typeof listAlbums>>) => list.map(({ googleAlbumId: _g, link: _l, ...a }) => a);
 
 events.get("/e/:code", async (c) => {
   const ev = await eventByCode(c.env, c.req.param("code"));
@@ -31,10 +31,10 @@ events.get("/e/:code", async (c) => {
   return c.json(await toPublicEvent(c.env, ev, { canManage: manage, isOwner: c.get("ownerId") === ev.owner_id }));
 });
 
-/** Background ('bg') and featured photos ('f0'..'f5'). */
+/** Background ('bg'), header ('hd'), invitation ('inv'), featured photos ('f0'..'f5') and design images ('i0'..'i9'). */
 events.get("/e/:code/asset/:kind", async (c) => {
   const kind = c.req.param("kind");
-  if (!/^(bg|hd|inv|f\d)$/.test(kind)) throw new HTTPException(404, { message: "not_found" });
+  if (!/^(bg|hd|inv|f\d|i\d)$/.test(kind)) throw new HTTPException(404, { message: "not_found" });
   const ev = await eventByCode(c.env, c.req.param("code"));
   const r = await c.env.DB.prepare("SELECT mime, data, etag FROM event_assets WHERE event_id = ? AND kind = ?")
     .bind(ev.id, kind)
@@ -105,6 +105,8 @@ events.post("/e/:code/guest", async (c) => {
   if (mapped && !b.forceNew) return c.json(await identity(c, mapped, deviceId));
 
   if (b.confirmAlbumId) {
+    // "Is this you?" hands over the album (upload only - deletes stay with the original phone); limit guessing.
+    await rateLimit(c.env, `claim:${ev.id}:${c.req.header("CF-Connecting-IP") || "local"}`, 20, 3600_000);
     const album = await albumById(c, ev, b.confirmAlbumId);
     if (!album || album.kind !== "guest") throw new HTTPException(404, { message: "album_not_found" });
     await c.env.DB.prepare("INSERT OR REPLACE INTO album_devices (album_id, device_id, event_id) VALUES (?,?,?)")
@@ -126,7 +128,8 @@ events.post("/e/:code/guest", async (c) => {
     if (match) return c.json({ match });
   }
 
-  await rateLimit(c.env, `newalbum:${ev.id}:${c.req.header("CF-Connecting-IP") || "local"}`, 30, 3600_000);
+  // Generous: many guests share the venue WiFi (one IP).
+  await rateLimit(c.env, `newalbum:${ev.id}:${c.req.header("CF-Connecting-IP") || "local"}`, 200, 3600_000);
   const album = await createEventAlbum(c.env, ev, "guest", name);
   await c.env.DB.prepare("INSERT OR REPLACE INTO album_devices (album_id, device_id, event_id) VALUES (?,?,?)")
     .bind(album.id, deviceId, ev.id)
@@ -227,7 +230,7 @@ events.post("/e/:code/media/delete", async (c) => {
   const g = await readGuestToken(c);
   if (!g) throw new HTTPException(401, { message: "guest_required" });
   const { ids } = await c.req.json<{ ids: string[] }>();
-  const count = await hideMedia(c.env, ev, (ids || []).slice(0, 200), g.albumId);
+  const count = await hideMedia(c.env, ev, (ids || []).slice(0, 200), g);
   return c.json({ removed: count });
 });
 

@@ -87,6 +87,7 @@ export async function commitMedia(
       base_url_exp: mi.baseUrl ? now + 55 * 60_000 : 0,
       processing: kind === "video" && meta.video?.status !== "READY" ? 1 : 0,
       hidden: 0,
+      device_id: it.deviceId ?? null,
     };
     stmts.push(
       env.DB.prepare(
@@ -96,7 +97,7 @@ export async function commitMedia(
       ).bind(
         row.id, row.event_id, row.album_id, row.google_id, row.kind, mi.mimeType || it.mime, it.fileName,
         row.width, row.height, row.taken_at, row.uploaded_at, it.size ?? null, it.source, it.pickedId ?? null,
-        it.deviceId ?? null, row.base_url, row.base_url_exp, row.processing,
+        row.device_id, row.base_url, row.base_url_exp, row.processing,
       ),
       changeStmt(env, ev.id, "add", row.id),
     );
@@ -118,17 +119,18 @@ export async function commitMedia(
  * "Delete" = remove from the Google albums + hide everywhere on the site.
  * (The Library API cannot permanently delete media items.)
  */
-export async function hideMedia(env: Env, ev: EventRow, ids: string[], restrictAlbum?: string) {
+/** Guests pass their signed album + device: they may only remove items uploaded from that device. */
+export async function hideMedia(env: Env, ev: EventRow, ids: string[], restrict?: { albumId: string; deviceId: string }) {
   if (!ids.length) return 0;
-  const rows = await selectIn<{ id: string; google_id: string; album_id: string; google_album_id: string | null }>(
+  const rows = await selectIn<{ id: string; google_id: string; album_id: string; device_id: string | null; google_album_id: string | null }>(
     env,
-    (ph) => `SELECT m.id, m.google_id, m.album_id, a.google_album_id
+    (ph) => `SELECT m.id, m.google_id, m.album_id, m.device_id, a.google_album_id
                FROM media m JOIN albums a ON a.id = m.album_id
               WHERE m.event_id = ? AND m.hidden = 0 AND m.id IN (${ph})`,
     [ev.id],
     ids,
   );
-  const targets = rows.filter((r) => !restrictAlbum || r.album_id === restrictAlbum);
+  const targets = rows.filter((r) => !restrict || (r.album_id === restrict.albumId && r.device_id === restrict.deviceId));
   if (!targets.length) return 0;
   // If Google is unreachable (or the owner must re-login) we still hide on the site - the user's intent is honoured.
   let token: string | null = null;

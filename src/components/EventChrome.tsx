@@ -6,6 +6,8 @@ import { backgroundProps, isDarkBackground } from "../lib/themes";
 import { cx, Spinner } from "./ui";
 import { ApiError, errorMessage } from "../lib/api";
 import { formatDate } from "../lib/format";
+import { titleFontVars, useFonts } from "../lib/fonts";
+import { pagesTitleFont } from "../../shared/design";
 
 export function EventBackdrop({ event, children, className }: { event: PublicEvent; children: ReactNode; className?: string }) {
   const bg = backgroundProps(event);
@@ -23,11 +25,13 @@ export function EventBackdrop({ event, children, className }: { event: PublicEve
 }
 
 export function EventTitle({ event, size = "lg" }: { event: PublicEvent; size?: "lg" | "md" }) {
+  const font = pagesTitleFont(event.design);
+  useFonts(font);
   return (
-    <div className="text-center">
+    <div className="text-center" style={titleFontVars(font)}>
       <h1
         className={cx(
-          "font-display leading-tight [text-wrap:balance]",
+          "font-title leading-tight [text-wrap:balance]",
           size === "lg" ? "text-5xl sm:text-6xl" : "text-3xl sm:text-4xl",
         )}
       >

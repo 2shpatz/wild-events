@@ -42,6 +42,7 @@ interface JobRow {
   page_token: string | null;
   listed_at: number;
   relist: number;
+  linked: number;
   error: string | null;
 }
 
@@ -70,9 +71,31 @@ function dto(j: JobRow): ImportJobDTO {
     already: j.already,
     estBytes: j.est_bytes,
     albumId: j.album_id,
+    linked: !!j.linked,
     error: j.error,
   };
 }
+
+const LINK_HOSTS = new Set(["photos.app.goo.gl", "photos.google.com", "goo.gl"]);
+
+/** Optional Google Photos share link (only used for an "open in Google Photos" button, never fetched). */
+function albumLink(raw: unknown): string | null {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (!v) return null;
+  let u: URL;
+  try {
+    u = new URL(v);
+  } catch {
+    throw new HTTPException(400, { message: "bad_album_link" });
+  }
+  if (u.protocol !== "https:" || !LINK_HOSTS.has(u.hostname) || v.length > 500) {
+    throw new HTTPException(400, { message: "bad_album_link" });
+  }
+  return u.toString();
+}
+
+const markSynced = (c: Context<AppEnv>, job: JobRow) =>
+  c.env.DB.prepare("UPDATE albums SET synced_at = ? WHERE id = ? AND linked = 1").bind(Date.now(), job.album_id);
 
 /** Import uses the owner's own Google account (the picker shows *their* library) → Google owner only. */
 async function ownerEvent(c: Context<AppEnv>) {
@@ -91,10 +114,17 @@ async function loadJob(c: Context<AppEnv>, ev: EventRow) {
 
 imports.post("/e/:code/import", async (c) => {
   const ev = await ownerEvent(c);
-  const b = await c.req.json<{ albumId?: string; newAlbumName?: string }>();
+  const b = await c.req.json<{ albumId?: string; newAlbumName?: string; link?: { sourceUrl?: string | null } }>();
   let album: AlbumRow | null = null;
   if (b.newAlbumName) {
+    // Validate before creating anything in Google.
+    const sourceUrl = b.link ? albumLink(b.link.sourceUrl) : null;
     album = await createEventAlbum(c.env, ev, "custom", cleanName(b.newAlbumName, 40) || "ייבוא");
+    if (b.link) {
+      await c.env.DB.prepare("UPDATE albums SET linked = 1, source_url = ? WHERE id = ?").bind(sourceUrl, album.id).run();
+      album.linked = 1;
+      album.source_url = sourceUrl;
+    }
   } else {
     album = b.albumId
       ? await c.env.DB.prepare("SELECT * FROM albums WHERE id = ? AND event_id = ? AND hidden = 0").bind(b.albumId, ev.id).first<AlbumRow>()
@@ -121,13 +151,15 @@ imports.post("/e/:code/import", async (c) => {
     page_token: null,
     listed_at: 0,
     relist: 0,
+    // Syncing a linked album: the picker instructions say "pick the whole album".
+    linked: album.linked ? 1 : 0,
     error: null,
   };
   await c.env.DB.prepare(
-    `INSERT INTO import_jobs (id, event_id, owner_id, album_id, picker_session_id, picker_uri, status, quality, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO import_jobs (id, event_id, owner_id, album_id, picker_session_id, picker_uri, status, quality, linked, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
   )
-    .bind(job.id, job.event_id, job.owner_id, job.album_id, job.picker_session_id, job.picker_uri, job.status, job.quality, Date.now())
+    .bind(job.id, job.event_id, job.owner_id, job.album_id, job.picker_session_id, job.picker_uri, job.status, job.quality, job.linked, Date.now())
     .run();
   return c.json(dto(job));
 });
@@ -197,11 +229,15 @@ async function finishListing(c: Context<AppEnv>, job: JobRow) {
     .first<{ total: number; already: number; photos: number; videos: number }>();
   const q = job.quality === "original" ? "original" : "compressed";
   const est = (s?.photos ?? 0) * EST.photo[q] + (s?.videos ?? 0) * EST.video;
-  await c.env.DB.prepare(
-    "UPDATE import_jobs SET status = 'listed', total = ?, already = ?, skipped = ?, est_bytes = ?, listed_at = ? WHERE id = ?",
-  )
-    .bind(s?.total ?? 0, s?.already ?? 0, s?.already ?? 0, est, Date.now(), job.id)
-    .run();
+  // Nothing new (typical when re-syncing an album that didn't change): the sync is already complete.
+  const nothingNew = !(s?.photos || s?.videos);
+  const stmts = [
+    c.env.DB.prepare(
+      "UPDATE import_jobs SET status = ?, total = ?, already = ?, skipped = ?, est_bytes = ?, listed_at = ? WHERE id = ?",
+    ).bind(nothingNew ? "done" : "listed", s?.total ?? 0, s?.already ?? 0, s?.already ?? 0, est, Date.now(), job.id),
+  ];
+  if (nothingNew) stmts.push(markSynced(c, job));
+  await c.env.DB.batch(stmts);
 }
 
 /** Poll while the user is picking; lists the selection once Google says it's ready. */
@@ -272,7 +308,7 @@ imports.post("/e/:code/import/:job/next", async (c) => {
   else batch = batch.filter((b) => b.kind === "photo");
 
   if (!batch.length) {
-    await c.env.DB.prepare("UPDATE import_jobs SET status = 'done' WHERE id = ?").bind(job.id).run();
+    await c.env.DB.batch([c.env.DB.prepare("UPDATE import_jobs SET status = 'done' WHERE id = ?").bind(job.id), markSynced(c, job)]);
     await pickerDelete(token, job.picker_session_id);
     return c.json(dto(await loadJob(c, ev)));
   }
