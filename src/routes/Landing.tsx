@@ -9,7 +9,6 @@ import {
   CloudDownload,
   FolderPlus,
   Globe,
-  Heart,
   Images,
   LayoutGrid,
   Link2,
@@ -117,12 +116,6 @@ export default function Landing() {
       <main>
         {/* Hero: what this site is */}
         <section className="mx-auto flex max-w-4xl flex-col items-center gap-6 px-5 pb-16 pt-8 text-center sm:pt-10">
-          <Reveal variant="fade">
-            <span className="inline-flex items-center gap-2 rounded-full bg-card/80 px-4 py-1.5 text-sm font-semibold text-primary shadow-soft backdrop-blur">
-              <Heart className="size-4" aria-hidden />
-              דף הבית של האירועים
-            </span>
-          </Reveal>
           <Reveal variant="scale">
             <h1 className="font-display text-5xl leading-tight [text-wrap:balance] sm:text-7xl">הבית של כל האירועים שלכם</h1>
           </Reveal>
