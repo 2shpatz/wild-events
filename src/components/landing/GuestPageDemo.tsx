@@ -1,6 +1,7 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, Sparkles } from "lucide-react";
 import { DATE_STYLES, type DateStyle } from "../../../shared/design";
+import { FONTS } from "../../../shared/fonts";
 import { DATE_STYLE_LABELS, dateSample } from "../../lib/dateStyles";
 import { fontWeight, loadFont } from "../../lib/fonts";
 import { cx } from "../ui";
@@ -101,7 +102,16 @@ export function GuestPageDemo() {
 
       {/* Controls: the same three choices the real editor starts with */}
       <div className="space-y-5 rounded-3xl bg-card/90 p-5 shadow-soft">
-        <p className="text-sm font-semibold text-primary">נסו בעצמכם</p>
+        <div className="space-y-1.5">
+          <p className="font-bold text-primary">נסו בעצמכם</p>
+          <p className="flex gap-2 rounded-2xl bg-accent/15 px-3 py-2.5 text-sm">
+            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+            <span>
+              זו רק הדגמה קטנה. העמוד האמיתי שלכם שווה בהרבה: {FONTS.length} גופנים, טקסטים ותמונות משלכם, תמונות נבחרות ואלבום חי, בסדר
+              שאתם בוחרים, עם תצוגה חיה בטלפון ובמחשב.
+            </span>
+          </p>
+        </div>
 
         <div className="space-y-2">
           <p id="demo-font" className="font-bold">
