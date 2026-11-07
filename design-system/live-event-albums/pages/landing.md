@@ -11,6 +11,17 @@ Hero (value prop) > Feature spotlight > Feature grid > How it works > CTA. CTA i
 - **Albums are the #1 feature.** They get their own spotlight section right after the hero, with the
   largest visual weight (2-column text + album-grid illustration). Every other feature sits below in
   a uniform grid of equal cards, so the hierarchy reads albums > everything else.
+- **Guest page design is the #2 feature** (spotlight 2, `#design`, "חדש" badge): same card style as the
+  albums spotlight but mirrored on desktop (demo on the start side, text on the end side); on mobile text
+  comes first, then the demo. Font counts come from `FONTS` (never hard-coded).
+- The design demo (`src/components/landing/GuestPageDemo.tsx`) is **interactive**, not decorative
+  (`--domain landing` product-demo: only when it explains value better than static media, nothing
+  autoplays): phone preview + real 44px buttons for title font (RTL arrows, keyboard left/right, font name
+  in an `aria-live` region), the 5 real date styles (`dateSample`) and 4 title colors (`aria-pressed`).
+  Fonts load with `&text=` (title glyphs only), current + neighbours. Venue/date are sample data.
+- Albums spotlight mentions linked Google Photos albums (own or shared by link, "עדכון" copies only new items).
+- Mixed Hebrew + Latin + numbers in one string: never put a number right after a Latin phrase
+  ("Google Fonts, 55" renders reordered); rephrase so the number follows Hebrew.
 - Describe only features that exist in the app. No invented numbers, stats or testimonials.
 - The album-grid illustration is decorative: `role="img"` + Hebrew `aria-label`, no fake counts.
 - Album covers are **real event photos, not icons** (CC0 from StockSnap, sources in
@@ -39,7 +50,7 @@ Hero (value prop) > Feature spotlight > Feature grid > How it works > CTA. CTA i
 
 ## Layout
 - Mobile-first: spotlight stacks (text, then illustration); `lg:` two columns.
-- Secondary grid: 1 > 2 > 3 columns, 6 equal cards + 1 full-width card (navigation) so no orphan at any breakpoint.
+- Secondary grid: 1 > 2 > 3 columns, 6 equal cards (themes moved into the design spotlight; short URL card took its place) + 1 full-width card (navigation) so no orphan at any breakpoint.
 - Heading order h1 > h2 > h3, no skipped levels (ux: Heading Hierarchy).
 - Hover: shadow lift only, no scale (MASTER: no layout-shifting hovers). Motion via `Reveal`, which
   already honors `prefers-reduced-motion`.

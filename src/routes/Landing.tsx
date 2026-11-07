@@ -2,27 +2,36 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowDown,
+  CalendarDays,
   CalendarPlus,
   Camera,
   Cloud,
   CloudDownload,
   FolderPlus,
+  Globe,
   Heart,
   Images,
   LayoutGrid,
+  Link2,
+  ListPlus,
   MapPin,
   MonitorPlay,
+  MonitorSmartphone,
   Palette,
   QrCode,
   Radio,
   ScanLine,
   ShieldCheck,
   Smartphone,
+  Sparkles,
+  Type,
   UserRound,
 } from "lucide-react";
 import { applyTheme } from "../lib/themes";
 import { useMe } from "../lib/session";
 import { Reveal } from "../components/Reveal";
+import { GuestPageDemo } from "../components/landing/GuestPageDemo";
+import { FONTS } from "../../shared/fonts";
 // Real event photos, CC0 (StockSnap) - sources in src/assets/albums/CREDITS.md
 import hosts320 from "../assets/albums/hosts-320.webp";
 import hosts640 from "../assets/albums/hosts-640.webp";
@@ -35,7 +44,7 @@ import friends640 from "../assets/albums/friends-640.webp";
 
 /**
  * Site home. Pattern: Feature-Rich Showcase (design-system/live-event-albums/pages/landing.md):
- * Hero > Albums spotlight (the #1 feature) > other features > how it works > CTA.
+ * Hero > Albums spotlight (the #1 feature) > Guest page design spotlight > other features > how it works > CTA.
  * No testimonials or stats - none are real yet.
  */
 export default function Landing() {
@@ -47,22 +56,32 @@ export default function Landing() {
   const albumPoints = [
     { icon: <UserRound className="size-6" aria-hidden />, title: "אלבום אישי לכל אורח", text: "כל אורח כותב את השם שלו פעם אחת, ומה שהוא מעלה נכנס אוטומטית לאלבום שלו." },
     { icon: <FolderPlus className="size-6" aria-hidden />, title: "אלבומים משלכם", text: "צלם האירוע, החינה, קבלת הפנים - פותחים אלבום, נותנים לו שם ומסדרים." },
-    { icon: <CloudDownload className="size-6" aria-hidden />, title: "גם תמונות שכבר יש לכם", text: "מייבאים תמונות שכבר נמצאות ב-Google Photos, למשל של הצלם, לתוך אלבום באירוע." },
+    { icon: <Link2 className="size-6" aria-hidden />, title: "אלבום ששיתפו איתכם? מקשרים אותו", text: "האלבום של הצלם או של החברים ב-Google Photos מתחבר לאירוע כאלבום משלו. בלחיצה על \"עדכון\" נכנסות רק התמונות החדשות." },
+    { icon: <CloudDownload className="size-6" aria-hidden />, title: "גם תמונות בודדות", text: "בוחרים תמונות שכבר נמצאות ב-Google Photos ומכניסים אותן לכל אלבום באירוע." },
     { icon: <LayoutGrid className="size-6" aria-hidden />, title: "צופים איך שרוצים", text: "בגלריה בוחרים: הכל מעורבב, לפי ציר זמן, או אלבום אחרי אלבום." },
     { icon: <Cloud className="size-6" aria-hidden />, title: "נשמר ב-Google Photos שלכם", text: "האלבומים נשמרים בחשבון שלכם, בחינם, ונשארים שלכם גם אחרי האירוע." },
   ];
 
+  const hebrewFonts = FONTS.filter((f) => f.hebrew).length;
+  const designPoints = [
+    { icon: <Type className="size-6" aria-hidden />, title: "גופן מיוחד לכותרת", text: `${FONTS.length} גופנים לבחירה מ-Google Fonts, ומתוכם ${hebrewFonts} בעברית. מדפדפים בחצים ורואים את הכותרת מתחלפת בעמוד עצמו, גם בטלפון.` },
+    { icon: <ListPlus className="size-6" aria-hidden />, title: "מוסיפים מה שרוצים", text: "טקסט, תמונות, פרטי האירוע, התמונות הנבחרות והאלבום החי, לפני העמוד הראשי או אחריו ובסדר שבחרתם." },
+    { icon: <CalendarDays className="size-6" aria-hidden />, title: "התאריך בדרך שלכם", text: "כמו בהזמנה, בשורה אחת, במספרים, בתאריך עברי, או לועזי ועברי יחד." },
+    { icon: <Palette className="size-6" aria-hidden />, title: "ערכת נושא וצבעים", text: "עיצובים לחתונה, יום הולדת, אירוע משפחתי ומסיבה, ועליהם צבע משלכם לכותרת ולטקסטים." },
+    { icon: <MonitorSmartphone className="size-6" aria-hidden />, title: "רואים לפני ששומרים", text: "תצוגה חיה של העמוד בטלפון ובמחשב. האורחים רואים את השינויים רק אחרי שלוחצים \"שמירה\"." },
+  ];
+
   const features = [
-    { icon: <Palette className="size-6" aria-hidden />, title: "עמוד אירוע מעוצב", text: "כמו הזמנה: תמונת רקע, תמונות נבחרות, ברכה, תאריך, שעה וכתובת. עיצובים לחתונה, יום הולדת, אירוע משפחתי ומסיבה." },
+    { icon: <Globe className="size-6" aria-hidden />, title: "כתובת קצרה משלכם", text: "קישור ברור לאירוע עם שם שבחרתם, שקל לשלוח בוואטסאפ ולהדפיס על ההזמנה." },
     { icon: <QrCode className="size-6" aria-hidden />, title: "QR ושיתוף בוואטסאפ", text: "שולחים קישור או מדפיסים כרטיס QR לשולחנות. האורחים נכנסים בלי הרשמה ובלי אפליקציה." },
     { icon: <Smartphone className="size-6" aria-hidden />, title: "העלאה הכי פשוטה", text: "בוחרים מהגלריה וזהו, גם סרטונים. הקבצים נדחסים אוטומטית, ואפשר לבחור איכות מקורית." },
     { icon: <Radio className="size-6" aria-hidden />, title: "גלריה חיה", text: "גלילה, תמונות מרחפות, קרוסלה וקיר פסיפס. כל תמונה חדשה מופיעה אצל כולם תוך שניות." },
     { icon: <MonitorPlay className="size-6" aria-hidden />, title: "מצגת לאולם", text: "מסך מלא שמציג קודם את התמונות החדשות, עם QR להעלאה, מעולה למסך או למקרן." },
-    { icon: <ShieldCheck className="size-6" aria-hidden />, title: "שליטה מלאה", text: "מסתירים תמונות, מקבלים אישור ברור לפני כל מחיקה, וכל אורח יכול למחוק רק את מה שהוא העלה." },
+    { icon: <ShieldCheck className="size-6" aria-hidden />, title: "שליטה מלאה", text: "מסתירים תמונות, מקבלים אישור ברור לפני כל מחיקה, וכל אורח יכול למחוק רק את מה שהעלה מהטלפון שלו." },
   ];
 
   const steps = [
-    { icon: <CalendarPlus className="size-7" aria-hidden />, title: "פותחים אירוע", text: "מתחברים עם Google, בוחרים עיצוב ומקבלים עמוד אירוע עם אלבום משותף." },
+    { icon: <CalendarPlus className="size-7" aria-hidden />, title: "פותחים אירוע", text: "מתחברים עם Google, מעצבים את עמוד האורחים ומקבלים אלבום משותף." },
     { icon: <QrCode className="size-7" aria-hidden />, title: "משתפים את האורחים", text: "שולחים קישור בוואטסאפ או מניחים QR על השולחנות." },
     { icon: <Images className="size-7" aria-hidden />, title: "התמונות מתמלאות באלבומים", text: "כל אורח מעלה מהטלפון, וכולם רואים את האלבומים מתעדכנים בלייב." },
   ];
@@ -109,7 +128,7 @@ export default function Landing() {
           </Reveal>
           <Reveal variant="up" delay={150}>
             <p className="max-w-2xl text-xl text-muted-fg [text-wrap:balance]">
-              כאן פותחים אירוע, מזמינים את האורחים, וכל התמונות מתרכזות באלבומים משותפים שמתעדכנים בלייב. חתונה, יום הולדת, בר מצווה או כל אירוע אחר.
+              כאן פותחים אירוע, מעצבים לו עמוד אורחים משלכם, מזמינים את האורחים, וכל התמונות מתרכזות באלבומים משותפים שמתעדכנים בלייב. חתונה, יום הולדת, בר מצווה או כל אירוע אחר.
             </p>
           </Reveal>
           <Reveal variant="up" delay={300} className="flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
@@ -159,6 +178,36 @@ export default function Landing() {
             </div>
             <Reveal as="figure" variant="scale" delay={150}>
               <AlbumsIllustration />
+            </Reveal>
+          </div>
+        </section>
+
+        {/* Guest page design spotlight: second feature, mirrored layout (demo on the start side on desktop) */}
+        <section id="design" className="mx-auto max-w-6xl scroll-mt-6 px-5 pb-20" aria-labelledby="design-title">
+          <div className="grid items-center gap-10 rounded-[2rem] bg-card/85 p-6 shadow-lift backdrop-blur sm:p-10 lg:grid-cols-2">
+            <div className="lg:order-last">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-sm font-bold text-on-accent">
+                <Sparkles className="size-4" aria-hidden />
+                חדש
+              </span>
+              <h2 id="design-title" className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
+                עמוד האורחים בעיצוב שלכם
+              </h2>
+              <p className="mt-3 text-lg text-muted-fg">בונים את העמוד שהאורחים פותחים, כמו הזמנה, עם תצוגה חיה של כל שינוי.</p>
+              <ul className="mt-7 space-y-5">
+                {designPoints.map((p, i) => (
+                  <Reveal as="li" key={p.title} variant="end" delay={i * 90} className="flex gap-4">
+                    <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary text-on-primary">{p.icon}</span>
+                    <div>
+                      <h3 className="text-lg font-bold">{p.title}</h3>
+                      <p className="text-muted-fg">{p.text}</p>
+                    </div>
+                  </Reveal>
+                ))}
+              </ul>
+            </div>
+            <Reveal variant="scale" delay={150}>
+              <GuestPageDemo />
             </Reveal>
           </div>
         </section>
