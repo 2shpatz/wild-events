@@ -82,6 +82,47 @@ function canonicalRedirect(request: Request, env: Env): Response | null {
   return Response.redirect(`${target.origin}${url.pathname}${url.search}`, 302);
 }
 
+/**
+ * Built-in background tracks. Static assets answer Range requests with the whole file (200),
+ * but iOS Safari only plays audio from a server that returns 206 partial responses - so slice here.
+ */
+async function serveMusic(request: Request, env: Env): Promise<Response> {
+  const res = await env.ASSETS.fetch(new Request(request.url, { method: "GET" }));
+  if (!res.ok || !(res.headers.get("Content-Type") || "").startsWith("audio/")) return res;
+  const headers = new Headers({
+    "Content-Type": res.headers.get("Content-Type")!,
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "public, max-age=604800",
+  });
+  const etag = res.headers.get("ETag");
+  if (etag) headers.set("ETag", etag);
+  const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("Range") || "");
+  if (!range) {
+    const len = res.headers.get("Content-Length");
+    if (len) headers.set("Content-Length", len);
+    return new Response(request.method === "HEAD" ? null : res.body, { status: 200, headers });
+  }
+  const buf = await res.arrayBuffer();
+  const size = buf.byteLength;
+  let start: number;
+  let end: number;
+  if (range[1] === "") {
+    // "bytes=-N": the last N bytes
+    start = Math.max(0, size - Number(range[2] || 0));
+    end = size - 1;
+  } else {
+    start = Number(range[1]);
+    end = range[2] === "" ? size - 1 : Math.min(Number(range[2]), size - 1);
+  }
+  if (start >= size || start > end) {
+    headers.set("Content-Range", `bytes */${size}`);
+    return new Response(null, { status: 416, headers });
+  }
+  headers.set("Content-Range", `bytes ${start}-${end}/${size}`);
+  headers.set("Content-Length", String(end - start + 1));
+  return new Response(request.method === "HEAD" ? null : buf.slice(start, end + 1), { status: 206, headers });
+}
+
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
@@ -100,7 +141,9 @@ export default {
   async fetch(request, env, ctx) {
     const redirect = canonicalRedirect(request, env);
     if (redirect) return redirect;
-    if (new URL(request.url).pathname.startsWith("/api/")) return withSecurityHeaders(await app.fetch(request, env, ctx));
+    const { pathname } = new URL(request.url);
+    if (pathname.startsWith("/api/")) return withSecurityHeaders(await app.fetch(request, env, ctx));
+    if (pathname.startsWith("/music/")) return withSecurityHeaders(await serveMusic(request, env));
     return withSecurityHeaders(await env.ASSETS.fetch(request));
   },
   scheduled,
