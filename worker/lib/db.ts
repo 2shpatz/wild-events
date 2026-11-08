@@ -1,9 +1,11 @@
 import { HTTPException } from "hono/http-exception";
 import type { Env } from "../env";
-import type { AlbumDTO, ManageAlbum, MediaDTO, PublicEvent } from "../../shared/types";
+import type { AlbumDTO, GuestMusic, ManageAlbum, MediaDTO, PlayerTrack, PublicEvent, UploadedTrack } from "../../shared/types";
 import { batchGet, createAlbum, ownerToken } from "./google";
 import { randomId } from "./crypto";
 import { parseDesign } from "../../shared/design";
+import { parseMusic, type EventMusic } from "../../shared/music";
+import { libraryTrack, libraryUrl } from "../../shared/musicLibrary";
 import { deviceTag } from "../../shared/deviceTag";
 
 export interface EventRow {
@@ -29,6 +31,19 @@ export interface EventRow {
   default_order: string;
   uploads_open: number;
   design: string | null;
+  music: string | null;
+  created_at: number;
+}
+
+export interface TrackRow {
+  id: string;
+  event_id: string;
+  owner_id: string;
+  drive_id: string;
+  title: string;
+  mime: string;
+  size: number;
+  duration: number | null;
   created_at: number;
 }
 
@@ -100,6 +115,29 @@ export async function eventAssets(env: Env, eventId: string) {
   return { bg, header, invitation, featured, images };
 }
 
+/** Songs the host uploaded for this event (oldest first). */
+export async function eventTracks(env: Env, eventId: string): Promise<UploadedTrack[]> {
+  const r = await env.DB.prepare("SELECT id, title, duration, size FROM event_tracks WHERE event_id = ? ORDER BY created_at")
+    .bind(eventId)
+    .all<{ id: string; title: string; duration: number | null; size: number }>();
+  return r.results.map((t) => ({ id: t.id, title: t.title, duration: t.duration, size: t.size }));
+}
+
+/** Resolves the saved music settings into the guest player's playlist (null = no player). */
+export function guestMusic(code: string, music: EventMusic, uploaded: UploadedTrack[]): GuestMusic | null {
+  if (!music.enabled) return null;
+  const byId = new Map(uploaded.map((t) => [t.id, t]));
+  const tracks = music.tracks.flatMap((ref): PlayerTrack[] => {
+    if (ref.src === "lib") {
+      const t = libraryTrack(ref.id);
+      return t ? [{ key: `lib:${t.id}`, title: t.title, artist: t.artist, url: libraryUrl(t.id) }] : [];
+    }
+    const t = byId.get(ref.id);
+    return t ? [{ key: `up:${t.id}`, title: t.title, artist: null, url: `/api/e/${code}/track/${t.id}` }] : [];
+  });
+  return tracks.length ? { autoStart: music.autoStart, shuffle: music.shuffle, tracks } : null;
+}
+
 export async function toPublicEvent(
   env: Env,
   ev: EventRow,
@@ -113,6 +151,8 @@ export async function toPublicEvent(
     .bind(ev.id)
     .first<{ m: number; a: number }>();
   const assets = await eventAssets(env, ev.id);
+  const music = parseMusic(ev.music, ev.type as PublicEvent["type"]);
+  const uploaded = music.enabled && music.tracks.some((t) => t.src === "up") ? await eventTracks(env, ev.id) : [];
   return {
     id: ev.id,
     code: ev.code,
@@ -132,6 +172,7 @@ export async function toPublicEvent(
     featured: assets.featured,
     images: assets.images,
     design: parseDesign(ev.design),
+    music: guestMusic(ev.code, music, uploaded),
     quality: ev.quality as PublicEvent["quality"],
     keepGps: !!ev.keep_gps,
     defaultView: ev.default_view as PublicEvent["defaultView"],

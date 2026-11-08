@@ -1,15 +1,16 @@
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../env";
-import { changeStmt, cleanName, cleanTime, createEventAlbum, eventByCode, listAlbums, normName, toPublicEvent, type AlbumRow } from "../lib/db";
-import { canManage } from "../lib/session";
+import { changeStmt, cleanName, cleanTime, createEventAlbum, eventByCode, eventTracks, listAlbums, normName, toPublicEvent, type AlbumRow, type TrackRow } from "../lib/db";
+import { canManage, rateLimit } from "../lib/session";
 import { hashPassword, sha256 } from "../lib/crypto";
 import { hideMedia } from "../lib/media";
-import { ownerToken, renameAlbum } from "../lib/google";
+import { driveDelete, driveEnsureFolder, driveUpload, GoogleError, ownerToken, renameAlbum } from "../lib/google";
 import { ownerStorage, slugTaken } from "./owner";
 import { isValidSlug } from "../../shared/slug";
-import { MAX_FEATURED, type ManageEvent } from "../../shared/types";
+import { MAX_FEATURED, type EventType, type ManageEvent } from "../../shared/types";
 import { MAX_IMAGES, sanitizeDesign, usedImageSlots } from "../../shared/design";
+import { AUDIO_MIME_RE, MAX_TRACK_BYTES, MAX_UPLOADED_TRACKS, parseMusic, sanitizeMusic } from "../../shared/music";
 
 export const manage = new Hono<AppEnv>();
 
@@ -31,6 +32,8 @@ manage.get("/e/:code/manage", async (c) => {
     ...pub,
     hasPassword: !!ev.admin_password_hash,
     albums: await listAlbums(c.env, ev.id, true),
+    musicConfig: parseMusic(ev.music, ev.type as EventType),
+    uploadedTracks: await eventTracks(c.env, ev.id),
   };
   return c.json(body);
 });
@@ -87,6 +90,14 @@ manage.patch("/e/:code/manage", async (c) => {
         `DELETE FROM event_assets WHERE event_id = ? AND kind GLOB 'i[0-9]'${keep.length ? ` AND kind NOT IN (${keep.join(",")})` : ""}`,
       ).bind(ev.id),
     );
+  }
+  if (b.music !== undefined) {
+    if (JSON.stringify(b.music ?? null).length > 8 * 1024) throw new HTTPException(413, { message: "too_large" });
+    const music = sanitizeMusic(b.music, ev.type as EventType);
+    // Uploaded songs must belong to this event.
+    const own = new Set((await eventTracks(c.env, ev.id)).map((t) => t.id));
+    music.tracks = music.tracks.filter((t) => t.src === "lib" || own.has(t.id));
+    set("music", JSON.stringify(music));
   }
   if (!sets.length) return c.json({ ok: true });
   await c.env.DB.batch([
@@ -283,5 +294,108 @@ manage.delete("/e/:code/manage", async (c) => {
   const ev = await managedEvent(c);
   if (c.get("ownerId") !== ev.owner_id) throw new HTTPException(403, { message: "owner_only" });
   await c.env.DB.prepare("UPDATE events SET deleted = 1, code = code || '-deleted-' || id WHERE id = ?").bind(ev.id).run();
+  return c.json({ ok: true });
+});
+
+// ------------------------------------------------------------------ uploaded songs (owner's Google Drive)
+
+const trackId = () => [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+async function eventTrack(c: Context<AppEnv>, eventId: string) {
+  const t = await c.env.DB.prepare("SELECT * FROM event_tracks WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("id"), eventId)
+    .first<TrackRow>();
+  if (!t) throw new HTTPException(404, { message: "not_found" });
+  return t;
+}
+
+function cleanTrackTitle(raw: string) {
+  return cleanName(raw.replace(/\.(mp3|m4a|mp4|aac)$/i, "").replace(/[_]+/g, " "), 80);
+}
+
+/** Body = the raw audio file. Headers: Content-Type, Content-Length, X-Filename (URI-encoded), X-Duration (seconds). */
+manage.post("/e/:code/manage/tracks", async (c) => {
+  const ev = await managedEvent(c);
+  const mime = (c.req.header("Content-Type") || "").toLowerCase();
+  if (!AUDIO_MIME_RE.test(mime)) throw new HTTPException(415, { message: "bad_audio" });
+  const size = Number(c.req.header("Content-Length") || 0);
+  if (!size) throw new HTTPException(400, { message: "empty" });
+  if (size > MAX_TRACK_BYTES) throw new HTTPException(413, { message: "track_too_large" });
+  const body = c.req.raw.body;
+  if (!body) throw new HTTPException(400, { message: "empty" });
+  const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM event_tracks WHERE event_id = ?").bind(ev.id).first<{ n: number }>();
+  if ((count?.n ?? 0) >= MAX_UPLOADED_TRACKS) throw new HTTPException(409, { message: "too_many_tracks" });
+  await rateLimit(c.env, `track:${ev.id}`, 60, 3600_000);
+
+  let name = "";
+  try {
+    name = decodeURIComponent(c.req.header("X-Filename") || "");
+  } catch {
+    /* keep empty */
+  }
+  const title = cleanTrackTitle(name) || "שיר";
+  const dur = Math.round(Number(c.req.header("X-Duration")));
+  const duration = Number.isFinite(dur) && dur > 0 && dur < 24 * 3600 ? dur : null;
+  const normMime = mime === "audio/mp3" ? "audio/mpeg" : mime === "audio/x-m4a" ? "audio/mp4" : mime;
+
+  let driveId: string;
+  try {
+    const token = await ownerToken(c.env, ev.owner_id);
+    const owner = await c.env.DB.prepare("SELECT drive_music_folder FROM owners WHERE id = ?")
+      .bind(ev.owner_id)
+      .first<{ drive_music_folder: string | null }>();
+    const folderId = await driveEnsureFolder(token, owner?.drive_music_folder ?? null, "אירוע פרוע - מוזיקה");
+    if (folderId !== owner?.drive_music_folder) {
+      await c.env.DB.prepare("UPDATE owners SET drive_music_folder = ? WHERE id = ?").bind(folderId, ev.owner_id).run();
+    }
+    const { readable, writable } = new FixedLengthStream(size);
+    const pipe = body.pipeTo(writable);
+    [driveId] = await Promise.all([
+      driveUpload(token, { name: `${ev.title} - ${title}`.slice(0, 200), mime: normMime, size, folderId, body: readable }),
+      pipe,
+    ]);
+  } catch (e) {
+    if (e instanceof GoogleError && e.storageFull) throw new HTTPException(507, { message: "storage_full" });
+    throw e;
+  }
+  const id = trackId();
+  await c.env.DB.prepare(
+    "INSERT INTO event_tracks (id, event_id, owner_id, drive_id, title, mime, size, duration, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+  )
+    .bind(id, ev.id, ev.owner_id, driveId, title, normMime, size, duration, Date.now())
+    .run();
+  return c.json({ id, title, duration, size });
+});
+
+manage.patch("/e/:code/manage/tracks/:id", async (c) => {
+  const ev = await managedEvent(c);
+  const t = await eventTrack(c, ev.id);
+  const { title } = await c.req.json<{ title: string }>();
+  const clean = cleanName(title || "", 80);
+  if (!clean) throw new HTTPException(400, { message: "name_required" });
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE event_tracks SET title = ? WHERE id = ?").bind(clean, t.id),
+    changeStmt(c.env, ev.id, "event", null),
+  ]);
+  return c.json({ ok: true });
+});
+
+/** Deletes the song from Drive and from the event's playlist. */
+manage.delete("/e/:code/manage/tracks/:id", async (c) => {
+  const ev = await managedEvent(c);
+  const t = await eventTrack(c, ev.id);
+  try {
+    await driveDelete(await ownerToken(c.env, t.owner_id), t.drive_id);
+  } catch (e) {
+    // The site copy is removed anyway; the file can still be deleted by hand in Drive.
+    console.warn("drive delete failed", t.drive_id, e);
+  }
+  const music = parseMusic(ev.music, ev.type as EventType);
+  music.tracks = music.tracks.filter((r) => !(r.src === "up" && r.id === t.id));
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM event_tracks WHERE id = ?").bind(t.id),
+    c.env.DB.prepare("UPDATE events SET music = ? WHERE id = ?").bind(ev.music ? JSON.stringify(music) : null, ev.id),
+    changeStmt(c.env, ev.id, "event", null),
+  ]);
   return c.json({ ok: true });
 });

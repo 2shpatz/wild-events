@@ -1,4 +1,5 @@
 import type { EventDesign } from "./design";
+import type { EventMusic } from "./music";
 
 export type EventType = "wedding" | "birthday" | "family" | "party" | "general";
 export type ThemeId = EventType;
@@ -31,6 +32,8 @@ export interface PublicEvent {
   images: { slot: number; v: string }[];
   /** guest page layout + title styling (flexible design) */
   design: EventDesign;
+  /** background music for the guest pages; null = off (disabled or empty playlist) */
+  music: GuestMusic | null;
   quality: Quality;
   keepGps: boolean;
   defaultView: ViewMode;
@@ -41,6 +44,29 @@ export interface PublicEvent {
   canManage: boolean;
   isOwner: boolean;
   googleAlbumUrl?: string | null;
+}
+
+export interface PlayerTrack {
+  /** "lib:<id>" | "up:<id>" */
+  key: string;
+  title: string;
+  artist: string | null;
+  url: string;
+}
+
+export interface GuestMusic {
+  autoStart: boolean;
+  shuffle: boolean;
+  tracks: PlayerTrack[];
+}
+
+/** A song the host uploaded (stored in the owner's Google Drive). */
+export interface UploadedTrack {
+  id: string;
+  title: string;
+  /** seconds, if the browser could read it */
+  duration: number | null;
+  size: number;
 }
 
 export interface AlbumDTO {
@@ -121,6 +147,9 @@ export type ManageAlbum = AlbumDTO & { googleAlbumId: string | null; link: Album
 export interface ManageEvent extends PublicEvent {
   hasPassword: boolean;
   albums: ManageAlbum[];
+  /** the saved music settings (also when off) */
+  musicConfig: EventMusic;
+  uploadedTracks: UploadedTrack[];
 }
 
 export interface ImportJobDTO {

@@ -6,6 +6,7 @@ import { ToastProvider, Spinner } from "./components/ui";
 import { MeProvider } from "./lib/session";
 import { UploadDock } from "./components/UploadDock";
 import { SiteFooter } from "./components/SiteFooter";
+import { MusicPlayer } from "./components/music/MusicPlayer";
 
 // Route-level code splitting (skill: --stack react "lazy() for routes and heavy components").
 const Landing = lazy(() => import("./routes/Landing"));
@@ -34,6 +35,8 @@ createRoot(document.getElementById("root")!).render(
         <BrowserRouter>
           {/* Running uploads survive page changes; this shows their progress on every page. */}
           <UploadDock />
+          {/* Background music of the event pages - outside the routes so it keeps playing between pages. */}
+          <MusicPlayer />
           <Suspense fallback={<Spinner className="min-h-dvh" />}>
             <Routes>
               <Route path="/" element={<Landing />} />

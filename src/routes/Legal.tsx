@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { DEVELOPER_URL } from "../components/SiteFooter";
 import { Link } from "react-router-dom";
 import { applyTheme } from "../lib/themes";
+import { LIBRARY, LIBRARY_LICENSE_URL } from "../../shared/musicLibrary";
 
 /** Privacy policy + terms (needed for the Google OAuth consent screen / verification). */
 type Site = { operatorName: string | null; operatorEmail: string | null };
@@ -65,12 +66,14 @@ export default function Legal({ kind }: { kind: "privacy" | "terms" }) {
             <li>התמונות והסרטונים נשמרים בחשבון Google Photos של בעל האירוע בלבד, ולא בשרתי האתר.</li>
             <li>האתר שומר רק נתונים טכניים: מזהה הקובץ ב-Google, שם האלבום שהאורח בחר (בדרך כלל השם שלו), מזהה מכשיר אקראי, וזמני צילום והעלאה.</li>
             <li>לבעלי אירועים נשמרים כתובת האימייל, השם ואסימון גישה מוצפן ל-Google.</li>
+            <li>שירים שבעל האירוע מעלה למוזיקת הרקע נשמרים ב-Google Drive שלו, בתיקייה שהאתר יוצר. האתר שומר רק את שם השיר ואת מזהה הקובץ.</li>
+            <li>נגן המוזיקה זוכר במכשיר של האורח (localStorage) אם עצר את המוזיקה ואיפה הפסיק, כדי להמשיך מאותו מקום בפעם הבאה.</li>
             <li>מיקום GPS מוסר מתמונות דחוסות, אלא אם בעל האירוע בחר לשמור אותו.</li>
           </ul>
           <h2 className="text-xl font-bold">שימוש בנתוני Google</h2>
           <p>
             האתר משתמש בהרשאות Google Photos כדי להעלות תמונות לחשבון בעל האירוע, לנהל את האלבומים שהאתר עצמו יצר ולייבא תמונות שבעל האירוע בחר במפורש. בנוסף הוא
-            קורא את נתוני נפח האחסון (Drive) כדי להציג אותו ולהתריע מעל 80%. האתר לא ניגש לתמונות אחרות בחשבון ולא משתף נתונים עם צד שלישי. השימוש במידע שמתקבל מ-Google
+            קורא את נתוני נפח האחסון (Drive) כדי להציג אותו ולהתריע מעל 80%, ושומר ב-Drive רק את קובצי המוזיקה שבעל האירוע העלה (ההרשאה drive.file לא מאפשרת גישה לקבצים אחרים). האתר לא ניגש לתמונות אחרות בחשבון ולא משתף נתונים עם צד שלישי. השימוש במידע שמתקבל מ-Google
             API עומד ב-
             <a className="underline" href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">
               Google API Services User Data Policy
@@ -96,8 +99,22 @@ export default function Legal({ kind }: { kind: "privacy" | "terms" }) {
             <li>מי שמעלה תמונה מאשר שיש לו זכות לשתף אותה עם בעל האירוע ועם שאר האורחים.</li>
             <li>בעל האירוע אחראי לתוכן שבאירוע שלו, ויכול להסיר כל תמונה.</li>
             <li>אין להעלות תוכן פוגעני או בלתי חוקי.</li>
+            <li>בעל אירוע שמעלה שירים למוזיקת הרקע מאשר שיש לו זכות להשמיע אותם בפומבי לאורחי האירוע.</li>
             <li>השימוש ב-Google Photos כפוף גם לתנאי השימוש של Google.</li>
           </ul>
+          <h2 className="text-xl font-bold">קרדיט למוזיקה</h2>
+          <p>
+            מנגינות הרקע המובנות:{" "}
+            <span dir="ltr">{LIBRARY.map((t) => `"${t.title}"`).join(", ")}</span> מאת Kevin MacLeod (
+            <a className="underline" href="https://incompetech.com" target="_blank" rel="noopener noreferrer">
+              incompetech.com
+            </a>
+            ), ברישיון{" "}
+            <a className="underline" href={LIBRARY_LICENSE_URL} target="_blank" rel="noopener noreferrer" dir="ltr">
+              Creative Commons: By Attribution 4.0
+            </a>
+            .
+          </p>
         </>
       )}
     </main>

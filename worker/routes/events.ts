@@ -14,7 +14,9 @@ import {
   selectIn,
   toMediaDTO,
   toPublicEvent,
+  type TrackRow,
 } from "../lib/db";
+import { driveMedia, ownerToken } from "../lib/google";
 import { canManage, createSession, guestToken, rateLimit, readGuestToken } from "../lib/session";
 import { verifyPassword } from "../lib/crypto";
 import { hideMedia } from "../lib/media";
@@ -50,6 +52,55 @@ events.get("/e/:code/asset/:kind", async (c) => {
       "Cache-Control": "public, max-age=31536000, immutable",
     },
   });
+});
+
+/**
+ * A song the host uploaded, streamed from the owner's Google Drive. Range requests are passed through (iOS needs them).
+ * The full file is kept in the Cloudflare cache, so most plays never reach Drive.
+ */
+events.get("/e/:code/track/:id", async (c) => {
+  const ev = await eventByCode(c.env, c.req.param("code"));
+  const t = await c.env.DB.prepare("SELECT * FROM event_tracks WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("id"), ev.id)
+    .first<TrackRow>();
+  if (!t) throw new HTTPException(404, { message: "not_found" });
+  const range = c.req.header("Range") || null;
+  const cache = typeof caches !== "undefined" ? caches.default : null;
+  const cacheUrl = new URL(`/__track/${t.id}/${encodeURIComponent(t.drive_id)}`, c.req.url).toString();
+  if (cache) {
+    const hit = await cache.match(new Request(cacheUrl, { headers: range ? { Range: range } : {} }));
+    if (hit) return hit;
+  }
+  const token = await ownerToken(c.env, t.owner_id);
+  const headers = (res: Response) => {
+    const h = new Headers({
+      "Content-Type": t.mime,
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "public, max-age=86400",
+    });
+    for (const k of ["Content-Length", "Content-Range"]) {
+      const v = res.headers.get(k);
+      if (v) h.set(k, v);
+    }
+    return h;
+  };
+  const putFull = (res: Response) => cache?.put(cacheUrl, new Response(res.body, { status: 200, headers: headers(res) }));
+  if (range) {
+    const res = await driveMedia(token, t.drive_id, range);
+    if (cache) {
+      c.executionCtx.waitUntil(
+        driveMedia(token, t.drive_id)
+          .then(putFull)
+          .catch((e) => console.warn("track cache fill failed", t.id, e)),
+      );
+    }
+    return new Response(res.body, { status: res.status, headers: headers(res) });
+  }
+  const res = await driveMedia(token, t.drive_id);
+  if (!cache || !res.body) return new Response(res.body, { status: res.status, headers: headers(res) });
+  const [a, b] = res.body.tee();
+  c.executionCtx.waitUntil(Promise.resolve(putFull(new Response(b, { headers: res.headers }))).catch(() => {}));
+  return new Response(a, { status: 200, headers: headers(res) });
 });
 
 // ------------------------------------------------------------------ guest identity

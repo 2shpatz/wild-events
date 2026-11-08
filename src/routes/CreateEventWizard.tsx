@@ -85,6 +85,7 @@ export default function CreateEventWizard() {
       featured: [],
       images: [],
       design: defaultDesign(),
+      music: null,
       quality,
       keepGps: false,
       defaultView: "masonry",

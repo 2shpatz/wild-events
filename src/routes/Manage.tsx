@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowRight, CloudDownload, Eye, FolderOpen, Images, Palette, QrCode, SlidersHorizontal, Camera } from "lucide-react";
+import { ArrowRight, CloudDownload, Eye, FolderOpen, Images, Music, Palette, QrCode, SlidersHorizontal, Camera } from "lucide-react";
 import { api } from "../lib/api";
 import { useFeed } from "../lib/useFeed";
 import { applyTheme } from "../lib/themes";
@@ -12,10 +12,11 @@ import { MediaManager } from "../components/manage/MediaManager";
 import { AlbumsManager } from "../components/manage/AlbumsManager";
 import { SettingsForm } from "../components/manage/SettingsForm";
 import { DesignTab } from "../components/manage/DesignTab";
+import { MusicTab } from "../components/manage/MusicTab";
 import { ImportFromGoogle } from "../components/manage/ImportFromGoogle";
 import { Card, LinkButton, cx } from "../components/ui";
 
-type Tab = "share" | "media" | "albums" | "import" | "design" | "settings";
+type Tab = "share" | "media" | "albums" | "import" | "design" | "music" | "settings";
 
 export default function Manage() {
   const { code = "" } = useParams();
@@ -50,6 +51,7 @@ export default function Manage() {
     { id: "albums", label: "אלבומים", icon: <FolderOpen className="size-4" aria-hidden /> },
     { id: "import", label: "אלבומים מ-Google Photos", icon: <CloudDownload className="size-4" aria-hidden />, ownerOnly: true },
     { id: "design", label: "עיצוב", icon: <Palette className="size-4" aria-hidden /> },
+    { id: "music", label: "מוזיקה", icon: <Music className="size-4" aria-hidden /> },
     { id: "settings", label: "הגדרות", icon: <SlidersHorizontal className="size-4" aria-hidden /> },
   ];
 
@@ -118,6 +120,7 @@ export default function Manage() {
           <ImportFromGoogle code={code} albums={event.albums} quality={event.quality} onImported={() => { load(); feed.reload(); }} />
         )}
         {tab === "design" && <DesignTab event={event} onChanged={load} />}
+        {tab === "music" && <MusicTab event={event} onChanged={load} />}
         {tab === "settings" && <SettingsForm event={event} onChanged={load} />}
       </main>
     </div>

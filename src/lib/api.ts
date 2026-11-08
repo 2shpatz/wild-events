@@ -40,6 +40,11 @@ const MESSAGES: Record<string, string> = {
   bad_album_link: "הקישור לא נראה כמו קישור לאלבום ב-Google Photos. הוא אמור להתחיל ב-https://photos.app.goo.gl/ או ב-https://photos.google.com/.",
   not_linked: "האלבום הזה לא מקושר לאלבום ב-Google Photos.",
   not_ready: "הבחירה עוד לא הסתיימה.",
+  bad_audio: "אפשר להעלות רק קובצי שמע מסוג MP3 או M4A.",
+  track_too_large: "השיר גדול מדי (עד 20MB). אפשר לשמור אותו באיכות נמוכה יותר ולנסות שוב.",
+  too_many_tracks: "הגעתם למספר השירים המקסימלי לאירוע (30). אפשר למחוק שיר ישן ולהעלות חדש.",
+  empty: "הקובץ ריק.",
+  not_found: "הפריט לא נמצא - אולי הוא כבר נמחק.",
   network: "אין חיבור לאינטרנט. ננסה שוב כשהחיבור יחזור.",
   server_error: "משהו השתבש אצלנו. ננסה שוב.",
 };

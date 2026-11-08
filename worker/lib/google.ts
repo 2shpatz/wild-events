@@ -395,3 +395,70 @@ export async function storageQuota(token: string): Promise<StorageQuota> {
     usage: Number(res.storageQuota.usage || 0),
   };
 }
+
+// ---------------------------------------------------------------- Drive files (uploaded songs)
+// drive.file only reaches files this app created, which is exactly the music folder and the songs in it.
+
+const DRIVE = "https://www.googleapis.com/drive/v3";
+const DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3";
+
+/** Returns the id of the app's music folder, creating it again if it is missing or in the trash. */
+export async function driveEnsureFolder(token: string, folderId: string | null, name: string): Promise<string> {
+  if (folderId) {
+    try {
+      const f = await gjson<{ id: string; trashed?: boolean }>(`${DRIVE}/files/${encodeURIComponent(folderId)}?fields=id,trashed`, { token });
+      if (!f.trashed) return f.id;
+    } catch (e) {
+      if (!(e instanceof GoogleError && e.status === 404)) throw e;
+    }
+  }
+  const f = await gjson<{ id: string }>(`${DRIVE}/files?fields=id`, {
+    method: "POST",
+    token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder" }),
+  });
+  return f.id;
+}
+
+/** Streams a file into Drive (resumable session, single PUT). Body must have exactly `size` bytes. */
+export async function driveUpload(
+  token: string,
+  file: { name: string; mime: string; size: number; folderId: string; body: ReadableStream | ArrayBuffer },
+): Promise<string> {
+  const start = await gfetch(`${DRIVE_UPLOAD}/files?uploadType=resumable&fields=id`, {
+    method: "POST",
+    token,
+    headers: {
+      "Content-Type": "application/json; charset=UTF-8",
+      "X-Upload-Content-Type": file.mime,
+      "X-Upload-Content-Length": String(file.size),
+    },
+    body: JSON.stringify({ name: file.name, mimeType: file.mime, parents: [file.folderId] }),
+  });
+  const session = start.headers.get("Location");
+  if (!session) throw new GoogleError(502, "no_upload_url", "Drive did not return an upload URL");
+  const res = await gfetch(session, {
+    method: "PUT",
+    headers: { "Content-Type": file.mime, "Content-Length": String(file.size) },
+    body: file.body,
+  });
+  const out = (await res.json()) as { id?: string };
+  if (!out.id) throw new GoogleError(502, "no_file_id", "Drive did not return a file id");
+  return out.id;
+}
+
+/** File bytes; the Range header (if any) is passed through, so the response may be 206. */
+export function driveMedia(token: string, fileId: string, range?: string | null) {
+  const headers: Record<string, string> = {};
+  if (range) headers.Range = range;
+  return gfetch(`${DRIVE}/files/${encodeURIComponent(fileId)}?alt=media`, { token, headers });
+}
+
+export async function driveDelete(token: string, fileId: string) {
+  try {
+    await gfetch(`${DRIVE}/files/${encodeURIComponent(fileId)}`, { method: "DELETE", token });
+  } catch (e) {
+    if (!(e instanceof GoogleError && e.status === 404)) throw e;
+  }
+}

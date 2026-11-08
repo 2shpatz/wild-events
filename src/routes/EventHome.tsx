@@ -102,7 +102,7 @@ export default function EventHome() {
           {headerImg ? <img src={headerImg} alt="" className="size-full object-cover opacity-50" /> : <div className={cx("size-full opacity-50", bg.className)} style={bg.style} />}
           <div className="absolute inset-0 bg-zinc-950/45 backdrop-blur-md" />
         </div>
-        <div className="relative mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 pt-[env(safe-area-inset-top)]" style={titleFontVars(barFont)}>
+        <div className="relative mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 ps-[max(1rem,var(--music-inset,0px))] pt-[env(safe-area-inset-top)]" style={titleFontVars(barFont)}>
           {headerImg && <img src={headerImg} alt="" className="size-10 shrink-0 rounded-full object-cover ring-2 ring-white/70" />}
           <p className="min-w-0 flex-1 truncate font-title text-xl">{event.title}</p>
           <Link to={`/${event.code}/gallery`} tabIndex={barShown ? 0 : -1} className="hidden min-h-10 items-center gap-1.5 rounded-full bg-white/15 px-3 text-sm font-semibold hover:bg-white/25 sm:inline-flex">

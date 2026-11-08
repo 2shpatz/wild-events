@@ -34,6 +34,7 @@ import { savedIdentity } from "../lib/device";
 import { deviceTag } from "../../shared/deviceTag";
 import { api, errorMessage } from "../lib/api";
 import type { MediaDTO, ViewMode, ViewOrder } from "../../shared/types";
+import { useHideMusicPlayer } from "../components/music/MusicPlayer";
 
 const ORDERS: { value: ViewOrder; label: string; icon: React.ReactNode }[] = [
   { value: "mixed", label: "הכל מעורבב", icon: <Shuffle className="size-4" aria-hidden /> },
@@ -79,6 +80,7 @@ export default function Gallery() {
   const isMobile = useIsMobile();
   const [sheet, setSheet] = useState(false);
   const [immersive, setImmersive] = useState(false);
+  useHideMusicPlayer(immersive);
 
   // Fullscreen viewing: native Fullscreen API where supported (Android, desktop, iPad);
   // on iPhone Safari (no page fullscreen) the immersive mode alone fills the screen and hides all chrome.

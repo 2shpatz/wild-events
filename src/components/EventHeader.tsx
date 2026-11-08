@@ -91,7 +91,7 @@ export function EventHeader({
       </div>
 
       {/* Sticky bar. */}
-      <div className="relative mx-auto flex min-h-16 max-w-[1600px] items-center gap-2 px-3 sm:px-4">
+      <div className="relative mx-auto flex min-h-16 max-w-[1600px] items-center gap-2 px-3 ps-[max(0.75rem,var(--music-inset,0px))] sm:px-4 sm:ps-[max(1rem,var(--music-inset,0px))]">
         {backTo && (
           <Link to={backTo} className="inline-flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-white/15" aria-label={backLabel}>
             <ArrowRight className="size-6" aria-hidden />
