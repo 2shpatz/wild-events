@@ -6,7 +6,7 @@ import { useFeed } from "../lib/useFeed";
 import { applyTheme } from "../lib/themes";
 import type { ManageEvent } from "../../shared/types";
 import { EventStatus } from "../components/EventChrome";
-import { StorageMeter } from "../components/StorageMeter";
+import { StorageAccountSection } from "../components/manage/StorageAccountSection";
 import { QRShare } from "../components/QRShare";
 import { MediaManager } from "../components/manage/MediaManager";
 import { AlbumsManager } from "../components/manage/AlbumsManager";
@@ -106,8 +106,8 @@ export default function Manage() {
       </header>
 
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
-        {/* Always show the main user's storage usage + link to the real Google Photos. */}
-        <StorageMeter endpoint={`/e/${code}/manage/storage`} originalQuality={event.quality === "original"} googleAlbumUrl={event.googleAlbumUrl} />
+        {/* Always show the storage of the event's Google account + link to the real Google Photos (+ moving to another account). */}
+        <StorageAccountSection event={event} onChanged={load} />
 
         {tab === "share" && (
           <Card>

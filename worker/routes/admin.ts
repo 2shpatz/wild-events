@@ -221,23 +221,30 @@ admin.post("/members/delete", async (c) => {
     : null;
   const db = c.env.DB;
   const stmts = [db.prepare("DELETE FROM members WHERE email = ?").bind(m.email)];
+  // Extra Google accounts they connected for event photos: withdraw the site's access too.
+  const extra = owner
+    ? (await db.prepare("SELECT refresh_token_enc FROM storage_accounts WHERE owner_id = ?").bind(owner.id).all<{ refresh_token_enc: string | null }>()).results
+    : [];
   if (owner) {
     const ev = "SELECT id FROM events WHERE owner_id = ?";
     stmts.unshift(
       ...endUserSessions(c.env, owner.id),
       db.prepare(`DELETE FROM import_items WHERE job_id IN (SELECT id FROM import_jobs WHERE owner_id = ?)`).bind(owner.id),
       db.prepare("DELETE FROM import_jobs WHERE owner_id = ?").bind(owner.id),
-      ...["event_assets", "album_devices", "media", "changes", "uploads", "event_tracks", "albums"].map((t) =>
+      db.prepare(`DELETE FROM storage_migration_albums WHERE job_id IN (SELECT id FROM storage_migrations WHERE event_id IN (${ev}))`).bind(owner.id),
+      ...["event_assets", "album_devices", "media", "changes", "uploads", "event_tracks", "albums", "storage_migrations"].map((t) =>
         db.prepare(`DELETE FROM ${t} WHERE event_id IN (${ev})`).bind(owner.id),
       ),
       db.prepare("DELETE FROM events WHERE owner_id = ?").bind(owner.id),
+      db.prepare("DELETE FROM storage_accounts WHERE owner_id = ?").bind(owner.id),
       db.prepare("DELETE FROM owners WHERE id = ?").bind(owner.id),
     );
   }
   await db.batch(stmts);
-  if (owner?.refresh_token_enc) {
+  for (const enc of [owner?.refresh_token_enc, ...extra.map((a) => a.refresh_token_enc)]) {
+    if (!enc) continue;
     try {
-      await revokeToken(await decrypt(c.env.TOKEN_ENC_KEY, owner.refresh_token_enc));
+      await revokeToken(await decrypt(c.env.TOKEN_ENC_KEY, enc));
     } catch {
       /* the grant may already be gone */
     }

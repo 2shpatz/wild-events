@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Link } from "react-router-dom";
-import { Camera, ImageIcon, Images, Lock, Play, Radio, X, ZoomIn } from "lucide-react";
+import { Camera, ImageIcon, Images, Lock, Play, Radio, Wrench, X, ZoomIn } from "lucide-react";
 import type { Block, ImageBlock, TextBlock } from "../../../shared/design";
 import type { MediaDTO, PublicEvent } from "../../../shared/types";
 import { Reveal } from "../Reveal";
@@ -207,7 +207,13 @@ function LiveSection({ event, dark, choiceRef }: { event: PublicEvent; dark: boo
           </Link>
         </Reveal>
         <Reveal variant="end" delay={200}>
-          {event.uploadsOpen ? (
+          {event.uploadsOpen && event.maintenance ? (
+            <div role="status" className={cx("flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 py-8 text-center", dark ? "bg-white/10" : "bg-card/80")}>
+              <Wrench className="size-8" aria-hidden />
+              <span className="text-lg font-semibold">האתר בתחזוקה קצרה</span>
+              <span className="text-base opacity-85">נסו להעלות שוב בעוד כמה דקות</span>
+            </div>
+          ) : event.uploadsOpen ? (
             <Link
               to={`/${event.code}/upload`}
               className="flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] bg-accent px-6 py-8 text-center text-on-accent shadow-lift transition-[filter,transform] duration-200 hover:brightness-110 active:scale-[0.99]"

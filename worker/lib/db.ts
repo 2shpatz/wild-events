@@ -1,7 +1,8 @@
 import { HTTPException } from "hono/http-exception";
 import type { Env } from "../env";
 import type { AlbumDTO, GuestMusic, ManageAlbum, MediaDTO, PlayerTrack, PublicEvent, UploadedTrack } from "../../shared/types";
-import { batchGet, createAlbum, ownerToken } from "./google";
+import { batchGet, createAlbum } from "./google";
+import { eventRef, eventToken, tokenForRef } from "./accounts";
 import { randomId } from "./crypto";
 import { parseDesign } from "../../shared/design";
 import { parseMusic, type EventMusic } from "../../shared/music";
@@ -32,6 +33,10 @@ export interface EventRow {
   uploads_open: number;
   design: string | null;
   music: string | null;
+  /** NULL = the owner's login account */
+  storage_account_id: string | null;
+  /** id of the running move to another account (uploads pause meanwhile) */
+  migrating: string | null;
   created_at: number;
 }
 
@@ -45,6 +50,7 @@ export interface TrackRow {
   size: number;
   duration: number | null;
   created_at: number;
+  account_ref: string;
 }
 
 export interface AlbumRow {
@@ -76,6 +82,8 @@ export interface MediaRow {
   processing: number;
   hidden: number;
   device_id: string | null;
+  /** which Google account holds the item ('self' | storage account id) */
+  account_ref?: string;
 }
 
 /** "HH:MM" or null. */
@@ -190,6 +198,7 @@ export async function toPublicEvent(
     canManage: opts.canManage,
     isOwner: opts.isOwner,
     googleAlbumUrl: opts.canManage ? ev.google_album_url : undefined,
+    maintenance: !!ev.migrating,
   };
 }
 
@@ -251,31 +260,50 @@ const MAX_REFRESH_PER_REQUEST = 250; // keeps CPU time & subrequests within the 
  * Ensures media rows have a fresh Google base URL. Refreshes at most MAX_REFRESH_PER_REQUEST
  * items (newest first); the client lazily requests the rest via /urls.
  */
-export async function ensureUrls(env: Env, ownerId: string, rows: MediaRow[]): Promise<MediaRow[]> {
+export async function ensureUrls(
+  env: Env,
+  ev: Pick<EventRow, "owner_id" | "storage_account_id">,
+  rows: MediaRow[],
+): Promise<MediaRow[]> {
   const now = Date.now();
   const stale = rows.filter((r) => !r.base_url || r.base_url_exp < now + 5 * 60_000).slice(0, MAX_REFRESH_PER_REQUEST);
   if (!stale.length) return rows;
-  const token = await ownerToken(env, ownerId);
-  const fresh = await batchGet(
-    token,
-    stale.map((r) => r.google_id),
-  );
-  const byGoogle = new Map(fresh.map((m) => [m.id, m]));
-  const stmts: D1PreparedStatement[] = [];
+  // Items normally all live in the event's account; while it moves to another account they are split.
+  const byRef = new Map<string, MediaRow[]>();
   for (const r of stale) {
-    const g = byGoogle.get(r.google_id);
-    if (!g?.baseUrl) continue;
-    r.base_url = g.baseUrl;
-    r.base_url_exp = now + URL_TTL;
-    const vs = g.mediaMetadata?.video?.status;
-    r.processing = vs && vs !== "READY" ? 1 : 0;
-    if (g.mediaMetadata?.width) r.width = Number(g.mediaMetadata.width);
-    if (g.mediaMetadata?.height) r.height = Number(g.mediaMetadata.height);
-    stmts.push(
-      env.DB.prepare(
-        "UPDATE media SET base_url = ?, base_url_exp = ?, processing = ?, width = ?, height = ? WHERE id = ?",
-      ).bind(r.base_url, r.base_url_exp, r.processing, r.width, r.height, r.id),
-    );
+    const ref = r.account_ref || eventRef(ev);
+    byRef.set(ref, [...(byRef.get(ref) || []), r]);
+  }
+  const stmts: D1PreparedStatement[] = [];
+  for (const [ref, group] of byRef) {
+    let fresh;
+    try {
+      fresh = await batchGet(
+        await tokenForRef(env, ev.owner_id, ref),
+        group.map((r) => r.google_id),
+      );
+    } catch (e) {
+      // One unreachable account must not hide the items of the other one.
+      if (byRef.size === 1) throw e;
+      console.warn("ensureUrls: account unreachable", ref, e);
+      continue;
+    }
+    const byGoogle = new Map(fresh.map((m) => [m.id, m]));
+    for (const r of group) {
+      const g = byGoogle.get(r.google_id);
+      if (!g?.baseUrl) continue;
+      r.base_url = g.baseUrl;
+      r.base_url_exp = now + URL_TTL;
+      const vs = g.mediaMetadata?.video?.status;
+      r.processing = vs && vs !== "READY" ? 1 : 0;
+      if (g.mediaMetadata?.width) r.width = Number(g.mediaMetadata.width);
+      if (g.mediaMetadata?.height) r.height = Number(g.mediaMetadata.height);
+      stmts.push(
+        env.DB.prepare(
+          "UPDATE media SET base_url = ?, base_url_exp = ?, processing = ?, width = ?, height = ? WHERE id = ?",
+        ).bind(r.base_url, r.base_url_exp, r.processing, r.width, r.height, r.id),
+      );
+    }
   }
   if (stmts.length) await env.DB.batch(stmts);
   return rows;
@@ -305,11 +333,11 @@ export function changeStmt(env: Env, eventId: string, op: string, refId: string 
 /** Creates an album row + the matching Google Photos album. */
 export async function createEventAlbum(
   env: Env,
-  ev: Pick<EventRow, "id" | "owner_id" | "title">,
+  ev: Pick<EventRow, "id" | "owner_id" | "title" | "storage_account_id">,
   kind: "guest" | "host" | "custom",
   name: string,
 ): Promise<AlbumRow> {
-  const token = await ownerToken(env, ev.owner_id);
+  const token = await eventToken(env, ev);
   const g = await createAlbum(token, `${ev.title} · ${name}`);
   const row: AlbumRow = {
     id: randomId(9),

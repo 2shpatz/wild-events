@@ -14,6 +14,7 @@ import {
   SCOPES,
   storageQuota,
   userInfo,
+  type TokenResponse,
 } from "../lib/google";
 import { createSession, destroySessions, hasSetupSession, isSiteAdmin, rateLimit } from "../lib/session";
 import { findMember, getSetting, getSiteAdmin, normEmail, putSetting, siteOrigin, waitlistEnabled, type MemberRow } from "../lib/site";
@@ -34,13 +35,19 @@ auth.get("/login", async (c) => {
   if (!client) return c.redirect("/login?error=not_configured");
   // login: normal owner login · test: setup wizard connection test (also claims site admin)
   // claim: setup wizard, only makes this Google account the site admin · mail: the admin allows sending email
+  // storage: a logged-in owner connects another Google account to hold event photos (no login as that account)
   const q = c.req.query("mode");
-  const mode = q === "test" || q === "mail" || q === "claim" ? q : "login";
+  const mode = q === "test" || q === "mail" || q === "claim" || q === "storage" ? q : "login";
   if ((mode === "test" || mode === "claim") && !(await hasSetupSession(c))) return c.redirect("/setup");
   let hint: string | undefined;
   if (mode === "mail") {
     if (!(await isSiteAdmin(c))) return c.redirect("/dashboard");
     hint = (await getSiteAdmin(c.env))?.email;
+  }
+  if (mode === "storage") {
+    if (!c.get("ownerId")) return c.redirect(`/login?next=${encodeURIComponent(safeNext(c.req.query("next")))}`);
+    const h = (c.req.query("hint") || "").trim();
+    if (h && h.length < 200 && h.includes("@")) hint = h;
   }
   const payload = b64url(
     new TextEncoder().encode(JSON.stringify({ n: randomId(12), m: mode, next: safeNext(c.req.query("next")) })),
@@ -54,7 +61,17 @@ auth.get("/login", async (c) => {
     maxAge: 900,
   });
   const origin = new URL(c.req.url).origin;
-  return c.redirect(authUrl(client, `${origin}/api/auth/callback`, state, hint, mode === "mail" ? [GMAIL_SEND] : []));
+  return c.redirect(
+    authUrl(
+      client,
+      `${origin}/api/auth/callback`,
+      state,
+      hint,
+      mode === "mail" ? [GMAIL_SEND] : [],
+      // Always show the account chooser, so the owner can pick (or add) the new account.
+      mode === "storage" && !hint ? "consent select_account" : "consent",
+    ),
+  );
 });
 
 auth.get("/callback", async (c) => {
@@ -68,7 +85,15 @@ auth.get("/callback", async (c) => {
   }
   const st = JSON.parse(new TextDecoder().decode(fromB64url(payload))) as { m: string; next: string };
   const fail = (code: string) =>
-    c.redirect(st.m === "test" || st.m === "claim" ? `/setup?error=${code}` : st.m === "mail" ? `/admin?tab=settings&mail=${code}` : `/login?error=${code}`);
+    c.redirect(
+      st.m === "test" || st.m === "claim"
+        ? `/setup?error=${code}`
+        : st.m === "mail"
+          ? `/admin?tab=settings&mail=${code}`
+          : st.m === "storage"
+            ? withQuery(st.next, { account_error: code })
+            : `/login?error=${code}`,
+    );
 
   const err = c.req.query("error");
   if (err) return fail(err === "access_denied" ? "denied" : err);
@@ -88,6 +113,30 @@ auth.get("/callback", async (c) => {
 
   const me = await userInfo(tokens.access_token);
   const now = Date.now();
+
+  if (st.m === "storage") {
+    const ownerId = c.get("ownerId");
+    if (!ownerId) return c.redirect("/login");
+    const own = await c.env.DB.prepare("SELECT google_sub FROM owners WHERE id = ?").bind(ownerId).first<{ google_sub: string }>();
+    // The account they log in with is already on the list ("self"); this also reconnects it if its access expired.
+    if (own?.google_sub === me.sub) {
+      await c.env.DB.prepare(
+        `UPDATE owners SET access_token_enc = ?, access_expires = ?, scopes = ?, refresh_token_enc = COALESCE(?, refresh_token_enc),
+           storage_checked = 0 WHERE id = ?`,
+      )
+        .bind(
+          await encrypt(c.env.TOKEN_ENC_KEY, tokens.access_token),
+          now + tokens.expires_in * 1000,
+          tokens.scope,
+          tokens.refresh_token ? await encrypt(c.env.TOKEN_ENC_KEY, tokens.refresh_token) : null,
+          ownerId,
+        )
+        .run();
+      return c.redirect(withQuery(st.next, { account: "self" }));
+    }
+    const accountId = await saveStorageAccount(c.env, ownerId, me, tokens, now);
+    return c.redirect(withQuery(st.next, { connected: accountId }));
+  }
 
   if (st.m === "mail") {
     // Only the site admin's own account can become the email sender.
@@ -143,6 +192,40 @@ auth.get("/callback", async (c) => {
 });
 
 type GoogleUser = { sub: string; email: string; name?: string; picture?: string };
+
+/** Adds a query parameter to a same-site path (keeps any existing query). */
+function withQuery(path: string, params: Record<string, string>) {
+  const u = new URL(path, "https://x.invalid");
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+  return `${u.pathname}${u.search}`;
+}
+
+/** Stores (or reconnects) an extra Google account that holds event photos. Returns its id. */
+async function saveStorageAccount(env: Env, ownerId: string, me: GoogleUser, tokens: TokenResponse, now: number) {
+  const existing = await env.DB.prepare("SELECT id FROM storage_accounts WHERE owner_id = ? AND google_sub = ?")
+    .bind(ownerId, me.sub)
+    .first<{ id: string }>();
+  const accessEnc = await encrypt(env.TOKEN_ENC_KEY, tokens.access_token);
+  const refreshEnc = tokens.refresh_token ? await encrypt(env.TOKEN_ENC_KEY, tokens.refresh_token) : null;
+  const expires = now + tokens.expires_in * 1000;
+  if (existing) {
+    await env.DB.prepare(
+      `UPDATE storage_accounts SET email = ?, name = ?, picture = ?, access_token_enc = ?, access_expires = ?, scopes = ?,
+         refresh_token_enc = COALESCE(?, refresh_token_enc), storage_checked = 0 WHERE id = ?`,
+    )
+      .bind(me.email, me.name ?? null, me.picture ?? null, accessEnc, expires, tokens.scope, refreshEnc, existing.id)
+      .run();
+    return existing.id;
+  }
+  const id = randomId(12);
+  await env.DB.prepare(
+    `INSERT INTO storage_accounts (id, owner_id, google_sub, email, name, picture, refresh_token_enc, access_token_enc, access_expires, scopes, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+  )
+    .bind(id, ownerId, me.sub, me.email, me.name ?? null, me.picture ?? null, refreshEnc, accessEnc, expires, tokens.scope, now)
+    .run();
+  return id;
+}
 
 /** Marks the member approved (creating the row if needed) and records their Google account. */
 async function upsertApproved(env: Env, member: MemberRow | null, me: GoogleUser, source: string, now: number) {

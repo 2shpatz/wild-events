@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv, Env } from "../env";
 import { eventCode, hashPassword, randomId } from "../lib/crypto";
-import { createAlbum, ownerToken, storageQuota } from "../lib/google";
+import { createAlbum } from "../lib/google";
+import { accountStorage, assertOwnAccount, listAccounts, removeAccount, SELF, tokenForRef } from "../lib/accounts";
 import { cleanName, cleanTime, createEventAlbum } from "../lib/db";
 import { rateLimit, requireOwner } from "../lib/session";
 import type { OwnerEventSummary, StorageInfo } from "../../shared/types";
@@ -11,28 +12,40 @@ import { isValidSlug, suggestSlug } from "../../shared/slug";
 export const owner = new Hono<AppEnv>();
 owner.use("/*", requireOwner);
 
-export const STORAGE_ALERT = 0.8;
 const EVENT_TYPES = ["wedding", "birthday", "family", "party", "general"];
 
-export async function ownerStorage(env: Env, ownerId: string, fresh = false): Promise<StorageInfo> {
-  const row = await env.DB.prepare("SELECT storage_json, storage_checked FROM owners WHERE id = ?")
-    .bind(ownerId)
-    .first<{ storage_json: string | null; storage_checked: number }>();
-  let q = row?.storage_json ? (JSON.parse(row.storage_json) as { limit: number | null; usage: number }) : null;
-  let checkedAt = row?.storage_checked ?? 0;
-  if (!q || fresh || Date.now() - checkedAt > 10 * 60_000) {
-    q = await storageQuota(await ownerToken(env, ownerId));
-    checkedAt = Date.now();
-    await env.DB.prepare("UPDATE owners SET storage_json = ?, storage_checked = ? WHERE id = ?")
-      .bind(JSON.stringify(q), checkedAt, ownerId)
-      .run();
-  }
-  const percent = q.limit ? q.usage / q.limit : null;
-  return { limit: q.limit, usage: q.usage, percent, alert: percent !== null && percent >= STORAGE_ALERT, checkedAt };
+/** The owner's own login account. */
+export function ownerStorage(env: Env, ownerId: string, fresh = false): Promise<StorageInfo> {
+  return accountStorage(env, ownerId, SELF, fresh);
 }
 
 owner.get("/storage", async (c) => {
   return c.json(await ownerStorage(c.env, c.get("ownerId")!, c.req.query("fresh") === "1"));
+});
+
+/** Every Google account the owner can store event photos in, with free space. */
+owner.get("/accounts", async (c) => {
+  const accounts = await listAccounts(c.env, c.get("ownerId")!, c.req.query("fresh") === "1");
+  return c.json({ accounts });
+});
+
+/** Disconnects a storage account (only when no event is stored in it). */
+owner.delete("/accounts/:id", async (c) => {
+  const ownerId = c.get("ownerId")!;
+  const id = c.req.param("id");
+  const row = await c.env.DB.prepare("SELECT id FROM storage_accounts WHERE id = ? AND owner_id = ?").bind(id, ownerId).first();
+  if (!row) throw new HTTPException(404, { message: "account_not_found" });
+  const used = await c.env.DB.prepare(
+    `SELECT 1 FROM events e WHERE e.owner_id = ?1 AND e.deleted = 0
+        AND (e.storage_account_id = ?2 OR EXISTS (SELECT 1 FROM media m WHERE m.event_id = e.id AND m.hidden = 0 AND m.account_ref = ?2)
+             OR EXISTS (SELECT 1 FROM storage_migrations s WHERE s.event_id = e.id AND s.status = 'running' AND s.to_ref = ?2))
+      LIMIT 1`,
+  )
+    .bind(ownerId, id)
+    .first();
+  if (used) throw new HTTPException(409, { message: "account_in_use" });
+  await removeAccount(c.env, id);
+  return c.json({ ok: true });
 });
 
 owner.get("/events", async (c) => {
@@ -96,6 +109,8 @@ owner.post("/events", async (c) => {
     quality?: string;
     adminPassword?: string;
     code?: string;
+    /** "self" (the login account) or one of the owner's storage accounts */
+    storageAccountId?: string;
   }>();
   const title = cleanName(b.title || "", 80);
   if (!title) throw new HTTPException(400, { message: "title_required" });
@@ -119,13 +134,15 @@ owner.post("/events", async (c) => {
     }
   }
 
-  const token = await ownerToken(c.env, ownerId);
+  const ref = await assertOwnAccount(c.env, ownerId, b.storageAccountId);
+  const storageAccountId = ref === SELF ? null : ref;
+  const token = await tokenForRef(c.env, ownerId, ref);
   const master = await createAlbum(token, `${title} · כל התמונות`);
   const id = randomId(9);
   await c.env.DB.prepare(
     `INSERT INTO events (id, owner_id, code, title, subtitle, welcome, event_date, event_time, venue_name, venue_address, type, theme, background, quality,
-       admin_password_hash, google_album_id, google_album_url, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       admin_password_hash, google_album_id, google_album_url, created_at, storage_account_id)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   )
     .bind(
       id,
@@ -146,8 +163,9 @@ owner.post("/events", async (c) => {
       master.id,
       master.productUrl,
       Date.now(),
+      storageAccountId,
     )
     .run();
-  await createEventAlbum(c.env, { id, owner_id: ownerId, title }, "host", "בעלי השמחה");
+  await createEventAlbum(c.env, { id, owner_id: ownerId, title, storage_account_id: storageAccountId }, "host", "בעלי השמחה");
   return c.json({ id, code });
 });

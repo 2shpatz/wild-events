@@ -89,14 +89,21 @@ export async function getOAuthClient(env: Env): Promise<OAuthClient | null> {
   return value;
 }
 
-export function authUrl(client: OAuthClient, redirectUri: string, state: string, loginHint?: string, extraScopes: string[] = []) {
+export function authUrl(
+  client: OAuthClient,
+  redirectUri: string,
+  state: string,
+  loginHint?: string,
+  extraScopes: string[] = [],
+  prompt = "consent",
+) {
   const p = new URLSearchParams({
     client_id: client.clientId,
     redirect_uri: redirectUri,
     response_type: "code",
     scope: [...SCOPES, ...extraScopes].join(" "),
     access_type: "offline",
-    prompt: "consent",
+    prompt,
     include_granted_scopes: "true",
     state,
   });
@@ -159,14 +166,14 @@ export async function userInfo(accessToken: string) {
   );
 }
 
-/** Returns a valid access token for the owner, refreshing (and persisting) when needed. */
-export async function ownerToken(env: Env, ownerId: string): Promise<string> {
-  const row = await env.DB.prepare(
-    "SELECT refresh_token_enc, access_token_enc, access_expires FROM owners WHERE id = ?",
-  )
-    .bind(ownerId)
+type TokenTable = "owners" | "storage_accounts";
+
+/** Returns a valid access token for a stored Google account, refreshing (and persisting) when needed. */
+async function cachedToken(env: Env, table: TokenTable, id: string): Promise<string> {
+  const row = await env.DB.prepare(`SELECT refresh_token_enc, access_token_enc, access_expires FROM ${table} WHERE id = ?`)
+    .bind(id)
     .first<{ refresh_token_enc: string | null; access_token_enc: string | null; access_expires: number }>();
-  if (!row?.refresh_token_enc) throw new GoogleError(401, "invalid_grant", "owner not connected");
+  if (!row?.refresh_token_enc) throw new GoogleError(401, "invalid_grant", `${table} account not connected`);
   if (row.access_token_enc && row.access_expires > Date.now() + 120_000) {
     return decrypt(env.TOKEN_ENC_KEY, row.access_token_enc);
   }
@@ -174,19 +181,29 @@ export async function ownerToken(env: Env, ownerId: string): Promise<string> {
   if (!client) throw new GoogleError(500, "not_configured", "Google client not configured");
   try {
     const t = await refresh(client, await decrypt(env.TOKEN_ENC_KEY, row.refresh_token_enc));
-    await env.DB.prepare("UPDATE owners SET access_token_enc = ?, access_expires = ? WHERE id = ?")
-      .bind(await encrypt(env.TOKEN_ENC_KEY, t.access_token), Date.now() + t.expires_in * 1000, ownerId)
+    await env.DB.prepare(`UPDATE ${table} SET access_token_enc = ?, access_expires = ? WHERE id = ?`)
+      .bind(await encrypt(env.TOKEN_ENC_KEY, t.access_token), Date.now() + t.expires_in * 1000, id)
       .run();
     return t.access_token;
   } catch (e) {
     if (e instanceof GoogleError && (e.googleStatus === "invalid_grant" || e.status === 400)) {
-      await env.DB.prepare("UPDATE owners SET refresh_token_enc = NULL, access_token_enc = NULL WHERE id = ?")
-        .bind(ownerId)
+      await env.DB.prepare(`UPDATE ${table} SET refresh_token_enc = NULL, access_token_enc = NULL WHERE id = ?`)
+        .bind(id)
         .run();
       throw new GoogleError(401, "invalid_grant", "Google access was revoked or expired");
     }
     throw e;
   }
+}
+
+/** The owner's own login account. */
+export function ownerToken(env: Env, ownerId: string): Promise<string> {
+  return cachedToken(env, "owners", ownerId);
+}
+
+/** An extra storage account the owner connected for event photos. */
+export function accountToken(env: Env, accountId: string): Promise<string> {
+  return cachedToken(env, "storage_accounts", accountId);
 }
 
 // ---------------------------------------------------------------- Photos Library
@@ -393,6 +410,9 @@ export async function pickerDelete(token: string, id: string) {
 export async function pickerDownload(token: string, baseUrl: string, suffix: string) {
   return gfetch(`${baseUrl}${suffix}`, { token });
 }
+
+/** Downloads the bytes of an item the app created (Library API base URL; =d photo, =dv video). */
+export const mediaDownload = pickerDownload;
 
 // ---------------------------------------------------------------- Drive storage
 

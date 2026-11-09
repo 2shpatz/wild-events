@@ -2,7 +2,8 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../env";
 import { type AlbumRow, eventByCode, type EventRow } from "../lib/db";
-import { GoogleError, ownerToken, startResumable, uploadChunk, uploadRaw } from "../lib/google";
+import { GoogleError, startResumable, uploadChunk, uploadRaw } from "../lib/google";
+import { eventToken } from "../lib/accounts";
 import { commitMedia, type UploadRow } from "../lib/media";
 import { randomId } from "../lib/crypto";
 import { rateLimit, readGuestToken } from "../lib/session";
@@ -31,6 +32,11 @@ async function guestAlbum(c: Context<AppEnv>, ev: EventRow) {
   if (!album) throw new HTTPException(403, { message: "album_not_found" });
   if (!ev.uploads_open && album.kind === "guest") throw new HTTPException(403, { message: "uploads_closed" });
   return { album, deviceId: g.deviceId };
+}
+
+/** New uploads wait while the event moves to another Google account (uploads already running may finish). */
+function assertOpenForNew(ev: EventRow) {
+  if (ev.migrating) throw new HTTPException(503, { message: "maintenance" });
 }
 
 function checkMime(mime: string) {
@@ -71,6 +77,7 @@ function metaFromHeader(c: Context<AppEnv>): Meta {
 /** Small files: a single request streams the bytes straight to Google. */
 uploads.post("/e/:code/upload", async (c) => {
   const ev = await eventByCode(c.env, c.req.param("code"));
+  assertOpenForNew(ev);
   const { album, deviceId } = await guestAlbum(c, ev);
   await rateLimit(c.env, `up:${ev.id}:${deviceId}`, 1500, 3600_000);
   const meta = metaFromHeader(c);
@@ -83,7 +90,7 @@ uploads.post("/e/:code/upload", async (c) => {
 
   let uploadToken: string;
   try {
-    const token = await ownerToken(c.env, ev.owner_id);
+    const token = await eventToken(c.env, ev);
     const { readable, writable } = new FixedLengthStream(length);
     const pipe = body.pipeTo(writable);
     [uploadToken] = await Promise.all([uploadRaw(token, readable, mime, length), pipe]);
@@ -113,6 +120,7 @@ uploads.post("/e/:code/upload", async (c) => {
 /** Large files (videos): start a resumable session; the client then PUTs chunks. */
 uploads.post("/e/:code/upload/start", async (c) => {
   const ev = await eventByCode(c.env, c.req.param("code"));
+  assertOpenForNew(ev);
   const { album, deviceId } = await guestAlbum(c, ev);
   const meta = await c.req.json<Meta>();
   const mime = meta.mime || "";
@@ -120,7 +128,7 @@ uploads.post("/e/:code/upload/start", async (c) => {
   if (!meta.size || meta.size > MAX_FILE) throw new HTTPException(413, { message: "too_large" });
   let session;
   try {
-    session = await startResumable(await ownerToken(c.env, ev.owner_id), mime, meta.size);
+    session = await startResumable(await eventToken(c.env, ev), mime, meta.size);
   } catch (e) {
     googleFail(e);
   }
@@ -158,7 +166,7 @@ uploads.put("/e/:code/upload/:id", async (c) => {
   if (!body) throw new HTTPException(400, { message: "empty" });
   let uploadToken: string | null;
   try {
-    const token = await ownerToken(c.env, ev.owner_id);
+    const token = await eventToken(c.env, ev);
     const { readable, writable } = new FixedLengthStream(length);
     const pipe = body.pipeTo(writable);
     [uploadToken] = await Promise.all([uploadChunk(token, up.upload_url, readable, length, offset, finalize), pipe]);

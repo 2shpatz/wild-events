@@ -14,6 +14,7 @@ import {
   uploadRaw,
 } from "../lib/google";
 import { commitMedia, type CreatedItem } from "../lib/media";
+import { assertNotMigrating, eventToken } from "../lib/accounts";
 import type { ImportJobDTO } from "../../shared/types";
 
 export const imports = new Hono<AppEnv>();
@@ -97,7 +98,7 @@ function albumLink(raw: unknown): string | null {
 const markSynced = (c: Context<AppEnv>, job: JobRow) =>
   c.env.DB.prepare("UPDATE albums SET synced_at = ? WHERE id = ? AND linked = 1").bind(Date.now(), job.album_id);
 
-/** Import uses the owner's own Google account (the picker shows *their* library) → Google owner only. */
+/** Import reads the owner's own Google library (the picker shows *their* photos) → Google owner only. */
 async function ownerEvent(c: Context<AppEnv>) {
   const ev = await eventByCode(c.env, c.req.param("code")!);
   if (c.get("ownerId") !== ev.owner_id) throw new HTTPException(403, { message: "owner_only" });
@@ -114,6 +115,7 @@ async function loadJob(c: Context<AppEnv>, ev: EventRow) {
 
 imports.post("/e/:code/import", async (c) => {
   const ev = await ownerEvent(c);
+  assertNotMigrating(ev);
   const b = await c.req.json<{ albumId?: string; newAlbumName?: string; link?: { sourceUrl?: string | null } }>();
   let album: AlbumRow | null = null;
   if (b.newAlbumName) {
@@ -258,6 +260,7 @@ imports.get("/e/:code/import/:job", async (c) => {
 
 imports.post("/e/:code/import/:job/start", async (c) => {
   const ev = await ownerEvent(c);
+  assertNotMigrating(ev);
   const job = await loadJob(c, ev);
   if (job.status !== "listed" && job.status !== "running") throw new HTTPException(409, { message: "not_ready" });
   await c.env.DB.prepare("UPDATE import_jobs SET status = 'running' WHERE id = ?").bind(job.id).run();
@@ -270,9 +273,12 @@ imports.post("/e/:code/import/:job/start", async (c) => {
  */
 imports.post("/e/:code/import/:job/next", async (c) => {
   const ev = await ownerEvent(c);
+  assertNotMigrating(ev);
   const job = await loadJob(c, ev);
   if (job.status !== "running") return c.json(dto(job));
+  // The picker reads the owner's own library; the copies go to the account that holds the event.
   const token = await ownerToken(c.env, ev.owner_id);
+  const target = await eventToken(c.env, ev);
 
   // Picker base URLs expire after ~60 minutes: re-list to refresh them.
   if (job.relist || Date.now() - job.listed_at > URL_TTL) {
@@ -325,10 +331,10 @@ imports.post("/e/:code/import/:job/next", async (c) => {
       if (len && res.body) {
         const { readable, writable } = new FixedLengthStream(len);
         const pipe = res.body.pipeTo(writable);
-        [uploadToken] = await Promise.all([uploadRaw(token, readable, mime, len), pipe]);
+        [uploadToken] = await Promise.all([uploadRaw(target, readable, mime, len), pipe]);
       } else {
         const buf = await res.arrayBuffer();
-        uploadToken = await uploadRaw(token, buf, mime, buf.byteLength);
+        uploadToken = await uploadRaw(target, buf, mime, buf.byteLength);
       }
       created.push({
         uploadToken,

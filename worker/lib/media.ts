@@ -1,5 +1,6 @@
 import type { Env } from "../env";
-import { addToAlbum, batchCreate, ownerToken, removeFromAlbum } from "./google";
+import { addToAlbum, batchCreate, removeFromAlbum } from "./google";
+import { eventRef, eventToken, tokenForRef } from "./accounts";
 import { changeStmt, selectIn, type AlbumRow, type EventRow, type MediaRow, toMediaDTO } from "./db";
 import { randomId } from "./crypto";
 import type { MediaDTO } from "../../shared/types";
@@ -48,7 +49,8 @@ export async function commitMedia(
 ): Promise<Map<string, { media?: MediaDTO; error?: string }>> {
   const out = new Map<string, { media?: MediaDTO; error?: string }>();
   if (!items.length) return out;
-  const token = await ownerToken(env, ev.owner_id);
+  const token = await eventToken(env, ev);
+  const ref = eventRef(ev);
   const results = await batchCreate(
     token,
     album.google_album_id,
@@ -92,12 +94,12 @@ export async function commitMedia(
     stmts.push(
       env.DB.prepare(
         `INSERT INTO media (id, event_id, album_id, google_id, kind, mime, filename, width, height, taken_at,
-           uploaded_at, size, source, picked_id, device_id, base_url, base_url_exp, processing)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           uploaded_at, size, source, picked_id, device_id, base_url, base_url_exp, processing, account_ref)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       ).bind(
         row.id, row.event_id, row.album_id, row.google_id, row.kind, mi.mimeType || it.mime, it.fileName,
         row.width, row.height, row.taken_at, row.uploaded_at, it.size ?? null, it.source, it.pickedId ?? null,
-        row.device_id, row.base_url, row.base_url_exp, row.processing,
+        row.device_id, row.base_url, row.base_url_exp, row.processing, ref,
       ),
       changeStmt(env, ev.id, "add", row.id),
     );
@@ -122,9 +124,16 @@ export async function commitMedia(
 /** Guests pass their signed album + device: they may only remove items uploaded from that device. */
 export async function hideMedia(env: Env, ev: EventRow, ids: string[], restrict?: { albumId: string; deviceId: string }) {
   if (!ids.length) return 0;
-  const rows = await selectIn<{ id: string; google_id: string; album_id: string; device_id: string | null; google_album_id: string | null }>(
+  const rows = await selectIn<{
+    id: string;
+    google_id: string;
+    album_id: string;
+    device_id: string | null;
+    google_album_id: string | null;
+    account_ref: string;
+  }>(
     env,
-    (ph) => `SELECT m.id, m.google_id, m.album_id, m.device_id, a.google_album_id
+    (ph) => `SELECT m.id, m.google_id, m.album_id, m.device_id, m.account_ref, a.google_album_id
                FROM media m JOIN albums a ON a.id = m.album_id
               WHERE m.event_id = ? AND m.hidden = 0 AND m.id IN (${ph})`,
     [ev.id],
@@ -132,30 +141,55 @@ export async function hideMedia(env: Env, ev: EventRow, ids: string[], restrict?
   );
   const targets = rows.filter((r) => !restrict || (r.album_id === restrict.albumId && r.device_id === restrict.deviceId));
   if (!targets.length) return 0;
-  // If Google is unreachable (or the owner must re-login) we still hide on the site - the user's intent is honoured.
-  let token: string | null = null;
-  try {
-    token = await ownerToken(env, ev.owner_id);
-  } catch (e) {
-    console.warn("hideMedia: no Google token, hiding on site only", e);
-  }
-  const byAlbum = new Map<string, string[]>();
-  for (const t of targets) {
-    if (!t.google_album_id) continue;
-    byAlbum.set(t.google_album_id, [...(byAlbum.get(t.google_album_id) || []), t.google_id]);
-  }
-  for (const [albumId, gids] of token ? byAlbum : new Map<string, string[]>()) {
-    try {
-      await removeFromAlbum(token!, albumId, gids);
-    } catch (e) {
-      console.warn("remove from album failed", e);
+
+  // Google album ids per account: the event's own albums, plus (mid-move) the copies in the target account.
+  const current = eventRef(ev);
+  const places = new Map<string, { master: string | null; album: (albumId: string, fallback: string | null) => string | null }>();
+  places.set(current, { master: ev.google_album_id, album: (_id, fallback) => fallback });
+  if (ev.migrating) {
+    const job = await env.DB.prepare("SELECT to_ref, master_album_id FROM storage_migrations WHERE id = ?")
+      .bind(ev.migrating)
+      .first<{ to_ref: string; master_album_id: string | null }>();
+    if (job) {
+      const map = await env.DB.prepare("SELECT album_id, google_album_id FROM storage_migration_albums WHERE job_id = ?")
+        .bind(ev.migrating)
+        .all<{ album_id: string; google_album_id: string }>();
+      const byAlbum = new Map(map.results.map((r) => [r.album_id, r.google_album_id]));
+      places.set(job.to_ref, { master: job.master_album_id, album: (id) => byAlbum.get(id) ?? null });
     }
   }
-  if (ev.google_album_id && token) {
+
+  // If Google is unreachable (or the owner must re-login) we still hide on the site - the user's intent is honoured.
+  const byRef = new Map<string, typeof targets>();
+  for (const t of targets) byRef.set(t.account_ref || current, [...(byRef.get(t.account_ref || current) || []), t]);
+  for (const [ref, group] of byRef) {
+    const place = places.get(ref);
+    if (!place) continue;
+    let token: string;
     try {
-      await removeFromAlbum(token, ev.google_album_id, targets.map((t) => t.google_id));
+      token = await tokenForRef(env, ev.owner_id, ref);
     } catch (e) {
-      console.warn("remove from master failed", e);
+      console.warn("hideMedia: no Google token, hiding on site only", e);
+      continue;
+    }
+    const byAlbum = new Map<string, string[]>();
+    for (const t of group) {
+      const gAlbum = place.album(t.album_id, t.google_album_id);
+      if (gAlbum) byAlbum.set(gAlbum, [...(byAlbum.get(gAlbum) || []), t.google_id]);
+    }
+    for (const [albumId, gids] of byAlbum) {
+      try {
+        await removeFromAlbum(token, albumId, gids);
+      } catch (e) {
+        console.warn("remove from album failed", e);
+      }
+    }
+    if (place.master) {
+      try {
+        await removeFromAlbum(token, place.master, group.map((t) => t.google_id));
+      } catch (e) {
+        console.warn("remove from master failed", e);
+      }
     }
   }
   const stmts: D1PreparedStatement[] = [];

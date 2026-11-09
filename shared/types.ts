@@ -44,6 +44,8 @@ export interface PublicEvent {
   canManage: boolean;
   isOwner: boolean;
   googleAlbumUrl?: string | null;
+  /** The event is moving to another Google account: uploads pause, viewing keeps working. */
+  maintenance?: boolean;
 }
 
 export interface PlayerTrack {
@@ -112,6 +114,48 @@ export interface StorageInfo {
   percent: number | null;
   alert: boolean;
   checkedAt: number;
+  /** Which Google account this is (missing on old responses). */
+  account?: StorageAccountRef;
+}
+
+/** "self" = the Google account the owner logs in with; otherwise a storage account id. */
+export interface StorageAccountRef {
+  id: string;
+  email: string | null;
+  personal: boolean;
+  /** false = Google access was revoked/expired and the account must be connected again */
+  connected: boolean;
+}
+
+export interface StorageAccountDTO extends StorageAccountRef {
+  name: string | null;
+  picture: string | null;
+  /** null = could not read the quota right now */
+  storage: StorageInfo | null;
+  /** active events stored in this account */
+  eventsCount: number;
+}
+
+export interface MigrationDTO {
+  id: string;
+  status: "running" | "done" | "error" | "cancelled";
+  from: string;
+  to: string;
+  toEmail: string | null;
+  total: number;
+  done: number;
+  failed: number;
+  /** items still waiting to be copied */
+  remaining: number;
+  oldAlbumUrl: string | null;
+  error: string | null;
+}
+
+/** What moving an event would take (shown before starting). */
+export interface MigrationEstimate {
+  items: number;
+  bytes: number;
+  tracks: number;
 }
 
 export interface OwnerMe {
@@ -195,6 +239,10 @@ export interface ManageEvent extends PublicEvent {
   /** the saved music settings (also when off) */
   musicConfig: EventMusic;
   uploadedTracks: UploadedTrack[];
+  /** The Google account that holds this event's photos (owner only sees email). */
+  storageAccount: StorageAccountRef;
+  /** Running or last move to another account (owner only). */
+  migration: MigrationDTO | null;
 }
 
 export interface ImportJobDTO {

@@ -7,6 +7,8 @@ import { setup } from "./routes/setup";
 import { getSetting } from "./lib/site";
 import { auth } from "./routes/auth";
 import { owner, ownerStorage } from "./routes/owner";
+import { migrate } from "./routes/migrate";
+import { accountStorage } from "./lib/accounts";
 import { events } from "./routes/events";
 import { uploads } from "./routes/uploads";
 import { manage } from "./routes/manage";
@@ -29,6 +31,7 @@ app.route("/", events);
 app.route("/", uploads);
 app.route("/", manage);
 app.route("/", imports);
+app.route("/", migrate);
 
 app.get("/health", (c) => c.json({ ok: true }));
 
@@ -66,6 +69,20 @@ async function scheduled(_: ScheduledController, env: Env) {
       await ownerStorage(env, o.id, true);
     } catch (e) {
       console.warn("storage check failed", o.id, e);
+    }
+  }
+  // Same for the extra accounts that hold event photos.
+  const accounts = await env.DB.prepare(
+    `SELECT DISTINCT s.id, s.owner_id FROM storage_accounts s JOIN events e ON e.storage_account_id = s.id
+      WHERE s.refresh_token_enc IS NOT NULL AND e.deleted = 0 AND e.created_at > ? LIMIT 20`,
+  )
+    .bind(Date.now() - 120 * 86_400_000)
+    .all<{ id: string; owner_id: string }>();
+  for (const a of accounts.results) {
+    try {
+      await accountStorage(env, a.owner_id, a.id, true);
+    } catch (e) {
+      console.warn("storage check failed", a.id, e);
     }
   }
   // Housekeeping.

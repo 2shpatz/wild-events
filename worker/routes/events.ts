@@ -16,7 +16,8 @@ import {
   toPublicEvent,
   type TrackRow,
 } from "../lib/db";
-import { driveMedia, ownerToken } from "../lib/google";
+import { driveMedia } from "../lib/google";
+import { tokenForRef } from "../lib/accounts";
 import { canManage, createSession, guestToken, rateLimit, readGuestToken } from "../lib/session";
 import { verifyPassword } from "../lib/crypto";
 import { hideMedia } from "../lib/media";
@@ -71,7 +72,7 @@ events.get("/e/:code/track/:id", async (c) => {
     const hit = await cache.match(new Request(cacheUrl, { headers: range ? { Range: range } : {} }));
     if (hit) return hit;
   }
-  const token = await ownerToken(c.env, t.owner_id);
+  const token = await tokenForRef(c.env, ev.owner_id, t.account_ref);
   const headers = (res: Response) => {
     const h = new Headers({
       "Content-Type": t.mime,
@@ -218,7 +219,7 @@ events.get("/e/:code/feed", async (c) => {
         [ev.id],
         added,
       );
-      media = await ensureUrls(c.env, ev.owner_id, rows);
+      media = await ensureUrls(c.env, ev, rows);
     }
     return c.json<FeedResponse>({
       cursor,
@@ -235,7 +236,7 @@ events.get("/e/:code/feed", async (c) => {
   )
     .bind(ev.id)
     .all<MediaRow>();
-  const rows = await ensureUrls(c.env, ev.owner_id, res.results);
+  const rows = await ensureUrls(c.env, ev, res.results);
   return c.json<FeedResponse>({
     cursor,
     full: true,
@@ -254,7 +255,7 @@ events.get("/e/:code/latest", async (c) => {
   )
     .bind(ev.id, n)
     .all<MediaRow>();
-  const rows = await ensureUrls(c.env, ev.owner_id, res.results);
+  const rows = await ensureUrls(c.env, ev, res.results);
   return c.json({ media: rows.map(toMediaDTO) });
 });
 
@@ -270,7 +271,7 @@ events.post("/e/:code/urls", async (c) => {
     [ev.id],
     list,
   );
-  const rows = await ensureUrls(c.env, ev.owner_id, found);
+  const rows = await ensureUrls(c.env, ev, found);
   return c.json({ media: rows.map(toMediaDTO) });
 });
 

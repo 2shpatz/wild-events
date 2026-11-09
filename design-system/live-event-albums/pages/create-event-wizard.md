@@ -12,3 +12,4 @@
 ## Notes
 - Original quality selection opens warning modal with storage estimate
 - Navigation: update URL on state/view changes.
+- Storage step (before create): choose the Google account per event. Recommended green card for a dedicated new account (signup link + connect). Account radio cards with usage bars and "room for ~N photos". Choosing the personal account shows a red destructive alert + required acknowledgment checkbox. Connecting leaves the page, so the draft is saved (sessionStorage + IndexedDB) and restored on return.

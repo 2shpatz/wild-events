@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Cake, Heart, PartyPopper, Sparkles, Users, Settings, X } from "lucide-react";
 import { useMe } from "../lib/session";
 import { api, errorMessage } from "../lib/api";
@@ -16,8 +16,35 @@ import { SlugField, type SlugState } from "../components/SlugField";
 import { TimeField } from "../components/TimeField";
 import { suggestSlug } from "../../shared/slug";
 import { defaultDesign } from "../../shared/design";
+import { StorageAccountPicker } from "../components/StorageAccountPicker";
+import { clearDraft, loadDraft, saveDraft } from "../lib/wizardDraft";
 
-const STEPS = ["סוג האירוע", "פרטים", "עיצוב", "איכות העלאה", "שיתוף"];
+const STEPS = ["סוג האירוע", "פרטים", "עיצוב", "איכות העלאה", "אחסון התמונות", "שיתוף"];
+const STORAGE_STEP = 4;
+const SHARE_STEP = 5;
+
+const ACCOUNT_ERRORS: Record<string, string> = {
+  denied: "החיבור בוטל ב-Google. אפשר לנסות שוב.",
+  scopes: "כדי לשמור תמונות בחשבון צריך לסמן את כל תיבות ההרשאה במסך של Google. נסו שוב.",
+};
+
+interface DraftFields {
+  type: EventType;
+  title: string;
+  subtitle: string;
+  date: string;
+  time: string;
+  venueName: string;
+  venueAddress: string;
+  code: string;
+  codeTouched: boolean;
+  password: string;
+  advanced: boolean;
+  background: string | null;
+  quality: Quality;
+  welcome: string;
+  featuredSlots: number[];
+}
 const ICONS: Record<EventType, React.ReactNode> = {
   wedding: <Heart className="size-8" aria-hidden />,
   birthday: <Cake className="size-8" aria-hidden />,
@@ -53,6 +80,87 @@ export default function CreateEventWizard() {
   const [created, setCreated] = useState<{ id: string; code: string } | null>(null);
   const [codeState, setCodeState] = useState<SlugState>("idle");
   const [codeTouched, setCodeTouched] = useState(false);
+  const [storageId, setStorageId] = useState<string | null>(null);
+  const [storagePersonal, setStoragePersonal] = useState(false);
+  const [personalAck, setPersonalAck] = useState(false);
+  const [params, setParams] = useSearchParams();
+
+  // Back from connecting a Google account: restore everything the owner already filled in.
+  useEffect(() => {
+    if (params.get("resume") !== "1") return;
+    const connected = params.get("connected");
+    const self = params.get("account") === "self";
+    const err = params.get("account_error");
+    setParams({}, { replace: true });
+    (async () => {
+      const d = await loadDraft<DraftFields>();
+      await clearDraft();
+      if (d) {
+        const f = d.fields;
+        const url = (b: Blob) => URL.createObjectURL(b);
+        setType(f.type);
+        setTitle(f.title);
+        setSubtitle(f.subtitle);
+        setDate(f.date);
+        setTime(f.time);
+        setVenueName(f.venueName);
+        setVenueAddress(f.venueAddress);
+        setCodeTouched(f.codeTouched);
+        setCode(f.code);
+        setPassword(f.password);
+        setAdvanced(f.advanced);
+        setQuality(f.quality);
+        setWelcome(f.welcome);
+        const bgBlob = d.blobs.custom;
+        if (f.background === "custom" && bgBlob) {
+          setCustomFile(bgBlob);
+          setCustomPreview(url(bgBlob));
+          setBackground("custom");
+        } else setBackground(f.background === "custom" ? null : f.background);
+        if (d.blobs.header) setHeader({ blob: d.blobs.header, src: url(d.blobs.header) });
+        if (d.blobs.invitation) setInvitation({ blob: d.blobs.invitation, src: url(d.blobs.invitation) });
+        setFeatured(f.featuredSlots.flatMap((slot) => (d.blobs[`f${slot}`] ? [{ slot, blob: d.blobs[`f${slot}`], src: url(d.blobs[`f${slot}`]) }] : [])));
+        setStep(STORAGE_STEP);
+      }
+      if (connected) {
+        setStorageId(connected);
+        toast("החשבון חובר ונבחר לאירוע", "success");
+      } else if (self) {
+        toast("זה החשבון שאיתו נכנסת לאתר, והוא כבר מופיע ברשימה. כדי לשמור בנפרד צריך לבחור חשבון אחר אצל Google.", "info");
+      } else if (err) {
+        toast(ACCOUNT_ERRORS[err] || "לא הצלחנו לחבר את החשבון. אפשר לנסות שוב.", "error");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const keepDraft = async () => {
+    const blobs: Record<string, Blob> = {};
+    if (background === "custom" && customFile) blobs.custom = customFile;
+    if (header) blobs.header = header.blob;
+    if (invitation) blobs.invitation = invitation.blob;
+    for (const f of featured) blobs[`f${f.slot}`] = f.blob;
+    await saveDraft<DraftFields>(
+      {
+        type,
+        title,
+        subtitle,
+        date,
+        time,
+        venueName,
+        venueAddress,
+        code,
+        codeTouched,
+        password,
+        advanced,
+        background,
+        quality,
+        welcome,
+        featuredSlots: featured.map((f) => f.slot),
+      },
+      blobs,
+    );
+  };
 
   useEffect(() => {
     if (me && !me.owner) navigate("/login?next=/dashboard/new", { replace: true });
@@ -120,6 +228,7 @@ export default function CreateEventWizard() {
           quality,
           adminPassword: password || undefined,
           code: code || undefined,
+          storageAccountId: storageId,
         },
       });
       if (background === "custom" && customFile) {
@@ -136,7 +245,7 @@ export default function CreateEventWizard() {
         toast("האירוע נוצר, אבל חלק מהתמונות לא נשמרו. אפשר להוסיף אותן בהגדרות.", "error");
       }
       setCreated(r);
-      setStep(4);
+      setStep(SHARE_STEP);
     } catch (e) {
       toast(errorMessage(e), "error");
     } finally {
@@ -145,6 +254,7 @@ export default function CreateEventWizard() {
   };
 
   const canNext = step === 0 || (step === 1 && title.trim() && (codeState === "ok" || !code) && (!password || password.length >= 4)) || step === 2 || step === 3;
+  const canCreate = !!storageId && (!storagePersonal || personalAck);
   const bg = backgroundProps(preview);
   const dark = background === "custom" ? true : isDarkBackground(preview.background, theme);
 
@@ -163,7 +273,7 @@ export default function CreateEventWizard() {
       </header>
 
       <div className="mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[1fr_340px]">
-        <main className="space-y-6">
+        <main className="min-w-0 space-y-6">
           <Stepper steps={STEPS} current={step} />
 
           {step === 0 && (
@@ -324,7 +434,33 @@ export default function CreateEventWizard() {
             </Card>
           )}
 
-          {step === 4 && created && (
+          {step === STORAGE_STEP && (
+            <Card className="space-y-4">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-bold">איפה נשמור את התמונות?</h2>
+                <p className="text-muted-fg">
+                  כל התמונות והסרטונים של האורחים נשמרים ב-Google Photos של החשבון שתבחרו. לחשבון Google חינמי יש 15GB, משותפים ל-Gmail,
+                  ל-Drive ולתמונות. אפשר להעביר את האירוע לחשבון אחר גם אחר כך.
+                </p>
+              </div>
+              <StorageAccountPicker
+                value={storageId}
+                onChange={(id, a) => {
+                  setStorageId(id);
+                  setStoragePersonal(a.personal);
+                  if (!a.personal) setPersonalAck(false);
+                }}
+                quality={quality}
+                personalAck={personalAck}
+                onPersonalAck={setPersonalAck}
+                connectNext="/dashboard/new?resume=1"
+                onBeforeConnect={keepDraft}
+                label="בוחרים חשבון לאירוע"
+              />
+            </Card>
+          )}
+
+          {step === SHARE_STEP && created && (
             <Card className="space-y-5">
               <div className="text-center">
                 <h2 className="text-2xl font-bold">האירוע מוכן!</h2>
@@ -342,18 +478,23 @@ export default function CreateEventWizard() {
             </Card>
           )}
 
-          {step < 4 && (
+          {step === STORAGE_STEP && !canCreate && (
+            <p className="text-center text-base font-semibold text-muted-fg" role="status">
+              {!storageId ? "בוחרים חשבון Google לאירוע כדי להמשיך" : "כדי להמשיך עם החשבון הפרטי צריך לסמן שהבנת את האזהרה"}
+            </p>
+          )}
+          {step < SHARE_STEP && (
             <div className="flex justify-between gap-3">
               <Button variant="ghost" size="lg" disabled={step === 0} onClick={() => setStep((s) => s - 1)} icon={<ArrowRight className="size-5" aria-hidden />}>
                 חזרה
               </Button>
-              {step < 3 ? (
+              {step < STORAGE_STEP ? (
                 <Button size="lg" disabled={!canNext} onClick={() => setStep((s) => s + 1)}>
                   המשך
                   <ArrowLeft className="size-5" aria-hidden />
                 </Button>
               ) : (
-                <Button size="lg" variant="accent" loading={busy} onClick={create}>
+                <Button size="lg" variant="accent" loading={busy} disabled={!canCreate} onClick={create}>
                   יצירת האירוע
                 </Button>
               )}

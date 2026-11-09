@@ -1,12 +1,14 @@
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../env";
-import { changeStmt, cleanName, cleanTime, createEventAlbum, eventByCode, eventTracks, listAlbums, normName, toPublicEvent, type AlbumRow, type TrackRow } from "../lib/db";
+import { changeStmt, cleanName, cleanTime, createEventAlbum, eventByCode, eventTracks, listAlbums, normName, toPublicEvent, type AlbumRow, type EventRow, type TrackRow } from "../lib/db";
 import { canManage, rateLimit } from "../lib/session";
 import { hashPassword, sha256 } from "../lib/crypto";
 import { hideMedia } from "../lib/media";
-import { driveDelete, driveEnsureFolder, driveUpload, GoogleError, ownerToken, renameAlbum } from "../lib/google";
-import { ownerStorage, slugTaken } from "./owner";
+import { driveDelete, driveEnsureFolder, driveUpload, GoogleError, renameAlbum } from "../lib/google";
+import { slugTaken } from "./owner";
+import { accountInfo, accountStorage, assertNotMigrating, eventRef, eventToken, MUSIC_FOLDER, musicFolder, setMusicFolder, tokenForRef } from "../lib/accounts";
+import { latestMigration } from "../lib/migration";
 import { isValidSlug } from "../../shared/slug";
 import { MAX_FEATURED, type EventType, type ManageEvent } from "../../shared/types";
 import { MAX_IMAGES, sanitizeDesign, usedImageSlots } from "../../shared/design";
@@ -34,13 +36,23 @@ manage.get("/e/:code/manage", async (c) => {
     albums: await listAlbums(c.env, ev.id, true),
     musicConfig: parseMusic(ev.music, ev.type as EventType),
     uploadedTracks: await eventTracks(c.env, ev.id),
+    storageAccount: await eventAccount(c, ev, isOwner),
+    migration: isOwner ? await latestMigration(c.env, ev) : null,
   };
   return c.json(body);
 });
 
+/** Which Google account holds the event. Password admins (not the owner) don't see the address. */
+async function eventAccount(c: Context<AppEnv>, ev: EventRow, isOwner: boolean) {
+  const info = await accountInfo(c.env, ev.owner_id, eventRef(ev));
+  return isOwner ? info : { ...info, email: null };
+}
+
 manage.get("/e/:code/manage/storage", async (c) => {
   const ev = await managedEvent(c);
-  return c.json(await ownerStorage(c.env, ev.owner_id, c.req.query("fresh") === "1"));
+  const info = await accountStorage(c.env, ev.owner_id, eventRef(ev), c.req.query("fresh") === "1");
+  if (c.get("ownerId") !== ev.owner_id && info.account) info.account = { ...info.account, email: null };
+  return c.json(info);
 });
 
 manage.patch("/e/:code/manage", async (c) => {
@@ -250,9 +262,11 @@ manage.patch("/e/:code/manage/albums/:id", async (c) => {
   const { name } = await c.req.json<{ name: string }>();
   const clean = cleanName(name || "", 40);
   if (!clean) throw new HTTPException(400, { message: "name_required" });
+  // The copy in the new account would keep the old name.
+  assertNotMigrating(ev);
   if (album.google_album_id) {
     try {
-      await renameAlbum(await ownerToken(c.env, ev.owner_id), album.google_album_id, `${ev.title} · ${clean}`);
+      await renameAlbum(await eventToken(c.env, ev), album.google_album_id, `${ev.title} · ${clean}`);
     } catch (e) {
       console.warn("rename google album failed", e);
     }
@@ -316,6 +330,7 @@ function cleanTrackTitle(raw: string) {
 /** Body = the raw audio file. Headers: Content-Type, Content-Length, X-Filename (URI-encoded), X-Duration (seconds). */
 manage.post("/e/:code/manage/tracks", async (c) => {
   const ev = await managedEvent(c);
+  assertNotMigrating(ev);
   const mime = (c.req.header("Content-Type") || "").toLowerCase();
   if (!AUDIO_MIME_RE.test(mime)) throw new HTTPException(415, { message: "bad_audio" });
   const size = Number(c.req.header("Content-Length") || 0);
@@ -338,16 +353,14 @@ manage.post("/e/:code/manage/tracks", async (c) => {
   const duration = Number.isFinite(dur) && dur > 0 && dur < 24 * 3600 ? dur : null;
   const normMime = mime === "audio/mp3" ? "audio/mpeg" : mime === "audio/x-m4a" ? "audio/mp4" : mime;
 
+  const ref = eventRef(ev);
   let driveId: string;
   try {
-    const token = await ownerToken(c.env, ev.owner_id);
-    const owner = await c.env.DB.prepare("SELECT drive_music_folder FROM owners WHERE id = ?")
-      .bind(ev.owner_id)
-      .first<{ drive_music_folder: string | null }>();
-    const folderId = await driveEnsureFolder(token, owner?.drive_music_folder ?? null, "אירוע פרוע - מוזיקה");
-    if (folderId !== owner?.drive_music_folder) {
-      await c.env.DB.prepare("UPDATE owners SET drive_music_folder = ? WHERE id = ?").bind(folderId, ev.owner_id).run();
-    }
+    // Songs live in the Drive of the event's account, next to its photos.
+    const token = await eventToken(c.env, ev);
+    const saved = await musicFolder(c.env, ev.owner_id, ref);
+    const folderId = await driveEnsureFolder(token, saved, MUSIC_FOLDER);
+    if (folderId !== saved) await setMusicFolder(c.env, ev.owner_id, ref, folderId);
     const { readable, writable } = new FixedLengthStream(size);
     const pipe = body.pipeTo(writable);
     [driveId] = await Promise.all([
@@ -360,9 +373,9 @@ manage.post("/e/:code/manage/tracks", async (c) => {
   }
   const id = trackId();
   await c.env.DB.prepare(
-    "INSERT INTO event_tracks (id, event_id, owner_id, drive_id, title, mime, size, duration, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+    "INSERT INTO event_tracks (id, event_id, owner_id, drive_id, title, mime, size, duration, created_at, account_ref) VALUES (?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(id, ev.id, ev.owner_id, driveId, title, normMime, size, duration, Date.now())
+    .bind(id, ev.id, ev.owner_id, driveId, title, normMime, size, duration, Date.now(), ref)
     .run();
   return c.json({ id, title, duration, size });
 });
@@ -385,7 +398,7 @@ manage.delete("/e/:code/manage/tracks/:id", async (c) => {
   const ev = await managedEvent(c);
   const t = await eventTrack(c, ev.id);
   try {
-    await driveDelete(await ownerToken(c.env, t.owner_id), t.drive_id);
+    await driveDelete(await tokenForRef(c.env, ev.owner_id, t.account_ref), t.drive_id);
   } catch (e) {
     // The site copy is removed anyway; the file can still be deleted by hand in Drive.
     console.warn("drive delete failed", t.drive_id, e);

@@ -13,6 +13,7 @@ import {
   Sparkles,
   Gem,
   Video,
+  Wrench,
 } from "lucide-react";
 import { useEvent } from "../lib/session";
 import { EventStatus } from "../components/EventChrome";
@@ -119,7 +120,9 @@ export default function Upload() {
       <EventHeader event={event} backTo={`/${code}`} pageTitle="העלאת תמונות" />
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-        {!identity && !event.canManage ? (
+        {event.maintenance ? (
+          <Maintenance code={code} />
+        ) : !identity && !event.canManage ? (
           checking ? (
             <div className="flex justify-center p-10">
               <Loader2 className="size-8 animate-spin text-muted-fg" aria-label="טוען" />
@@ -373,5 +376,31 @@ function QueueTile({ item, onRetry, onDelete }: { item: QueueItem; onRetry: () =
         </div>
       )}
     </li>
+  );
+}
+
+/** The event is moving to another Google account: viewing works, uploads wait a few minutes. */
+function Maintenance({ code }: { code: string }) {
+  return (
+    <div role="status" className="space-y-4 rounded-3xl border border-border bg-card p-6 text-center shadow-soft">
+      <span className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
+        <Wrench className="size-8" aria-hidden />
+      </span>
+      <h2 className="text-2xl font-bold">האתר בתחזוקה קצרה</h2>
+      <p className="text-lg text-muted-fg">אפשר לצפות בכל התמונות כרגיל. נסו להעלות שוב בעוד כמה דקות.</p>
+      <div className="flex flex-col justify-center gap-3 sm:flex-row">
+        <button
+          onClick={() => location.reload()}
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-accent px-6 text-lg font-bold text-on-accent"
+        >
+          <RotateCcw className="size-5" aria-hidden />
+          לנסות שוב
+        </button>
+        <Link to={`/${code}/gallery`} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border-2 border-primary px-6 text-lg font-bold">
+          <Images className="size-5" aria-hidden />
+          לצפייה בתמונות
+        </Link>
+      </div>
+    </div>
   );
 }

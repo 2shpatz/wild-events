@@ -1,19 +1,28 @@
-import { useEffect, useState } from "react";
-import { AlertTriangle, ExternalLink, HardDrive, RefreshCw } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { AlertTriangle, ExternalLink, HardDrive, Link2, RefreshCw } from "lucide-react";
 import { api } from "../lib/api";
 import { formatBytes } from "../lib/format";
-import type { StorageInfo } from "../../shared/types";
-import { Card, cx, IconButton } from "./ui";
+import type { StorageAccountRef, StorageInfo } from "../../shared/types";
+import { Card, cx, IconButton, LinkButton } from "./ui";
+import { connectHref } from "./StorageAccountPicker";
 
 /** Always-visible storage usage for the main user (+ 80% warning) with links to the real Google Photos. */
 export function StorageMeter({
   endpoint = "/owner/storage",
   originalQuality,
   googleAlbumUrl,
+  account,
+  reconnectNext,
+  footer,
 }: {
   endpoint?: string;
   originalQuality?: boolean;
   googleAlbumUrl?: string | null;
+  /** the Google account this meter is about (default: the owner's own) */
+  account?: StorageAccountRef;
+  /** owner only: where to come back after reconnecting an expired account */
+  reconnectNext?: string;
+  footer?: ReactNode;
 }) {
   const [info, setInfo] = useState<StorageInfo | null>(null);
   const [err, setErr] = useState(false);
@@ -32,7 +41,11 @@ export function StorageMeter({
   };
   useEffect(() => {
     load();
-  }, [endpoint]);
+  }, [endpoint, account?.id]);
+
+  const acct = info?.account ?? account;
+  const dedicated = acct && !acct.personal;
+  const disconnected = acct?.connected === false || (err && account?.connected === false);
 
   const pct = info?.percent ?? null;
   const level = pct === null ? "ok" : pct >= 0.95 ? "critical" : pct >= 0.8 ? "warn" : "ok";
@@ -41,16 +54,37 @@ export function StorageMeter({
   return (
     <Card className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold">
-          <HardDrive className="size-5" aria-hidden />
-          נפח האחסון שלך ב-Google
-        </h2>
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <HardDrive className="size-5 shrink-0" aria-hidden />
+            {dedicated ? "האחסון של חשבון האירוע ב-Google" : "נפח האחסון שלך ב-Google"}
+          </h2>
+          {acct?.email && (
+            <p className="truncate text-sm text-muted-fg">
+              התמונות נשמרות בחשבון <span dir="ltr">{acct.email}</span>
+            </p>
+          )}
+        </div>
         <IconButton label="רענון נתוני נפח" onClick={() => load(true)} className="hover:bg-fg/5">
           <RefreshCw className={cx("size-5", busy && "animate-spin")} aria-hidden />
         </IconButton>
       </div>
 
-      {err && <p className="text-muted-fg">לא הצלחנו לקרוא את נתוני הנפח כרגע.</p>}
+      {disconnected ? (
+        <div role="alert" className="space-y-3 rounded-2xl border-2 border-destructive bg-destructive/10 p-4 text-destructive">
+          <p className="flex gap-2 font-bold">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0" aria-hidden />
+            החיבור לחשבון ה-Google של האירוע פג. עד שיחברו אותו מחדש, האורחים לא יכולים להעלות ותמונות חדשות לא יוצגו.
+          </p>
+          {reconnectNext && (
+            <LinkButton href={connectHref(reconnectNext, acct?.email)} size="sm" icon={<Link2 className="size-4" aria-hidden />}>
+              חיבור החשבון מחדש
+            </LinkButton>
+          )}
+        </div>
+      ) : (
+        err && <p className="text-muted-fg">לא הצלחנו לקרוא את נתוני הנפח כרגע.</p>
+      )}
       {info && (
         <>
           <div
@@ -107,7 +141,7 @@ export function StorageMeter({
 
       <div className="flex flex-wrap gap-x-5 gap-y-2 text-base font-semibold">
         <a href="https://photos.google.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-primary underline-offset-4 hover:underline">
-          פתיחת Google Photos <ExternalLink className="size-4" aria-hidden />
+          {dedicated ? "פתיחת Google Photos (עם החשבון של האירוע)" : "פתיחת Google Photos"} <ExternalLink className="size-4" aria-hidden />
         </a>
         {googleAlbumUrl && (
           <a href={googleAlbumUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-primary underline-offset-4 hover:underline">
@@ -115,6 +149,7 @@ export function StorageMeter({
           </a>
         )}
       </div>
+      {footer}
     </Card>
   );
 }
