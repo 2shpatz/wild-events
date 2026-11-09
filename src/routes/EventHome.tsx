@@ -11,7 +11,7 @@ import { EventHero } from "../components/event/EventHero";
 import { EventBlock, blockHasContent, type BlockCtx } from "../components/event/EventBlocks";
 import { postToParent, usePreviewDraft } from "../lib/designPreview";
 import { loadFont, titleFontVars } from "../lib/fonts";
-import { blockFonts, headerObjectPosition, pagesTitleFont, type Block } from "../../shared/design";
+import { barTitleColor, blockFonts, headerObjectPosition, pagesTitleFont, type Block } from "../../shared/design";
 
 /** Glyphs fetched while browsing fonts in the editor preview (title + date digits + Hebrew letters). */
 const PREVIEW_GLYPHS = "0123456789.|אבגדהוזחטיכךלמםנןסעפףצץקרשת׳״";
@@ -65,6 +65,8 @@ export default function EventHome() {
   const heroTop = hero.current?.offsetTop ?? 0;
   const pastHero = y > heroTop + vh * 0.75;
   const barShown = pastHero && reveal < 0.35;
+  // The top banner can be switched off in the design (the mobile bottom action bar stays).
+  const topShown = barShown && design.hero.show.bar;
   const scrollTo = (el: Element | null) => el?.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
   const canManage = event.canManage && !preview.active;
   const selected = preview.draft?.selected ?? null;
@@ -108,9 +110,9 @@ export default function EventHome() {
       <div
         className={cx(
           "fixed inset-x-0 top-0 z-30 overflow-hidden text-white transition-[transform,opacity] duration-300",
-          barShown ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-full opacity-0",
+          topShown ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-full opacity-0",
         )}
-        aria-hidden={!barShown}
+        aria-hidden={!topShown}
       >
         <div className="absolute inset-0" aria-hidden>
           {headerImg ? <img src={headerImg} alt="" className="size-full object-cover opacity-50" style={{ objectPosition: headerObjectPosition(design.hero) }} /> : <div className={cx("size-full opacity-50", bg.className)} style={bg.style} />}
@@ -118,19 +120,21 @@ export default function EventHome() {
         </div>
         <div className="relative mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 ps-[max(1rem,var(--music-inset,0px))] pt-[env(safe-area-inset-top)]" style={titleFontVars(barFont)}>
           {headerImg && <img src={headerImg} alt="" className="size-10 shrink-0 rounded-full object-cover ring-2 ring-white/70" style={{ objectPosition: headerObjectPosition(design.hero) }} />}
-          <p className="min-w-0 flex-1 truncate font-title text-xl">{event.title}</p>
-          <Link to={`/${event.code}/gallery`} tabIndex={barShown ? 0 : -1} className="hidden min-h-10 items-center gap-1.5 rounded-full bg-white/15 px-3 text-sm font-semibold hover:bg-white/25 sm:inline-flex">
+          <p className="min-w-0 flex-1 truncate font-title text-xl" style={{ color: barTitleColor(design.hero) ?? undefined }}>
+            {event.title}
+          </p>
+          <Link to={`/${event.code}/gallery`} tabIndex={topShown ? 0 : -1} className="hidden min-h-10 items-center gap-1.5 rounded-full bg-white/15 px-3 text-sm font-semibold hover:bg-white/25 sm:inline-flex">
             <Images className="size-4" aria-hidden />
             צפייה
           </Link>
           {event.uploadsOpen && (
-            <Link to={`/${event.code}/upload`} tabIndex={barShown ? 0 : -1} className="hidden min-h-10 items-center gap-1.5 rounded-full bg-accent px-3 text-sm font-semibold text-on-accent hover:brightness-110 sm:inline-flex">
+            <Link to={`/${event.code}/upload`} tabIndex={topShown ? 0 : -1} className="hidden min-h-10 items-center gap-1.5 rounded-full bg-accent px-3 text-sm font-semibold text-on-accent hover:brightness-110 sm:inline-flex">
               <Camera className="size-4" aria-hidden />
               העלאה
             </Link>
           )}
           {canManage && (
-            <Link to={`/${event.code}/manage`} tabIndex={barShown ? 0 : -1} aria-label="ניהול האירוע" className="inline-flex size-10 items-center justify-center rounded-full hover:bg-white/15">
+            <Link to={`/${event.code}/manage`} tabIndex={topShown ? 0 : -1} aria-label="ניהול האירוע" className="inline-flex size-10 items-center justify-center rounded-full hover:bg-white/15">
               <Settings className="size-5" aria-hidden />
             </Link>
           )}
@@ -176,7 +180,8 @@ export default function EventHome() {
         )}
       </div>
 
-      {canManage && !pastHero && (
+      {/* Floating "manage" for hosts: at the top, or all the way down when the top banner (which holds it) is off. */}
+      {canManage && (!pastHero || !design.hero.show.bar) && (
         <Link
           to={`/${event.code}/manage`}
           className={cx(

@@ -3,6 +3,7 @@
  * Stored as JSON in events.design; always passed through sanitizeDesign() on both write and read.
  */
 import { isKnownFont } from "./fonts";
+import { contrast } from "./color";
 
 export type DateStyle = "invitation" | "line" | "numeric" | "hebrew" | "both";
 export type TitleSize = "md" | "lg" | "xl";
@@ -16,7 +17,8 @@ export interface HeroDesign {
   /** subtitle, date, time / venue, welcome; #rrggbb or null */
   textColor: string | null;
   dateStyle: DateStyle;
-  show: { header: boolean; subtitle: boolean; date: boolean; time: boolean; countdown: boolean; venue: boolean; welcome: boolean };
+  /** bar: the banner that follows the guest while scrolling the home page (after the main page) */
+  show: { header: boolean; subtitle: boolean; date: boolean; time: boolean; countdown: boolean; venue: boolean; welcome: boolean; bar: boolean };
   /** focal point of the header image inside its frame, in % (CSS object-position); 50/50 = centered */
   headerPos: { x: number; y: number };
 }
@@ -62,7 +64,7 @@ export const LIVE_TEXTS = {
   viewTitle: "צפייה בתמונות האירוע",
   viewText: "כל התמונות של כולם, בזמן אמת",
   uploadTitle: "הוסיפו את התמונות שלכם",
-  uploadText: "צילמתם? העלו לאלבום - מהגלריה או מהמצלמה",
+  uploadText: "צילמתם? העלו לאלבום מהגלריה או מהמצלמה",
   emptyTitle: "האלבום עוד ריק",
   emptyText: "היו הראשונים להעלות תמונה מהאירוע",
 } as const;
@@ -119,10 +121,19 @@ export function defaultHero(): HeroDesign {
     titleColor: null,
     textColor: null,
     dateStyle: "invitation",
-    show: { header: true, subtitle: true, date: true, time: true, countdown: true, venue: true, welcome: true },
+    show: { header: true, subtitle: true, date: true, time: true, countdown: true, venue: true, welcome: true, bar: true },
     headerPos: { x: 50, y: 50 },
   };
 }
+
+/** The banners over the header image are always dark (image dimmed + dark blur); about this color behind the title. */
+export const BAR_BACKDROP = "#18181b";
+
+/**
+ * Title color in the scroll banners: the main title's color when it stays readable on the dark banner
+ * (large text, 3:1), otherwise null = white.
+ */
+export const barTitleColor = (hero: HeroDesign) => (hero.titleColor && contrast(hero.titleColor, BAR_BACKDROP) >= 3 ? hero.titleColor : null);
 
 /** CSS object-position for the header image (same focal point in every frame shape it's shown in). */
 export const headerObjectPosition = (hero: HeroDesign) => `${hero.headerPos.x}% ${hero.headerPos.y}%`;
@@ -177,6 +188,7 @@ function sanitizeHero(input: unknown): HeroDesign {
       time: bool(s.time, bool(s.info, true)),
       countdown: bool(s.countdown, bool(s.info, true)),
       venue: bool(s.venue, bool(s.info, true)),
+      bar: bool(s.bar, true),
       welcome: bool(s.welcome, true),
     },
     headerPos: { x: percent(obj(h.headerPos).x), y: percent(obj(h.headerPos).y) },

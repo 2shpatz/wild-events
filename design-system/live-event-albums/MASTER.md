@@ -261,7 +261,7 @@ Destructive is always `#DC2626` / on `#FFFFFF`.
 Viewing surfaces (gallery, lightbox, slideshow) use a **neutral dark canvas** (`#09090B`, text `#FAFAFA`) with the theme accent only for active controls - "let the photos shine" (gallery override).
 
 ### Product-specific component rules
-- Guest home: two large, visually separated primary actions - **Upload** (accent filled) and **View** (outlined/glass) - min height 64px, icon + label, full-width on mobile.
+- Guest home: two large, visually separated primary actions - **Upload** and **View**, both the same glass card (owner request 2026-11-09); Upload keeps an accent border + accent icon tile so it still reads as the main action - min height 64px, icon + label, full-width on mobile.
 - Every destructive action → `ConfirmDialog` stating exact item count; deleting a whole album requires typing its name.
 - Wizards: stepper with progress, Back + Skip where safe, progress persisted (ux: Onboarding / Progress Indicators).
 - Upload: per-file progress + overall bar, retry on failure, haptic `navigator.vibrate(10)` on completion where supported (ux: Feedback, Haptic).

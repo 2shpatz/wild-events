@@ -227,13 +227,17 @@ function LiveSection({ block, event, dark, choiceRef }: { block: LiveBlock; even
               ) : event.uploadsOpen ? (
                 <Link
                   to={`/${event.code}/upload`}
-                  className="flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] bg-accent px-6 py-8 text-center text-on-accent shadow-lift transition-[filter,transform] duration-200 hover:brightness-110 active:scale-[0.99]"
+                  className={cx(
+                    // Same glass card as "view"; the accent border + icon tile keep it recognizable as the main action.
+                    "flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] border-2 border-accent px-6 py-8 text-center backdrop-blur-md transition-[background-color,transform] duration-200 active:scale-[0.99]",
+                    dark ? "bg-white/10 hover:bg-white/20" : "bg-card/85 hover:bg-card",
+                  )}
                 >
-                  <span className="flex size-16 items-center justify-center rounded-2xl bg-white/20">
+                  <span className="flex size-16 items-center justify-center rounded-2xl bg-accent text-on-accent">
                     <Camera className="size-9" aria-hidden />
                   </span>
                   <span className={cx("text-2xl [text-wrap:balance]", block.font ? "font-title" : "font-bold")}>{t("uploadTitle")}</span>
-                  <span className="text-base opacity-90 [text-wrap:balance]">{t("uploadText")}</span>
+                  <span className="text-base opacity-85 [text-wrap:balance]">{t("uploadText")}</span>
                 </Link>
               ) : (
                 <div className={cx("flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 py-8 text-center", dark ? "bg-white/10" : "bg-card/80")}>

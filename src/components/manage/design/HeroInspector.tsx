@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ImageUp, Trash2, Wand2 } from "lucide-react";
 import type { DateStyle, EventDesign, HeroDesign, TitleSize } from "../../../../shared/design";
-import { DATE_STYLES } from "../../../../shared/design";
+import { BAR_BACKDROP, DATE_STYLES } from "../../../../shared/design";
+import { contrast } from "../../../../shared/color";
 import type { ManageEvent } from "../../../../shared/types";
 import { DATE_STYLE_LABELS, dateSample, parseLocalDate } from "../../../lib/dateStyles";
 import { Button, Field, Segmented, cx, inputClass } from "../../ui";
@@ -116,6 +117,16 @@ export function HeroInspector({
             />
           </Field>
         </PartCard>
+        <PartCard
+          label="באנר עליון בגלילה"
+          hint={
+            hero.titleColor && contrast(hero.titleColor, BAR_BACKDROP) < 3
+              ? "מופיע אחרי שגוללים מעבר לעמוד הראשי. צבע הכותרת שבחרתם כהה מדי לבאנר הכהה, ולכן שם האירוע יוצג בו בלבן"
+              : "מופיע אחרי שגוללים מעבר לעמוד הראשי, עם שם האירוע (בצבע הכותרת) וכפתורי צפייה והעלאה"
+          }
+          checked={hero.show.bar}
+          onChange={(v) => show({ bar: v })}
+        />
       </fieldset>
 
       <div className="space-y-3">
