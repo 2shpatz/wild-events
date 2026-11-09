@@ -20,6 +20,8 @@ Events without a saved design use the default below. The hero's title font / col
 
 ## Rules
 - Mobile: sticky bottom action bar (Upload / Album) after the hero, inside safe-area; hidden while the big Upload / View cards are on screen.
+  Both buttons share one glass style; Upload is marked by a frame in the bar's text color (owner request 2026-11-09).
+  Top and bottom bars are configurable in the design (`design.bars`: show, buttons, font, color).
   The top header bar (header image) stays; its action buttons show from `sm` up only.
 - No embedded maps / third-party scripts - navigation is plain links. Brand names as text labels with lucide icons (no logos, no emoji).
 - Countdown is static text (no ticking animation). Reduced motion renders final states.

@@ -20,6 +20,7 @@ export function BlockStyleFields({
   against,
   hebrewOnly,
   onHebrewOnly,
+  defaultFontName = "גופן ערכת הנושא",
 }: {
   font: string | null;
   color: string | null;
@@ -33,10 +34,12 @@ export function BlockStyleFields({
   against: string;
   hebrewOnly: boolean;
   onHebrewOnly: (v: boolean) => void;
+  /** what "no font chosen" means here (shown in the summary) */
+  defaultFontName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const panel = useId();
-  const fontName = font ? (fontByFamily(font)?.family ?? font) : "גופן ערכת הנושא";
+  const fontName = font ? (fontByFamily(font)?.family ?? font) : defaultFontName;
   return (
     <div className="rounded-xl border border-border bg-card">
       <button

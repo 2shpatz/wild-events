@@ -11,7 +11,7 @@ import { EventHero } from "../components/event/EventHero";
 import { EventBlock, blockHasContent, type BlockCtx } from "../components/event/EventBlocks";
 import { postToParent, usePreviewDraft } from "../lib/designPreview";
 import { loadFont, titleFontVars } from "../lib/fonts";
-import { barTitleColor, blockFonts, headerObjectPosition, pagesTitleFont, type Block } from "../../shared/design";
+import { barTextColor, blockFonts, headerObjectPosition, pagesTitleFont, type Block } from "../../shared/design";
 
 /** Glyphs fetched while browsing fonts in the editor preview (title + date digits + Hebrew letters). */
 const PREVIEW_GLYPHS = "0123456789.|אבגדהוזחטיכךלמםנןסעפףצץקרשת׳״";
@@ -37,7 +37,7 @@ export default function EventHome() {
   const design = preview.draft?.design ?? event?.design;
 
   const titleFont = design?.hero.titleFont;
-  const barFont = design ? pagesTitleFont(design) : null;
+  const barFont = design ? (design.bars.top.font ?? pagesTitleFont(design)) : null;
   useEffect(() => {
     if (!event) return;
     for (const f of [titleFont, barFont]) loadFont(f, preview.active ? event.title + PREVIEW_GLYPHS : undefined);
@@ -65,8 +65,13 @@ export default function EventHome() {
   const heroTop = hero.current?.offsetTop ?? 0;
   const pastHero = y > heroTop + vh * 0.75;
   const barShown = pastHero && reveal < 0.35;
-  // The top banner can be switched off in the design (the mobile bottom action bar stays).
-  const topShown = barShown && design.hero.show.bar;
+  // Each banner can be switched off (and its buttons chosen) in the design.
+  const { top, bottom } = design.bars;
+  const topShown = barShown && top.show;
+  const bottomUpload = bottom.upload && event.uploadsOpen;
+  const bottomShown = barShown && !choiceVisible && bottom.show && (bottomUpload || bottom.view);
+  const topColor = barTextColor(design, "top") ?? undefined;
+  const bottomColor = barTextColor(design, "bottom");
   const scrollTo = (el: Element | null) => el?.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
   const canManage = event.canManage && !preview.active;
   const selected = preview.draft?.selected ?? null;
@@ -119,15 +124,17 @@ export default function EventHome() {
           <div className="absolute inset-0 bg-zinc-950/45 backdrop-blur-md" />
         </div>
         <div className="relative mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 ps-[max(1rem,var(--music-inset,0px))] pt-[env(safe-area-inset-top)]" style={titleFontVars(barFont)}>
-          {headerImg && <img src={headerImg} alt="" className="size-10 shrink-0 rounded-full object-cover ring-2 ring-white/70" style={{ objectPosition: headerObjectPosition(design.hero) }} />}
-          <p className="min-w-0 flex-1 truncate font-title text-xl" style={{ color: barTitleColor(design.hero) ?? undefined }}>
+          {top.avatar && headerImg && <img src={headerImg} alt="" className="size-10 shrink-0 rounded-full object-cover ring-2 ring-white/70" style={{ objectPosition: headerObjectPosition(design.hero) }} />}
+          <p className="min-w-0 flex-1 truncate font-title text-xl" style={{ color: topColor }}>
             {event.title}
           </p>
-          <Link to={`/${event.code}/gallery`} tabIndex={topShown ? 0 : -1} className="hidden min-h-10 items-center gap-1.5 rounded-full bg-white/15 px-3 text-sm font-semibold hover:bg-white/25 sm:inline-flex">
-            <Images className="size-4" aria-hidden />
-            צפייה
-          </Link>
-          {event.uploadsOpen && (
+          {top.view && (
+            <Link to={`/${event.code}/gallery`} tabIndex={topShown ? 0 : -1} className="hidden min-h-10 items-center gap-1.5 rounded-full bg-white/15 px-3 text-sm font-semibold hover:bg-white/25 sm:inline-flex">
+              <Images className="size-4" aria-hidden />
+              צפייה
+            </Link>
+          )}
+          {top.upload && event.uploadsOpen && (
             <Link to={`/${event.code}/upload`} tabIndex={topShown ? 0 : -1} className="hidden min-h-10 items-center gap-1.5 rounded-full bg-accent px-3 text-sm font-semibold text-on-accent hover:brightness-110 sm:inline-flex">
               <Camera className="size-4" aria-hidden />
               העלאה
@@ -141,26 +148,38 @@ export default function EventHome() {
         </div>
       </div>
 
-      {/* Mobile: sticky primary actions in the thumb zone (hidden while the big Upload / View cards are on screen). */}
+      {/* Mobile: sticky primary actions in the thumb zone (hidden while the big Upload / View cards are on screen).
+          Both buttons share one glass style; upload is marked by a frame in the banner's text color. */}
       <nav
         aria-label="פעולות מהירות"
         className={cx(
           "fixed inset-x-0 bottom-0 z-30 border-t border-white/15 bg-zinc-950/70 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md transition-[transform,opacity] duration-300 sm:hidden",
-          barShown && !choiceVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0",
+          bottomShown ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0",
         )}
-        aria-hidden={!barShown || choiceVisible}
+        style={{ ...titleFontVars(bottom.font), color: bottomColor ?? "#ffffff" }}
+        aria-hidden={!bottomShown}
       >
-        <div className={cx("grid gap-3", event.uploadsOpen ? "grid-cols-2" : "grid-cols-1")}>
-          {event.uploadsOpen && (
-            <Link to={`/${event.code}/upload`} tabIndex={barShown && !choiceVisible ? 0 : -1} className="inline-flex min-h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl bg-accent px-2 text-[15px] font-bold text-on-accent min-[400px]:text-base">
+        <div className={cx("grid gap-3", bottomUpload && bottom.view ? "grid-cols-2" : "grid-cols-1")}>
+          {bottomUpload && (
+            <Link
+              to={`/${event.code}/upload`}
+              tabIndex={bottomShown ? 0 : -1}
+              className={cx("inline-flex min-h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border-2 border-current bg-white/15 px-2 text-[15px] min-[400px]:text-base", bottom.font ? "font-title text-lg" : "font-bold")}
+            >
               <Camera className="size-5" aria-hidden />
               העלאת תמונות
             </Link>
           )}
-          <Link to={`/${event.code}/gallery`} tabIndex={barShown && !choiceVisible ? 0 : -1} className="inline-flex min-h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl bg-white/15 px-2 text-[15px] font-bold text-white min-[400px]:text-base">
-            <Images className="size-5" aria-hidden />
-            לאלבום
-          </Link>
+          {bottom.view && (
+            <Link
+              to={`/${event.code}/gallery`}
+              tabIndex={bottomShown ? 0 : -1}
+              className={cx("inline-flex min-h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border-2 border-transparent bg-white/15 px-2 text-[15px] min-[400px]:text-base", bottom.font ? "font-title text-lg" : "font-bold")}
+            >
+              <Images className="size-5" aria-hidden />
+              לאלבום
+            </Link>
+          )}
         </div>
       </nav>
 
@@ -181,7 +200,7 @@ export default function EventHome() {
       </div>
 
       {/* Floating "manage" for hosts: at the top, or all the way down when the top banner (which holds it) is off. */}
-      {canManage && (!pastHero || !design.hero.show.bar) && (
+      {canManage && (!pastHero || !top.show) && (
         <Link
           to={`/${event.code}/manage`}
           className={cx(

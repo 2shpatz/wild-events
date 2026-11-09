@@ -1,4 +1,4 @@
-import type { Block, BlockType, EventDesign, HeroDesign } from "../../../../shared/design";
+import type { BarsDesign, Block, BlockType, EventDesign, HeroDesign } from "../../../../shared/design";
 import { newBlock } from "../../../../shared/design";
 
 export type Where = "before" | "after";
@@ -8,6 +8,7 @@ export type DraftAction =
   | { type: "hero"; patch: Partial<HeroDesign> }
   | { type: "show"; patch: Partial<HeroDesign["show"]> }
   | { type: "pagesFont"; font: string | null }
+  | { type: "bars"; which: keyof BarsDesign; patch: Partial<BarsDesign["top"] & BarsDesign["bottom"]> }
   | { type: "add"; block: Block; where: Where }
   | { type: "update"; id: string; patch: Partial<Block> }
   | { type: "move"; id: string; dir: -1 | 1 }
@@ -34,6 +35,8 @@ export function draftReducer(d: EventDesign, a: DraftAction): EventDesign {
       return { ...d, hero: { ...d.hero, show: { ...d.hero.show, ...a.patch } } };
     case "pagesFont":
       return { ...d, pagesFont: a.font };
+    case "bars":
+      return { ...d, bars: { ...d.bars, [a.which]: { ...d.bars[a.which], ...a.patch } } };
     case "add":
       return { ...d, [a.where]: [...d[a.where], a.block] };
     case "update":

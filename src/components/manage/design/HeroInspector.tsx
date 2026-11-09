@@ -1,8 +1,7 @@
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ImageUp, Trash2, Wand2 } from "lucide-react";
 import type { DateStyle, EventDesign, HeroDesign, TitleSize } from "../../../../shared/design";
-import { BAR_BACKDROP, DATE_STYLES } from "../../../../shared/design";
-import { contrast } from "../../../../shared/color";
+import { BAR_BACKDROP, DATE_STYLES, barTitleColor, type BarsDesign } from "../../../../shared/design";
 import type { ManageEvent } from "../../../../shared/types";
 import { DATE_STYLE_LABELS, dateSample, parseLocalDate } from "../../../lib/dateStyles";
 import { Button, Field, Segmented, cx, inputClass } from "../../ui";
@@ -11,6 +10,8 @@ import { ColorField } from "./ColorField";
 import { FontPicker } from "./FontPicker";
 import { HeaderFramer } from "./HeaderFramer";
 import { PartCard } from "./PartsFields";
+import { BlockStyleFields } from "./BlockStyleFields";
+import { Toggle } from "../Toggle";
 import type { DraftAction } from "./draft";
 
 const SIZES: { value: TitleSize; label: string }[] = [
@@ -117,16 +118,7 @@ export function HeroInspector({
             />
           </Field>
         </PartCard>
-        <PartCard
-          label="באנר עליון בגלילה"
-          hint={
-            hero.titleColor && contrast(hero.titleColor, BAR_BACKDROP) < 3
-              ? "מופיע אחרי שגוללים מעבר לעמוד הראשי. צבע הכותרת שבחרתם כהה מדי לבאנר הכהה, ולכן שם האירוע יוצג בו בלבן"
-              : "מופיע אחרי שגוללים מעבר לעמוד הראשי, עם שם האירוע (בצבע הכותרת) וכפתורי צפייה והעלאה"
-          }
-          checked={hero.show.bar}
-          onChange={(v) => show({ bar: v })}
-        />
+        <BarCards design={design} dispatch={dispatch} hebrewOnly={hebrewOnly} onHebrewOnly={onHebrewOnly} sample={event.title} />
       </fieldset>
 
       <div className="space-y-3">
@@ -242,5 +234,80 @@ function DateStyleStepper({ value, onChange, sample, noDate }: { value: DateStyl
       </div>
       {noDate && <p className="text-sm text-muted-fg">עדיין לא נקבע תאריך - הדוגמה מוצגת עם התאריך של היום.</p>}
     </div>
+  );
+}
+
+/**
+ * The two scroll banners (top bar; bottom action bar on phones): show / hide, which buttons they hold, and their
+ * text font / color. Without a color of their own they use the main title color - unless it's too dark for them.
+ */
+function BarCards({
+  design,
+  dispatch,
+  hebrewOnly,
+  onHebrewOnly,
+  sample,
+}: {
+  design: EventDesign;
+  dispatch: (a: DraftAction) => void;
+  hebrewOnly: boolean;
+  onHebrewOnly: (v: boolean) => void;
+  sample: string;
+}) {
+  const { top, bottom } = design.bars;
+  const bar = (which: keyof BarsDesign) => (patch: Partial<BarsDesign["top"] & BarsDesign["bottom"]>) => dispatch({ type: "bars", which, patch });
+  const setTop = bar("top");
+  const setBottom = bar("bottom");
+  // The main title color can't be used on the dark banners: say so (they fall back to white).
+  const titleTooDark = !!design.hero.titleColor && !barTitleColor(design.hero);
+  const colorNote = (own: string | null) => (own ? "" : titleTooDark ? " · צבע הכותרת כהה מדי לבאנר, לכן הטקסט לבן" : design.hero.titleColor ? " · בצבע הכותרת" : "");
+  return (
+    <>
+      <PartCard label="באנר עליון בגלילה" hint={`מופיע אחרי שגוללים מעבר לעמוד הראשי${colorNote(top.color)}`} checked={top.show} onChange={(v) => setTop({ show: v })}>
+        <div className="divide-y divide-border">
+          <Toggle checked={top.avatar} onChange={(v) => setTop({ avatar: v })} label="תמונה קטנה ליד השם" hint="מתוך תמונת הכותרת" />
+          <Toggle checked={top.view} onChange={(v) => setTop({ view: v })} label="כפתור צפייה" hint="במחשב (בטלפון הכפתורים בבאנר התחתון)" />
+          <Toggle checked={top.upload} onChange={(v) => setTop({ upload: v })} label="כפתור העלאה" hint="במחשב, כשההעלאות פתוחות" />
+        </div>
+        <BlockStyleFields
+          font={top.font}
+          color={top.color}
+          onFont={(font) => setTop({ font })}
+          onColor={(color) => setTop({ color })}
+          fontLabel="גופן שם האירוע"
+          colorLabel="צבע שם האירוע"
+          defaultFontName="כמו בשאר העמודים"
+          sample={sample}
+          against={BAR_BACKDROP}
+          hebrewOnly={hebrewOnly}
+          onHebrewOnly={onHebrewOnly}
+        />
+      </PartCard>
+      <PartCard
+        label="באנר תחתון בטלפון"
+        hint={`כפתורי העלאה ואלבום בתחתית המסך${colorNote(bottom.color)}`}
+        checked={bottom.show}
+        onChange={(v) => setBottom({ show: v })}
+      >
+        <div className="divide-y divide-border">
+          <Toggle checked={bottom.upload} onChange={(v) => setBottom({ upload: v })} label="כפתור העלאת תמונות" hint="עם מסגרת בצבע הטקסט; מופיע כשההעלאות פתוחות" />
+          <Toggle checked={bottom.view} onChange={(v) => setBottom({ view: v })} label="כפתור לאלבום" />
+        </div>
+        {!bottom.upload && !bottom.view && <p className="text-sm text-muted-fg">בלי כפתורים הבאנר התחתון לא יופיע.</p>}
+        <BlockStyleFields
+          font={bottom.font}
+          color={bottom.color}
+          onFont={(font) => setBottom({ font })}
+          onColor={(color) => setBottom({ color })}
+          fontLabel="גופן הכפתורים"
+          colorLabel="צבע הטקסט והמסגרת"
+          defaultFontName="הגופן הרגיל"
+          sample="העלאת תמונות"
+          against={BAR_BACKDROP}
+          hebrewOnly={hebrewOnly}
+          onHebrewOnly={onHebrewOnly}
+        />
+      </PartCard>
+    </>
   );
 }

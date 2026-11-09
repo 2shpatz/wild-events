@@ -228,12 +228,12 @@ function LiveSection({ block, event, dark, choiceRef }: { block: LiveBlock; even
                 <Link
                   to={`/${event.code}/upload`}
                   className={cx(
-                    // Same glass card as "view"; the accent border + icon tile keep it recognizable as the main action.
+                    // Same glass card and icon tile as "view"; the accent border keeps it recognizable as the main action.
                     "flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] border-2 border-accent px-6 py-8 text-center backdrop-blur-md transition-[background-color,transform] duration-200 active:scale-[0.99]",
                     dark ? "bg-white/10 hover:bg-white/20" : "bg-card/85 hover:bg-card",
                   )}
                 >
-                  <span className="flex size-16 items-center justify-center rounded-2xl bg-accent text-on-accent">
+                  <span className={cx("flex size-16 items-center justify-center rounded-2xl", dark ? "bg-white/15" : "bg-primary/10 text-primary")}>
                     <Camera className="size-9" aria-hidden />
                   </span>
                   <span className={cx("text-2xl [text-wrap:balance]", block.font ? "font-title" : "font-bold")}>{t("uploadTitle")}</span>

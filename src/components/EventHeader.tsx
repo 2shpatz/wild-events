@@ -5,7 +5,7 @@ import type { PublicEvent } from "../../shared/types";
 import { backgroundProps } from "../lib/themes";
 import { cx } from "./ui";
 import { titleFontVars, useFonts } from "../lib/fonts";
-import { barTitleColor, headerObjectPosition, pagesTitleFont } from "../../shared/design";
+import { barTextColor, headerObjectPosition, pagesTitleFont } from "../../shared/design";
 
 export const headerImageUrl = (ev: PublicEvent) =>
   ev.headerVersion ? `/api/e/${ev.code}/asset/hd?v=${encodeURIComponent(ev.headerVersion)}` : null;
@@ -87,7 +87,7 @@ export function EventHeader({
 
       {/* Banner strip (scrolls away): big event title. */}
       <div className="relative flex items-end px-4 pb-2" style={{ height: BANNER, opacity: 1 - t, ...titleFontVars(font) }}>
-        <p className="mx-auto w-full max-w-[1600px] truncate font-title text-3xl drop-shadow-[0_2px_8px_rgb(0_0_0/0.5)] sm:text-4xl" style={{ color: barTitleColor(event.design.hero) ?? undefined }}>
+        <p className="mx-auto w-full max-w-[1600px] truncate font-title text-3xl drop-shadow-[0_2px_8px_rgb(0_0_0/0.5)] sm:text-4xl" style={{ color: barTextColor(event.design, "top") ?? undefined }}>
           {event.title}
         </p>
       </div>

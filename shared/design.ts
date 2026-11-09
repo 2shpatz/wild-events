@@ -17,8 +17,7 @@ export interface HeroDesign {
   /** subtitle, date, time / venue, welcome; #rrggbb or null */
   textColor: string | null;
   dateStyle: DateStyle;
-  /** bar: the banner that follows the guest while scrolling the home page (after the main page) */
-  show: { header: boolean; subtitle: boolean; date: boolean; time: boolean; countdown: boolean; venue: boolean; welcome: boolean; bar: boolean };
+  show: { header: boolean; subtitle: boolean; date: boolean; time: boolean; countdown: boolean; venue: boolean; welcome: boolean };
   /** focal point of the header image inside its frame, in % (CSS object-position); 50/50 = centered */
   headerPos: { x: number; y: number };
 }
@@ -84,9 +83,20 @@ export type SingletonBlock = (BlockBase & { type: "invitation" }) | FeaturedBloc
 export type Block = TextBlock | ImageBlock | SingletonBlock;
 export type BlockType = Block["type"];
 
+/**
+ * The banners that follow the guest while scrolling the home page (after the main page): the top bar and, on
+ * phones, the bottom action bar. Which buttons they hold, and their text font / color
+ * (null = top: the other pages' title font; bottom: the body font / both: the main title color, if readable).
+ */
+export interface BarsDesign {
+  top: { show: boolean; avatar: boolean; view: boolean; upload: boolean; font: string | null; color: string | null };
+  bottom: { show: boolean; upload: boolean; view: boolean; font: string | null; color: string | null };
+}
+
 export interface EventDesign {
   v: 1;
   hero: HeroDesign;
+  bars: BarsDesign;
   before: Block[];
   after: Block[];
   /** title font on the other event pages (upload, gallery); null = same as the main title */
@@ -114,6 +124,13 @@ export function singletonBlock(type: SingletonType, id: string): SingletonBlock 
 /** The text to show for an editable part: the hosts' own, or the default. */
 export const partText = <T extends string>(texts: Record<T, string | null>, key: T, fallback: string) => texts[key]?.trim() || fallback;
 
+export function defaultBars(): BarsDesign {
+  return {
+    top: { show: true, avatar: true, view: true, upload: true, font: null, color: null },
+    bottom: { show: true, upload: true, view: true, font: null, color: null },
+  };
+}
+
 export function defaultHero(): HeroDesign {
   return {
     titleFont: null,
@@ -121,7 +138,7 @@ export function defaultHero(): HeroDesign {
     titleColor: null,
     textColor: null,
     dateStyle: "invitation",
-    show: { header: true, subtitle: true, date: true, time: true, countdown: true, venue: true, welcome: true, bar: true },
+    show: { header: true, subtitle: true, date: true, time: true, countdown: true, venue: true, welcome: true },
     headerPos: { x: 50, y: 50 },
   };
 }
@@ -135,6 +152,9 @@ export const BAR_BACKDROP = "#18181b";
  */
 export const barTitleColor = (hero: HeroDesign) => (hero.titleColor && contrast(hero.titleColor, BAR_BACKDROP) >= 3 ? hero.titleColor : null);
 
+/** Text color of a scroll banner: the hosts' own choice, else the main title color when readable, else null = white. */
+export const barTextColor = (d: EventDesign, which: keyof BarsDesign) => d.bars[which].color ?? barTitleColor(d.hero);
+
 /** CSS object-position for the header image (same focal point in every frame shape it's shown in). */
 export const headerObjectPosition = (hero: HeroDesign) => `${hero.headerPos.x}% ${hero.headerPos.y}%`;
 
@@ -143,6 +163,7 @@ export function defaultDesign(): EventDesign {
   return {
     v: 1,
     hero: defaultHero(),
+    bars: defaultBars(),
     before: [],
     after: [singletonBlock("invitation", "invitation"), singletonBlock("details", "details"), singletonBlock("featured", "featured"), singletonBlock("live", "live")],
     pagesFont: null,
@@ -188,7 +209,6 @@ function sanitizeHero(input: unknown): HeroDesign {
       time: bool(s.time, bool(s.info, true)),
       countdown: bool(s.countdown, bool(s.info, true)),
       venue: bool(s.venue, bool(s.info, true)),
-      bar: bool(s.bar, true),
       welcome: bool(s.welcome, true),
     },
     headerPos: { x: percent(obj(h.headerPos).x), y: percent(obj(h.headerPos).y) },
@@ -270,7 +290,25 @@ export function sanitizeDesign(input: unknown): EventDesign {
       if (b) dst.push(b);
     }
   }
-  return { v: 1, hero: sanitizeHero(d.hero), before, after, pagesFont: font(d.pagesFont) };
+  return { v: 1, hero: sanitizeHero(d.hero), bars: sanitizeBars(d.bars, obj(obj(d.hero).show).bar), before, after, pagesFont: font(d.pagesFont) };
+}
+
+/** `legacyTopShow`: the top banner switch used to live at hero.show.bar. */
+function sanitizeBars(input: unknown, legacyTopShow: unknown): BarsDesign {
+  const b = obj(input);
+  const t = obj(b.top);
+  const m = obj(b.bottom);
+  return {
+    top: {
+      show: bool(t.show, bool(legacyTopShow, true)),
+      avatar: bool(t.avatar, true),
+      view: bool(t.view, true),
+      upload: bool(t.upload, true),
+      font: font(t.font),
+      color: color(t.color),
+    },
+    bottom: { show: bool(m.show, true), upload: bool(m.upload, true), view: bool(m.view, true), font: font(m.font), color: color(m.color) },
+  };
 }
 
 export function parseDesign(json: string | null | undefined): EventDesign {
@@ -282,9 +320,11 @@ export function parseDesign(json: string | null | undefined): EventDesign {
   }
 }
 
-/** Fonts the blocks use (to load them on the guest page). */
-export const blockFonts = (d: EventDesign) =>
-  [...d.before, ...d.after].flatMap((b) => ("font" in b && b.font ? [b.font] : []));
+/** Fonts the blocks and banners use (to load them on the guest page). */
+export const blockFonts = (d: EventDesign) => [
+  ...[...d.before, ...d.after].flatMap((b) => ("font" in b && b.font ? [b.font] : [])),
+  ...[d.bars.top.font, d.bars.bottom.font].filter((f): f is string => !!f),
+];
 
 /** Image slots referenced by the design (everything else under kind 'i*' is an orphan). */
 export const usedImageSlots = (d: EventDesign) =>
