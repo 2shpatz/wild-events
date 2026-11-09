@@ -211,8 +211,8 @@ export function MusicTab({ event, onChanged }: { event: ManageEvent; onChanged: 
           <Toggle
             checked={draft.autoStart}
             onChange={(v) => patch({ autoStart: v })}
-            label="להתחיל לנגן בנגיעה הראשונה של האורח"
-            hint="הדפדפנים לא מאפשרים לנגן לפני שהאורח נוגע בעמוד. אורח שעצר את המוזיקה לא ישמע אותה שוב מעצמה."
+            label="להתחיל לנגן מיד כשהעמוד עולה"
+            hint="בחלק מהטלפונים (בעיקר אייפון) הדפדפן לא מאפשר צליל לפני שנוגעים בעמוד - שם המוזיקה תתחיל בנגיעה הראשונה של האורח. אורח שעצר את המוזיקה לא ישמע אותה שוב מעצמה."
           />
           <Toggle checked={draft.shuffle} onChange={(v) => patch({ shuffle: v })} label="סדר אקראי" />
         </div>

@@ -115,7 +115,8 @@ function fadeIn(a: HTMLAudioElement) {
 }
 
 /** Must run synchronously inside a user gesture the first time (iOS). */
-function start(index = state.index) {
+/** `auto`: an attempt without a user gesture (page load) - if the browser blocks it, the first tap starts it. */
+function start(index = state.index, auto = false) {
   const t = state.tracks[index];
   if (!t) return;
   if (index !== state.index) removedPlaying = false;
@@ -128,7 +129,20 @@ function start(index = state.index) {
   set({ index, loading: true, waitingForTap: false });
   updateSession();
   fadeIn(a);
-  a.play().catch(() => set({ playing: false, loading: false }));
+  a.play().then(
+    () => auto && disarmAutoStart(),
+    // Ignore a late rejection if a tap has already started it meanwhile.
+    () => a.paused && set({ playing: false, loading: false, ...(auto && disarm ? { waitingForTap: true } : {}) }),
+  );
+}
+
+/**
+ * Start right away when the page loads. Allowed by some browsers (often desktop, or a site the guest already
+ * interacted with); others (notably iPhone Safari) block sound before a gesture - then the first tap starts it.
+ */
+function tryAutoplay() {
+  armAutoStart();
+  start(state.index, true);
 }
 
 export function play() {
@@ -252,8 +266,8 @@ export function setMusic(code: string | null, music: GuestMusic | null) {
   const first = savedIndex >= 0 ? savedIndex : music.shuffle ? Math.floor(Math.random() * music.tracks.length) : 0;
   resumeAt = savedIndex >= 0 ? saved.t ?? 0 : 0;
   set({ code, tracks: music.tracks, index: first, playing: false, loading: false, waitingForTap: false });
-  // Browsers still need one tap before sound: if the guest had it playing, the first tap resumes it.
-  if (!saved.off && (music.autoStart || saved.on)) armAutoStart();
+  // Start immediately where the browser allows it, else on the first tap. A guest who stopped it isn't overridden.
+  if (!saved.off && (music.autoStart || saved.on)) tryAutoplay();
 }
 
 // ------------------------------------------------------------- pause for videos / hidden tab (installed once)
