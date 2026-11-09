@@ -11,7 +11,7 @@ import { EventHero } from "../components/event/EventHero";
 import { EventBlock, blockHasContent, type BlockCtx } from "../components/event/EventBlocks";
 import { postToParent, usePreviewDraft } from "../lib/designPreview";
 import { loadFont, titleFontVars } from "../lib/fonts";
-import { headerObjectPosition, pagesTitleFont, type Block } from "../../shared/design";
+import { blockFonts, headerObjectPosition, pagesTitleFont, type Block } from "../../shared/design";
 
 /** Glyphs fetched while browsing fonts in the editor preview (title + date digits + Hebrew letters). */
 const PREVIEW_GLYPHS = "0123456789.|אבגדהוזחטיכךלמםנןסעפףצץקרשת׳״";
@@ -31,6 +31,7 @@ export default function EventHome() {
   const { progress, y } = useScrollProgress();
   const choice = useRef<HTMLDivElement>(null);
   const hero = useRef<HTMLElement>(null);
+  const revealZone = useRef<HTMLDivElement>(null);
   const choiceVisible = useInView(choice);
   const event = preview.draft?.event ?? fetched;
   const design = preview.draft?.design ?? event?.design;
@@ -41,6 +42,11 @@ export default function EventHome() {
     if (!event) return;
     for (const f of [titleFont, barFont]) loadFont(f, preview.active ? event.title + PREVIEW_GLYPHS : undefined);
   }, [titleFont, barFont, event, preview.active]);
+  // Fonts chosen for blocks (their headings say anything, so the full family is loaded).
+  const blockFontsKey = design ? blockFonts(design).join("|") : "";
+  useEffect(() => {
+    for (const f of blockFontsKey.split("|")) if (f) loadFont(f);
+  }, [blockFontsKey]);
 
   if (!event || !design) return <EventStatus error={error} loading />;
 
@@ -50,10 +56,15 @@ export default function EventHome() {
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
   // Background drifts slower than content and the scrim deepens as you scroll (readability further down).
   const parallax = reduced ? 0 : Math.min(y, vh * 2) * -0.18;
-  const scrim = Math.min(0.55, (y / vh) * 0.45);
+  // Optional "reveal" zone after the last block: scrolling into it fades out the scrim / readability gradient and
+  // fades in the whole (uncropped) background picture, with the bars out of the way. 0 = not reached, 1 = page end.
+  const zone = event.bgReveal ? revealZone.current : null;
+  const reveal = zone ? Math.min(1, Math.max(0, (y + vh - zone.offsetTop) / (zone.offsetHeight || vh))) : 0;
+  const scrim = Math.min(0.55, (y / vh) * 0.45) * (1 - reveal);
   const headerImg = headerImageUrl(event);
   const heroTop = hero.current?.offsetTop ?? 0;
-  const barShown = y > heroTop + vh * 0.75;
+  const pastHero = y > heroTop + vh * 0.75;
+  const barShown = pastHero && reveal < 0.35;
   const scrollTo = (el: Element | null) => el?.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
   const canManage = event.canManage && !preview.active;
   const selected = preview.draft?.selected ?? null;
@@ -69,11 +80,14 @@ export default function EventHome() {
       </div>
     ));
 
-  // Editor preview: every click selects the block under it instead of navigating / opening things.
+  // Editor preview: every click selects the block under it instead of navigating / opening things -
+  // except inside [data-preview-interactive] (e.g. the featured photos' carousel arrows), which also keeps working.
   const onClickCapture = preview.active
     ? (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
+        if (!(e.target as HTMLElement).closest("[data-preview-interactive]")) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         const id = (e.target as HTMLElement).closest<HTMLElement>("[data-block-id]")?.dataset.blockId;
         if (id) postToParent({ type: "design:select", id });
       }
@@ -149,11 +163,20 @@ export default function EventHome() {
       {/* Fixed, clipped background layer (parallax = decorative layer only). */}
       <div className="fixed inset-0 -z-10 overflow-hidden" aria-hidden>
         <div className={cx("absolute inset-x-0 -top-[5%] h-[175%]", bg.className)} style={{ ...bg.style, transform: `translate3d(0, ${parallax}px, 0)` }} />
-        {event.background === "custom" && <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" />}
+        {event.background === "custom" && <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" style={{ opacity: 1 - reveal }} />}
         <div className="absolute inset-0 bg-black transition-opacity duration-150" style={{ opacity: dark ? scrim : scrim * 0.25 }} />
+        {event.bgReveal && event.background === "custom" && reveal > 0 && (
+          // The whole picture (contain), over a blurred copy of the cropped background.
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xl" style={{ opacity: reveal }}>
+            <div
+              className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] top-[max(0.75rem,env(safe-area-inset-top))] bg-contain bg-center bg-no-repeat sm:inset-x-8 sm:bottom-8 sm:top-8"
+              style={{ backgroundImage: bg.style.backgroundImage }}
+            />
+          </div>
+        )}
       </div>
 
-      {canManage && !barShown && (
+      {canManage && !pastHero && (
         <Link
           to={`/${event.code}/manage`}
           className={cx(
@@ -191,6 +214,9 @@ export default function EventHome() {
           </Link>
         </p>
       )}
+
+      {/* Empty scroll space at the very end (when enabled) that reveals the background picture. */}
+      {event.bgReveal && <div ref={revealZone} aria-hidden className="h-[100dvh]" />}
     </div>
   );
 }

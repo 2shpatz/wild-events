@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
 import { Link } from "react-router-dom";
 import { Camera, ImageIcon, Images, Lock, Play, Radio, Wrench, X, ZoomIn } from "lucide-react";
-import { DETAILS_TEXTS, LIVE_TEXTS, partText, type Block, type DetailsBlock, type ImageBlock, type LiveBlock, type TextBlock } from "../../../shared/design";
+import { DETAILS_TEXTS, LIVE_TEXTS, partText, type Block, type BlockStyle, type DetailsBlock, type ImageBlock, type LiveBlock, type TextBlock } from "../../../shared/design";
+import { titleFontVars } from "../../lib/fonts";
 import type { MediaDTO, PublicEvent } from "../../../shared/types";
 import { Reveal } from "../Reveal";
 import { cx } from "../ui";
@@ -35,6 +36,12 @@ export function blockHasContent(b: Block, ev: PublicEvent): boolean {
   }
 }
 
+/** A block's own font (for its `.font-title` headings) and text color; nothing set = the theme's. */
+export const blockStyle = (b: Partial<BlockStyle>): CSSProperties | undefined => {
+  const st = { ...titleFontVars(b.font), ...(b.color ? { color: b.color } : {}) };
+  return Object.keys(st).length ? st : undefined;
+};
+
 export interface BlockCtx {
   event: PublicEvent;
   dark: boolean;
@@ -57,7 +64,8 @@ export function EventBlock({ block, ctx }: { block: Block; ctx: BlockCtx }) {
       return <DetailsSection block={block} event={event} dark={dark} />;
     case "featured":
       return (
-        <section className="relative px-5 py-14 sm:py-24" aria-label="מבעלי השמחה">
+        // Pile / carousel / floating react to taps, so they stay usable in the editor preview (no links inside).
+        <section className="relative px-5 py-14 sm:py-24" aria-label="מבעלי השמחה" data-preview-interactive={block.layout !== "grid" || undefined}>
           <FeaturedPhotos event={event} dark={dark} layout={block.layout} />
         </section>
       );
@@ -104,7 +112,7 @@ const TEXT_SIZES: Record<TextBlock["size"], { h: string; p: string }> = {
 function TextSection({ block, dark }: { block: TextBlock; dark: boolean }) {
   const s = TEXT_SIZES[block.size];
   return (
-    <section className="relative px-5 py-10 sm:py-14">
+    <section className="relative px-5 py-10 sm:py-14" style={titleFontVars(block.font)}>
       <Reveal variant="up" className="mx-auto w-full max-w-2xl">
         <div
           className={cx(
@@ -114,7 +122,7 @@ function TextSection({ block, dark }: { block: TextBlock; dark: boolean }) {
           )}
           style={block.color ? { color: block.color } : undefined}
         >
-          {block.heading && <h2 className={cx("font-display leading-tight [text-wrap:balance]", s.h, block.body && "mb-3")}>{block.heading}</h2>}
+          {block.heading && <h2 className={cx("font-title leading-tight [text-wrap:balance]", s.h, block.body && "mb-3")}>{block.heading}</h2>}
           {block.body && <p className={cx("whitespace-pre-line leading-relaxed", s.p)}>{block.body}</p>}
         </div>
       </Reveal>
@@ -136,11 +144,11 @@ function ImageSection({ block, src, title }: { block: ImageBlock; src: string; t
       </div>
     );
   return (
-    <section className={cx("relative py-10 sm:py-14", block.shape === "wide" ? "px-3 sm:px-5" : "px-5")}>
+    <section className={cx("relative py-10 sm:py-14", block.shape === "wide" ? "px-3 sm:px-5" : "px-5")} style={blockStyle(block)}>
       <Reveal variant="up">
         <figure>
           {img}
-          {block.caption && <figcaption className="mx-auto mt-4 max-w-xl text-center text-lg font-semibold [text-wrap:balance]">{block.caption}</figcaption>}
+          {block.caption && <figcaption className={cx("mx-auto mt-4 max-w-xl text-center [text-wrap:balance]", block.font ? "font-title text-2xl" : "text-lg font-semibold")}>{block.caption}</figcaption>}
         </figure>
       </Reveal>
     </section>
@@ -153,11 +161,12 @@ function DetailsSection({ block, event, dark }: { block: DetailsBlock; event: Pu
     <section
       id="event-details"
       className="relative scroll-mt-20 px-5 py-14 sm:py-20"
+      style={blockStyle(block)}
       {...(block.show.title ? { "aria-labelledby": "details-title" } : { "aria-label": title })}
     >
       {block.show.title && (
         <Reveal variant="up">
-          <h2 id="details-title" className="mb-8 text-center font-display text-4xl [text-wrap:balance] sm:text-5xl">
+          <h2 id="details-title" className="mb-8 text-center font-title text-4xl [text-wrap:balance] sm:text-5xl">
             {title}
           </h2>
         </Reveal>
@@ -179,6 +188,7 @@ function LiveSection({ block, event, dark, choiceRef }: { block: LiveBlock; even
     <section
       id="live-strip"
       className={cx("relative px-5 pb-20", top ? "pt-14 sm:pt-20" : "pt-8")}
+      style={blockStyle(block)}
       {...(show.title ? { "aria-labelledby": "live-title" } : { "aria-label": t("title") })}
     >
       {top && <LiveStrip event={event} dark={dark} block={block} />}
@@ -201,7 +211,7 @@ function LiveSection({ block, event, dark, choiceRef }: { block: LiveBlock; even
                 <span className={cx("flex size-16 items-center justify-center rounded-2xl", dark ? "bg-white/15" : "bg-primary/10 text-primary")}>
                   <Images className="size-9" aria-hidden />
                 </span>
-                <span className="text-2xl font-bold [text-wrap:balance]">{t("viewTitle")}</span>
+                <span className={cx("text-2xl [text-wrap:balance]", block.font ? "font-title" : "font-bold")}>{t("viewTitle")}</span>
                 <span className="text-base opacity-85 [text-wrap:balance]">{t("viewText")}</span>
               </Link>
             </Reveal>
@@ -222,7 +232,7 @@ function LiveSection({ block, event, dark, choiceRef }: { block: LiveBlock; even
                   <span className="flex size-16 items-center justify-center rounded-2xl bg-white/20">
                     <Camera className="size-9" aria-hidden />
                   </span>
-                  <span className="text-2xl font-bold [text-wrap:balance]">{t("uploadTitle")}</span>
+                  <span className={cx("text-2xl [text-wrap:balance]", block.font ? "font-title" : "font-bold")}>{t("uploadTitle")}</span>
                   <span className="text-base opacity-90 [text-wrap:balance]">{t("uploadText")}</span>
                 </Link>
               ) : (
@@ -265,7 +275,7 @@ function LiveStrip({ event, dark, block }: { event: PublicEvent; dark: boolean; 
       {(show.title || show.count) && (
         <Reveal variant="up" className={cx(show.strip && "mb-8")}>
           {show.title && (
-            <h2 id="live-title" className={cx("flex items-center justify-center gap-2 text-center font-display text-4xl [text-wrap:balance] sm:text-5xl", show.count && "mb-2")}>
+            <h2 id="live-title" className={cx("flex items-center justify-center gap-2 text-center font-title text-4xl [text-wrap:balance] sm:text-5xl", show.count && "mb-2")}>
               {t("title")}
             </h2>
           )}
@@ -306,7 +316,7 @@ function LiveStrip({ event, dark, block }: { event: PublicEvent; dark: boolean; 
         <Reveal variant="up" delay={100}>
           <div className={cx("mx-auto max-w-md rounded-[2rem] px-6 py-10 text-center backdrop-blur-md", dark ? "bg-white/10" : "bg-card/85 shadow-soft")}>
             <Camera className="mx-auto mb-3 size-10 opacity-80" aria-hidden />
-            <p className="text-xl font-bold [text-wrap:balance]">{t("emptyTitle")}</p>
+            <p className={cx("text-xl [text-wrap:balance]", block.font ? "font-title" : "font-bold")}>{t("emptyTitle")}</p>
             <p className="mt-1 opacity-85 [text-wrap:balance]">{t("emptyText")}</p>
           </div>
         </Reveal>

@@ -6,6 +6,7 @@ import { EVENT_TYPES } from "../../lib/themes";
 import { BackgroundPicker, compressBackground } from "../ThemePicker";
 import { Button, Card, useToast } from "../ui";
 import { FlexibleDesignCard } from "./design/FlexibleDesignCard";
+import { Toggle } from "./Toggle";
 
 /** "עיצוב" tab: theme + background, and the flexible page design (which also holds the guest page texts and images). */
 export function DesignTab({ event, onChanged }: { event: ManageEvent; onChanged: () => void }) {
@@ -22,6 +23,7 @@ function DesignCard({ event, onChanged }: { event: ManageEvent; onChanged: () =>
   const toast = useToast();
   const [type, setType] = useState<EventType>(event.type);
   const [background, setBackground] = useState<string | null>(event.background);
+  const [bgReveal, setBgReveal] = useState(event.bgReveal);
   const [file, setFile] = useState<File | null>(null);
   const [removeCustom, setRemoveCustom] = useState(false);
   const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -30,11 +32,12 @@ function DesignCard({ event, onChanged }: { event: ManageEvent; onChanged: () =>
   const reset = () => {
     setType(event.type);
     setBackground(event.background);
+    setBgReveal(event.bgReveal);
     setFile(null);
     setRemoveCustom(false);
   };
   // Re-sync the draft once the saved values come back from the server.
-  useEffect(reset, [event.type, event.background, event.bgVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(reset, [event.type, event.background, event.bgVersion, event.bgReveal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!file) return setFilePreview(null);
@@ -45,7 +48,7 @@ function DesignCard({ event, onChanged }: { event: ManageEvent; onChanged: () =>
 
   const savedCustom = event.background === "custom" && !removeCustom ? `/api/e/${event.code}/asset/bg?v=${encodeURIComponent(event.bgVersion || "")}` : null;
   const info = EVENT_TYPES.find((t) => t.id === type)!;
-  const dirty = type !== event.type || background !== event.background || !!file || removeCustom;
+  const dirty = type !== event.type || background !== event.background || bgReveal !== event.bgReveal || !!file || removeCustom;
 
   const save = async () => {
     setBusy(true);
@@ -55,8 +58,8 @@ function DesignCard({ event, onChanged }: { event: ManageEvent; onChanged: () =>
         const blob = await compressBackground(file);
         await api(`/e/${event.code}/manage/background`, { method: "PUT", body: blob, headers: { "Content-Type": "image/jpeg" } });
       }
-      if (type !== event.type || background !== (file ? "custom" : event.background)) {
-        await api(`/e/${event.code}/manage`, { method: "PATCH", json: { type, theme: info.theme, background } });
+      if (type !== event.type || background !== (file ? "custom" : event.background) || bgReveal !== event.bgReveal) {
+        await api(`/e/${event.code}/manage`, { method: "PATCH", json: { type, theme: info.theme, background, bgReveal } });
       }
       toast("העיצוב נשמר");
       onChanged();
@@ -106,6 +109,18 @@ function DesignCard({ event, onChanged }: { event: ManageEvent; onChanged: () =>
           setBackground(null);
         }}
       />
+      <div className="border-t border-border pt-2">
+        <Toggle
+          checked={bgReveal}
+          onChange={setBgReveal}
+          label="גלילה לתמונת הרקע בסוף העמוד"
+          hint={
+            background === "custom" || (file && !removeCustom)
+              ? "בסוף עמוד האורחים אפשר להמשיך לגלול, ותמונת הרקע מופיעה במלואה בלי טקסט מעליה"
+              : "בסוף עמוד האורחים אפשר להמשיך לגלול, והרקע מופיע נקי בלי טקסט מעליו. הכי מתאים עם תמונה משלכם"
+          }
+        />
+      </div>
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={!dirty} loading={busy} icon={<Save className="size-4" aria-hidden />} onClick={save}>
           שמירת ערכת הנושא

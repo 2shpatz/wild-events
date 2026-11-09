@@ -22,6 +22,8 @@ export interface PublicEvent {
   theme: ThemeId;
   background: string | null; // preset id | 'custom' | null
   bgVersion: string | null;
+  /** extra scroll at the end of the guest page that shows the whole background image (off by default) */
+  bgReveal: boolean;
   /** header image that accompanies guests across the event pages */
   headerVersion: string | null;
   /** the invitation card image uploaded by the host, shown above the event details */

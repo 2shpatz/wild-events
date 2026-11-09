@@ -23,6 +23,8 @@ export interface EventRow {
   type: string;
   theme: string;
   background: string | null;
+  /** 1 = extra scroll at the end of the guest page that reveals the whole background image */
+  bg_reveal: number;
   quality: string;
   keep_gps: number;
   admin_password_hash: string | null;
@@ -182,6 +184,7 @@ export async function toPublicEvent(
     theme: ev.theme as PublicEvent["theme"],
     background: ev.background,
     bgVersion: ev.background === "custom" ? assets.bg : null,
+    bgReveal: !!ev.bg_reveal,
     headerVersion: assets.header,
     invitationVersion: assets.invitation,
     featured: assets.featured,

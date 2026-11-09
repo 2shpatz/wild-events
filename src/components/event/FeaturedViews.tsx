@@ -159,19 +159,49 @@ function CarouselView({ event, dark }: Props) {
   const n = event.featured.length;
   const scroller = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ id: number; x: number; left: number } | null>(null);
+  const raf = useRef(0);
 
-  useEffect(() => {
+  /** The photo whose center is closest to the strip's center (works in RTL and while dragging). */
+  const nearest = () => {
     const root = scroller.current;
-    if (!root) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) if (e.isIntersecting) setCurrent(Number((e.target as HTMLElement).dataset.index));
-      },
-      { root, threshold: 0.6 },
-    );
-    root.querySelectorAll("[data-index]").forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, [n]);
+    if (!root) return 0;
+    const r = root.getBoundingClientRect();
+    const mid = r.left + r.width / 2;
+    let best = 0;
+    let dist = Infinity;
+    root.querySelectorAll<HTMLElement>("[data-index]").forEach((el) => {
+      const e = el.getBoundingClientRect();
+      const d = Math.abs(e.left + e.width / 2 - mid);
+      if (d < dist) (dist = d), (best = Number(el.dataset.index));
+    });
+    return best;
+  };
+  const onScroll = () => {
+    cancelAnimationFrame(raf.current);
+    raf.current = requestAnimationFrame(() => setCurrent(nearest()));
+  };
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+
+  // Mouse: drag the strip like a finger would (touch already swipes natively); on release snap to the nearest photo.
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse" || e.button !== 0 || !scroller.current) return;
+    drag.current = { id: e.pointerId, x: e.clientX, left: scroller.current.scrollLeft };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(true);
+  };
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId || !scroller.current) return;
+    scroller.current.scrollLeft = d.left - (e.clientX - d.x);
+  };
+  const onPointerEnd = (e: PointerEvent<HTMLDivElement>) => {
+    if (drag.current?.id !== e.pointerId) return;
+    drag.current = null;
+    setDragging(false);
+    requestAnimationFrame(() => go(nearest()));
+  };
 
   const go = (i: number) => {
     const idx = Math.max(0, Math.min(n - 1, i));
@@ -195,7 +225,16 @@ function CarouselView({ event, dark }: Props) {
           if (e.key === "ArrowLeft") (e.preventDefault(), go(current + 1));
           if (e.key === "ArrowRight") (e.preventDefault(), go(current - 1));
         }}
-        className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-[11vw] py-6 outline-none focus-visible:ring-4 focus-visible:ring-accent sm:mx-0 sm:px-[calc(50%-10rem)]"
+        onScroll={onScroll}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        className={cx(
+          "no-scrollbar -mx-5 flex select-none gap-4 overflow-x-auto px-[11vw] py-6 outline-none focus-visible:ring-4 focus-visible:ring-accent sm:mx-0 sm:px-[calc(50%-10rem)]",
+          // Snapping is paused while the mouse drags, or the strip would fight the pointer.
+          dragging ? "cursor-grabbing snap-none" : "cursor-grab snap-x snap-mandatory",
+        )}
       >
         {event.featured.map((f, i) => (
           <div
@@ -246,42 +285,74 @@ function slots(n: number, cols: number) {
   });
 }
 
-/** "מרחפות": photo cards drifting gently in place (still under reduced motion). */
+/**
+ * "מרחפות": photo cards drifting gently in place (still under reduced motion). Tapping a photo brings it to the
+ * front, enlarged and straightened; tapping it again (or the backdrop, or Esc) sends it back to its place.
+ */
 function FloatingView({ event, dark }: Props) {
   const n = event.featured.length;
+  const [zoomed, setZoomed] = useState<number | null>(null);
   const mobile = slots(n, Math.min(n, 2));
   const desktop = slots(n, Math.min(n, 3));
   const rowsM = Math.ceil(n / Math.min(n, 2));
   const rowsD = Math.ceil(n / Math.min(n, 3));
+
+  useEffect(() => {
+    if (zoomed === null) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setZoomed(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomed]);
+  useEffect(() => setZoomed(null), [n]);
+
   return (
     <Reveal variant="fade" className="mx-auto w-full max-w-5xl">
       <div
         className="relative h-[var(--h-m)] sm:h-[var(--h-d)]"
         style={{ ["--h-m" as string]: `${rowsM * 16 + 3}rem`, ["--h-d" as string]: `${rowsD * 21 + 3}rem` }}
       >
+        {/* Backdrop while a photo is enlarged: a tap anywhere around it puts it back. */}
+        <div
+          aria-hidden
+          onClick={() => setZoomed(null)}
+          className={cx("absolute -inset-4 z-20 rounded-[2rem] bg-black/25 backdrop-blur-[2px] transition-opacity duration-300", zoomed === null ? "pointer-events-none opacity-0" : "opacity-100")}
+        />
         {event.featured.map((f, i) => {
           const rot = ROT[i % ROT.length] * 1.6;
+          const z = zoomed === i;
+          // Enlarged: move the card's anchor to the center (same CSS vars for both breakpoints) and scale it up.
+          const pos = z ? { m: { x: 50, y: 50 }, d: { x: 50, y: 50 } } : { m: mobile[i], d: desktop[i] };
           return (
-            <div
+            <button
               key={f.slot}
-              className="absolute left-[var(--x-m)] top-[var(--y-m)] w-[min(36vw,11rem)] -translate-x-1/2 -translate-y-1/2 sm:left-[var(--x-d)] sm:top-[var(--y-d)] sm:w-56 hover:z-10"
+              type="button"
+              onClick={() => setZoomed(z ? null : i)}
+              aria-pressed={z}
+              aria-label={z ? `${alt(i)} - הקישו להחזרה למקומה` : `${alt(i)} - הקישו להגדלה`}
+              className={cx(
+                "absolute left-[var(--x-m)] top-[var(--y-m)] block w-[min(36vw,11rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl outline-none [--zoom:1.9] focus-visible:ring-4 focus-visible:ring-accent sm:left-[var(--x-d)] sm:top-[var(--y-d)] sm:w-56 sm:[--zoom:1.6]",
+                "motion-safe:transition-[left,top,scale] motion-safe:duration-500 motion-safe:ease-out",
+                z ? "z-30 cursor-zoom-out" : "cursor-zoom-in hover:z-10",
+              )}
               style={{
-                ["--x-m" as string]: `${mobile[i].x}%`,
-                ["--y-m" as string]: `${mobile[i].y}%`,
-                ["--x-d" as string]: `${desktop[i].x}%`,
-                ["--y-d" as string]: `${desktop[i].y}%`,
+                ["--x-m" as string]: `${pos.m.x}%`,
+                ["--y-m" as string]: `${pos.m.y}%`,
+                ["--x-d" as string]: `${pos.d.x}%`,
+                ["--y-d" as string]: `${pos.d.y}%`,
+                scale: z ? "var(--zoom)" : undefined,
               }}
             >
               <div
-                className="motion-safe:animate-[float-y_var(--dur)_ease-in-out_infinite]"
-                style={{ ["--rot" as string]: `${rot}deg`, ["--dur" as string]: `${6 + ((i * 7) % 5)}s`, animationDelay: `${-((i * 13) % 6)}s`, transform: `rotate(${rot}deg)` }}
+                className={cx("transition-transform duration-500", !z && "motion-safe:animate-[float-y_var(--dur)_ease-in-out_infinite]")}
+                style={{ ["--rot" as string]: `${rot}deg`, ["--dur" as string]: `${6 + ((i * 7) % 5)}s`, animationDelay: `${-((i * 13) % 6)}s`, transform: `rotate(${z ? 0 : rot}deg)` }}
               >
-                <Polaroid src={featuredUrl(event.code, f)} i={i} dark={dark} className="transition-transform duration-300 hover:scale-105" />
+                <Polaroid src={featuredUrl(event.code, f)} i={i} dark={dark} className={cx("transition-transform duration-300", !z && "hover:scale-105")} />
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
+      <p className="mt-4 text-center text-sm opacity-75">הקישו על תמונה כדי להגדיל אותה</p>
     </Reveal>
   );
 }

@@ -74,6 +74,7 @@ manage.patch("/e/:code/manage", async (c) => {
   if (TYPES.includes(b.type)) set("type", b.type);
   if (TYPES.includes(b.theme)) set("theme", b.theme);
   if (typeof b.background === "string" || b.background === null) set("background", b.background);
+  if (typeof b.bgReveal === "boolean") set("bg_reveal", b.bgReveal ? 1 : 0);
   if (b.quality === "compressed" || b.quality === "original") set("quality", b.quality);
   if (typeof b.keepGps === "boolean") set("keep_gps", b.keepGps ? 1 : 0);
   if (VIEWS.includes(b.defaultView)) set("default_view", b.defaultView);

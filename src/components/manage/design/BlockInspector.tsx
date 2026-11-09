@@ -5,10 +5,10 @@ import { MAX_FEATURED, type ManageEvent } from "../../../../shared/types";
 import { Button, ConfirmDialog, Field, Segmented, Spinner, cx, inputClass } from "../../ui";
 import { Toggle } from "../Toggle";
 import { useAssetActions } from "../useAssetActions";
-import { ColorField } from "./ColorField";
 import { BLOCK_META } from "./blockMeta";
 import type { DraftAction } from "./draft";
 import { DetailsFields, LiveFields } from "./PartsFields";
+import { BlockStyleFields } from "./BlockStyleFields";
 
 /** Editing one block: its content / style, hide-show and delete. */
 export function BlockInspector({
@@ -21,6 +21,8 @@ export function BlockInspector({
   onDeleted,
   onGoSettings,
   onChanged,
+  hebrewOnly,
+  onHebrewOnly,
 }: {
   event: ManageEvent;
   block: Block;
@@ -32,13 +34,38 @@ export function BlockInspector({
   onDeleted: () => void;
   onGoSettings: () => void;
   onChanged: () => void;
+  hebrewOnly: boolean;
+  onHebrewOnly: (v: boolean) => void;
 }) {
   const [confirm, setConfirm] = useState(false);
   const update = (patch: Partial<Block>) => dispatch({ type: "update", id: block.id, patch });
   const meta = BLOCK_META[block.type];
+  // Font + color, for the blocks that have texts (collapsed by default).
+  const style =
+    block.type === "text" || block.type === "image" || block.type === "details" || block.type === "live" ? (
+      <BlockStyleFields
+        key={block.id}
+        font={block.font}
+        color={block.color}
+        onFont={(font) => update({ font })}
+        onColor={(color) => update({ color })}
+        fontLabel={block.type === "image" ? "גופן הכיתוב" : "גופן הכותרות"}
+        colorLabel={block.type === "image" ? "צבע הכיתוב" : "צבע הטקסט"}
+        sample={
+          block.type === "text"
+            ? block.heading || "כותרת לדוגמה"
+            : block.type === "image"
+              ? block.caption || "כיתוב לדוגמה"
+              : block.texts.title?.trim() || meta.label
+        }
+        against={against}
+        hebrewOnly={hebrewOnly}
+        onHebrewOnly={onHebrewOnly}
+      />
+    ) : null;
   return (
     <div className="space-y-6">
-      {block.type === "text" && <TextFields block={block} update={update} against={against} />}
+      {block.type === "text" && <TextFields block={block} update={update} />}
       {block.type === "image" && <ImageFields block={block} src={imageSrc} update={update} onReplace={(f) => onReplaceImage(block, f)} />}
       {block.type === "invitation" && <InvitationFields event={event} onChanged={onChanged} />}
       {block.type === "featured" && (
@@ -64,6 +91,8 @@ export function BlockInspector({
           <LiveFields block={block} update={update} />
         </>
       )}
+
+      {style}
 
       <div className="flex flex-wrap gap-3 border-t border-border pt-5">
         <Button
@@ -99,7 +128,7 @@ export function BlockInspector({
   );
 }
 
-function TextFields({ block, update, against }: { block: TextBlock; update: (p: Partial<TextBlock>) => void; against: string }) {
+function TextFields({ block, update }: { block: TextBlock; update: (p: Partial<TextBlock>) => void }) {
   return (
     <>
       <Field label="כותרת" htmlFor={`t-h-${block.id}`}>
@@ -119,7 +148,6 @@ function TextFields({ block, update, against }: { block: TextBlock; update: (p: 
         </div>
       </div>
       <Toggle checked={block.card} onChange={(v) => update({ card: v })} label="על רקע כרטיס" hint="משפר את הקריאות מעל תמונת רקע" />
-      <ColorField label="צבע הטקסט" value={block.color} onChange={(c) => update({ color: c })} against={against} />
     </>
   );
 }

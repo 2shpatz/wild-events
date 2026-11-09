@@ -30,6 +30,8 @@ export function detailsCardHasContent(ev: PublicEvent, show: DetailsBlock["show"
  */
 export function EventDetails({ event, dark, block = allShown }: { event: PublicEvent; dark: boolean; block?: DetailsBlock }) {
   const { show, texts } = block;
+  // With a chosen font the section headings use it too; otherwise they stay in the body font, bold.
+  const h3 = block.font ? "font-title text-xl" : "text-lg font-bold";
   const toast = useToast();
   const dest = destination(event);
   const links = dest ? navLinks(dest) : null;
@@ -92,7 +94,7 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
 
       {show.nav && links && (
         <div className="space-y-3">
-          <h3 className="text-lg font-bold">{partText(texts, "nav", DETAILS_TEXTS.nav)}</h3>
+          <h3 className={h3}>{partText(texts, "nav", DETAILS_TEXTS.nav)}</h3>
           <div className={cx("grid grid-cols-2 gap-3", !isAndroid && "sm:grid-cols-3")}>
             <a
               href={links.waze}
@@ -119,7 +121,7 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
 
       {show.share && (
         <div className="space-y-3">
-          <h3 className="text-lg font-bold">{partText(texts, "share", links ? DETAILS_TEXTS.share : DETAILS_SHARE_NO_ADDRESS)}</h3>
+          <h3 className={h3}>{partText(texts, "share", links ? DETAILS_TEXTS.share : DETAILS_SHARE_NO_ADDRESS)}</h3>
           <div className="grid grid-cols-2 gap-3">
             <a
               href={`https://wa.me/?text=${encodeURIComponent(text)}`}
@@ -140,7 +142,7 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
 
       {show.calendar && hasCalendar(event) && soon !== null && (
         <div className="space-y-3">
-          <h3 className="text-lg font-bold">{partText(texts, "calendar", DETAILS_TEXTS.calendar)}</h3>
+          <h3 className={h3}>{partText(texts, "calendar", DETAILS_TEXTS.calendar)}</h3>
           <div className="grid grid-cols-2 gap-3">
             {gcal && (
               <a href={gcal} target="_blank" rel="noopener noreferrer" className={btn}>

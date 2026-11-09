@@ -31,8 +31,12 @@ export type TextBlock = BlockBase & {
   size: "sm" | "md" | "lg";
   color: string | null;
   card: boolean;
+  /** heading font (Google Fonts family from FONTS); null = the theme's display font */
+  font: string | null;
 };
-export type ImageBlock = BlockBase & { type: "image"; slot: number; caption: string; shape: "wide" | "card" | "round" };
+/** Font + color of a block's texts (headings use the font); null = the theme's defaults. */
+export type BlockStyle = { font: string | null; color: string | null };
+export type ImageBlock = BlockBase & BlockStyle & { type: "image"; slot: number; caption: string; shape: "wide" | "card" | "round" };
 export type SingletonType = "invitation" | "details" | "featured" | "live";
 
 /**
@@ -67,8 +71,8 @@ export type LiveText = keyof typeof LIVE_TEXTS;
 /** Max length of each editable heading / card text. */
 export const PART_TEXT_MAX = { title: 80, nav: 60, share: 60, calendar: 60, viewTitle: 60, viewText: 120, uploadTitle: 60, uploadText: 120, emptyTitle: 60, emptyText: 120 } as const;
 
-export type DetailsBlock = BlockBase & { type: "details"; show: Record<DetailsPart, boolean>; texts: Record<DetailsText, string | null> };
-export type LiveBlock = BlockBase & { type: "live"; show: Record<LivePart, boolean>; texts: Record<LiveText, string | null> };
+export type DetailsBlock = BlockBase & BlockStyle & { type: "details"; show: Record<DetailsPart, boolean>; texts: Record<DetailsText, string | null> };
+export type LiveBlock = BlockBase & BlockStyle & { type: "live"; show: Record<LivePart, boolean>; texts: Record<LiveText, string | null> };
 /** How the hosts' featured photos are shown: standing scrapbook (the original), a pile to flip through, carousel, floating. */
 export const FEATURED_LAYOUTS = ["grid", "stack", "carousel", "floating"] as const;
 export type FeaturedLayout = (typeof FEATURED_LAYOUTS)[number];
@@ -99,8 +103,8 @@ const allNull = <K extends string>(keys: readonly K[]) => Object.fromEntries(key
 
 /** A built-in block with everything shown and the default texts. */
 export function singletonBlock(type: SingletonType, id: string): SingletonBlock {
-  if (type === "details") return { id, type, show: allOn(DETAILS_PARTS), texts: allNull(Object.keys(DETAILS_TEXTS) as DetailsText[]) };
-  if (type === "live") return { id, type, show: allOn(LIVE_PARTS), texts: allNull(Object.keys(LIVE_TEXTS) as LiveText[]) };
+  if (type === "details") return { id, type, show: allOn(DETAILS_PARTS), texts: allNull(Object.keys(DETAILS_TEXTS) as DetailsText[]), font: null, color: null };
+  if (type === "live") return { id, type, show: allOn(LIVE_PARTS), texts: allNull(Object.keys(LIVE_TEXTS) as LiveText[]), font: null, color: null };
   if (type === "featured") return { id, type, layout: "grid" };
   return { id, type };
 }
@@ -136,8 +140,8 @@ export function defaultDesign(): EventDesign {
 
 export function newBlock(type: BlockType, slot = 0): Block {
   const id = newBlockId();
-  if (type === "text") return { id, type, heading: "", body: "", align: "center", size: "md", color: null, card: true };
-  if (type === "image") return { id, type, slot, caption: "", shape: "card" };
+  if (type === "text") return { id, type, heading: "", body: "", align: "center", size: "md", color: null, card: true, font: null };
+  if (type === "image") return { id, type, slot, caption: "", shape: "card", font: null, color: null };
   return singletonBlock(type, id);
 }
 
@@ -195,13 +199,23 @@ function sanitizeBlock(input: unknown, seen: { ids: Set<string>; singles: Set<st
       size: oneOf(b.size, ["sm", "md", "lg"] as const, "md"),
       color: color(b.color),
       card: bool(b.card, true),
+      font: font(b.font),
       ...hidden,
     };
   } else if (b.type === "image") {
     const slot = Number(b.slot);
     if (!Number.isInteger(slot) || slot < 0 || slot >= MAX_IMAGES || seen.slots.has(slot)) return null;
     seen.slots.add(slot);
-    out = { id, type: "image", slot, caption: text(b.caption, 160), shape: oneOf(b.shape, ["wide", "card", "round"] as const, "card"), ...hidden };
+    out = {
+      id,
+      type: "image",
+      slot,
+      caption: text(b.caption, 160),
+      shape: oneOf(b.shape, ["wide", "card", "round"] as const, "card"),
+      font: font(b.font),
+      color: color(b.color),
+      ...hidden,
+    };
   } else if (SINGLETONS.includes(b.type as SingletonType)) {
     if (seen.singles.has(b.type as string)) return null;
     seen.singles.add(b.type as string);
@@ -217,6 +231,8 @@ function sanitizeBlock(input: unknown, seen: { ids: Set<string>; singles: Set<st
         ...out,
         show: Object.fromEntries(parts.map((k) => [k, bool(show[k], true)])),
         texts: Object.fromEntries(keys.map((k) => [k, text(texts[k], PART_TEXT_MAX[k]) || null])),
+        font: font(b.font),
+        color: color(b.color),
       } as DetailsBlock | LiveBlock;
     }
   }
@@ -253,6 +269,10 @@ export function parseDesign(json: string | null | undefined): EventDesign {
     return defaultDesign();
   }
 }
+
+/** Fonts the blocks use (to load them on the guest page). */
+export const blockFonts = (d: EventDesign) =>
+  [...d.before, ...d.after].flatMap((b) => ("font" in b && b.font ? [b.font] : []));
 
 /** Image slots referenced by the design (everything else under kind 'i*' is an orphan). */
 export const usedImageSlots = (d: EventDesign) =>

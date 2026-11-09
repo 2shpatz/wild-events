@@ -266,6 +266,8 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
                 onDeleted={() => setSelected("hero")}
                 onGoSettings={goSettings}
                 onChanged={onChanged}
+                hebrewOnly={hebrewOnly}
+                onHebrewOnly={setHebrewOnly}
               />
             ) : (
               <HeroInspector

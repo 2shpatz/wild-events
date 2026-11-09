@@ -188,6 +188,7 @@ export default function CreateEventWizard() {
       theme,
       background: background === "custom" ? null : background,
       bgVersion: null,
+      bgReveal: false,
       headerVersion: null,
       invitationVersion: null,
       featured: [],
