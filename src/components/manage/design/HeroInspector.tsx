@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ImageUp, Trash2, Wand2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageUp, Trash2, Wand2 } from "lucide-react";
 import type { DateStyle, EventDesign, HeroDesign, TitleSize } from "../../../../shared/design";
 import { DATE_STYLES } from "../../../../shared/design";
 import type { ManageEvent } from "../../../../shared/types";
@@ -88,7 +88,14 @@ export function HeroInspector({
             <input id="hero-subtitle" className={inputClass} value={texts.subtitle} onChange={(e) => onTexts({ subtitle: e.target.value })} placeholder="למשל: מתחתנים!" maxLength={120} />
           </Field>
         </PartCard>
-        <PartCard label="תאריך" hint={event.date ? undefined : noSettings("תאריך")} checked={hero.show.date} onChange={(v) => show({ date: v })} />
+        <PartCard
+          label="תאריך"
+          hint={`${event.date ? "" : `${noSettings("תאריך")} · `}תצוגה: ${DATE_STYLE_LABELS[hero.dateStyle]}`}
+          checked={hero.show.date}
+          onChange={(v) => show({ date: v })}
+        >
+          <DateStyleStepper value={hero.dateStyle} onChange={(dateStyle) => set({ dateStyle })} sample={sampleDate} noDate={!event.date} />
+        </PartCard>
         <PartCard label="שעה" hint={event.time ? `בשעה ${event.time}` : noSettings("שעה")} checked={hero.show.time} onChange={(v) => show({ time: v })} />
         <PartCard label="ספירה לאחור" hint={'למשל "בעוד 11 ימים" - מופיעה עד יום האירוע'} checked={hero.show.countdown} onChange={(v) => show({ countdown: v })} />
         <PartCard
@@ -126,28 +133,6 @@ export function HeroInspector({
       <ColorField label="צבע הכותרת" value={hero.titleColor} onChange={(c) => set({ titleColor: c })} against={against} large />
       <ColorField label="צבע הטקסטים (שורת משנה, תאריך, ברכה)" value={hero.textColor} onChange={(c) => set({ textColor: c })} against={against} />
 
-      <fieldset>
-        <legend className="mb-2 font-semibold">תצוגת התאריך</legend>
-        {!event.date && <p className="mb-2 text-sm text-muted-fg">עדיין לא נקבע תאריך - הדוגמאות מוצגות עם התאריך של היום.</p>}
-        <div role="radiogroup" aria-label="תצוגת התאריך" className="grid gap-2 sm:grid-cols-2">
-          {DATE_STYLES.map((s: DateStyle) => (
-            <button
-              key={s}
-              type="button"
-              role="radio"
-              aria-checked={hero.dateStyle === s}
-              onClick={() => set({ dateStyle: s })}
-              className={cx(
-                "flex min-h-14 flex-col items-start justify-center rounded-xl border-2 px-3 py-2 text-start transition-colors duration-200",
-                hero.dateStyle === s ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
-              )}
-            >
-              <span className="font-semibold">{DATE_STYLE_LABELS[s]}</span>
-              <span className="text-sm text-muted-fg">{dateSample(s, sampleDate)}</span>
-            </button>
-          ))}
-        </div>
-      </fieldset>
 
       <fieldset className="space-y-3">
         <legend className="mb-1 font-semibold">הכותרת בשאר העמודים (העלאה, אלבום)</legend>
@@ -208,6 +193,43 @@ function HeaderImageFields({ event, onChanged, pos, onPos }: { event: ManageEven
           setBusy(false);
         }}
       />
+    </div>
+  );
+}
+
+/** Flip through the date styles one at a time (prev / next + arrow keys) - much shorter than listing them all. */
+function DateStyleStepper({ value, onChange, sample, noDate }: { value: DateStyle; onChange: (s: DateStyle) => void; sample: Date; noDate: boolean }) {
+  const pos = Math.max(0, DATE_STYLES.indexOf(value));
+  const go = (dir: 1 | -1) => onChange(DATE_STYLES[(pos + dir + DATE_STYLES.length) % DATE_STYLES.length]);
+  const btn = "inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-muted text-fg transition-colors duration-200 hover:bg-primary/15";
+  return (
+    <div className="space-y-2">
+      <p className="font-semibold">תצוגת התאריך</p>
+      <div
+        className="flex items-center gap-2"
+        role="group"
+        aria-label="תצוגת התאריך"
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") (e.preventDefault(), go(1));
+          if (e.key === "ArrowRight") (e.preventDefault(), go(-1));
+        }}
+      >
+        <button type="button" className={btn} onClick={() => go(-1)} aria-label="התצוגה הקודמת">
+          <ChevronRight className="size-6" aria-hidden />
+        </button>
+        {/* Fixed height so flipping never shifts the layout. */}
+        <div className="flex min-h-20 min-w-0 flex-1 flex-col items-center justify-center rounded-2xl border border-border bg-bg px-3 py-2 text-center" aria-live="polite">
+          <span className="font-semibold">{DATE_STYLE_LABELS[value]}</span>
+          <span className="text-muted-fg">{dateSample(value, sample)}</span>
+          <span className="text-xs text-muted-fg">
+            {pos + 1}/{DATE_STYLES.length}
+          </span>
+        </div>
+        <button type="button" className={btn} onClick={() => go(1)} aria-label="התצוגה הבאה">
+          <ChevronLeft className="size-6" aria-hidden />
+        </button>
+      </div>
+      {noDate && <p className="text-sm text-muted-fg">עדיין לא נקבע תאריך - הדוגמה מוצגת עם התאריך של היום.</p>}
     </div>
   );
 }

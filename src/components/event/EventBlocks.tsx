@@ -8,8 +8,8 @@ import { cx } from "../ui";
 import { api } from "../../lib/api";
 import { thumbUrl } from "../../lib/media";
 import { EventDetails, detailsCardHasContent } from "../EventDetails";
+import { FeaturedPhotos } from "./FeaturedViews";
 
-export const featuredUrl = (code: string, f: { slot: number; v: string }) => `/api/e/${code}/asset/f${f.slot}?v=${encodeURIComponent(f.v)}`;
 export const blockImageUrl = (ev: PublicEvent, slot: number) => {
   const img = ev.images.find((i) => i.slot === slot);
   return img ? `/api/e/${ev.code}/asset/i${slot}?v=${encodeURIComponent(img.v)}` : null;
@@ -58,7 +58,7 @@ export function EventBlock({ block, ctx }: { block: Block; ctx: BlockCtx }) {
     case "featured":
       return (
         <section className="relative px-5 py-14 sm:py-24" aria-label="מבעלי השמחה">
-          <FeaturedGallery event={event} dark={dark} />
+          <FeaturedPhotos event={event} dark={dark} layout={block.layout} />
         </section>
       );
     case "live":
@@ -144,31 +144,6 @@ function ImageSection({ block, src, title }: { block: ImageBlock; src: string; t
         </figure>
       </Reveal>
     </section>
-  );
-}
-
-/** Staggered "scrapbook" of the hosts' photos, each revealed as it scrolls in. */
-function FeaturedGallery({ event, dark }: { event: PublicEvent; dark: boolean }) {
-  const rot = [-3, 2.5, -1.5, 3, -2.5, 1.5];
-  return (
-    <ul className="mx-auto grid max-w-5xl grid-cols-2 gap-4 sm:gap-8 md:grid-cols-3">
-      {event.featured.map((f, i) => (
-        <Reveal
-          as="li"
-          key={f.slot}
-          variant={i % 2 ? "end" : "start"}
-          delay={(i % 3) * 120}
-          className={cx(i % 3 === 1 && "md:translate-y-12", i === 0 && event.featured.length % 2 === 1 && "col-span-2 md:col-span-1")}
-        >
-          <figure
-            className={cx("overflow-hidden rounded-2xl p-2 shadow-[0_20px_50px_rgb(0_0_0/0.35)] transition-transform duration-500 hover:rotate-0", dark ? "bg-white/90" : "bg-white")}
-            style={{ rotate: `${rot[i % rot.length]}deg` }}
-          >
-            <img src={featuredUrl(event.code, f)} alt={`תמונה מבעלי השמחה ${i + 1}`} loading="lazy" decoding="async" className="aspect-[4/5] w-full rounded-xl object-cover" />
-          </figure>
-        </Reveal>
-      ))}
-    </ul>
   );
 }
 

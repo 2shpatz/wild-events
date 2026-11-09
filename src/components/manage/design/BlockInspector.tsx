@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { Eye, EyeOff, ImagePlus, ImageUp, Settings, Trash2 } from "lucide-react";
-import type { Block, ImageBlock, TextBlock } from "../../../../shared/design";
+import { Eye, EyeOff, GalleryHorizontal, ImagePlus, ImageUp, Layers, LayoutGrid, Settings, Trash2, Wind, type LucideIcon } from "lucide-react";
+import type { Block, FeaturedBlock, FeaturedLayout, ImageBlock, TextBlock } from "../../../../shared/design";
 import { MAX_FEATURED, type ManageEvent } from "../../../../shared/types";
 import { Button, ConfirmDialog, Field, Segmented, Spinner, cx, inputClass } from "../../ui";
 import { Toggle } from "../Toggle";
@@ -41,7 +41,12 @@ export function BlockInspector({
       {block.type === "text" && <TextFields block={block} update={update} against={against} />}
       {block.type === "image" && <ImageFields block={block} src={imageSrc} update={update} onReplace={(f) => onReplaceImage(block, f)} />}
       {block.type === "invitation" && <InvitationFields event={event} onChanged={onChanged} />}
-      {block.type === "featured" && <FeaturedFields event={event} onChanged={onChanged} />}
+      {block.type === "featured" && (
+        <>
+          <FeaturedLayoutPicker value={block.layout} onChange={(layout) => update({ layout })} />
+          <FeaturedFields event={event} onChanged={onChanged} />
+        </>
+      )}
       {block.type === "details" && (
         <>
           <div className="space-y-3">
@@ -193,6 +198,45 @@ function InvitationFields({ event, onChanged }: { event: ManageEvent; onChanged:
         }}
       />
     </div>
+  );
+}
+
+const LAYOUTS: { value: FeaturedLayout; label: string; hint: string; Icon: LucideIcon }[] = [
+  { value: "grid", label: "עומדות", hint: "אלבום מפוזר, כל תמונה נכנסת בגלילה", Icon: LayoutGrid },
+  { value: "stack", label: "ערמה לדפדוף", hint: "ערמת תמונות, מחליקים או מקישים לבאה", Icon: Layers },
+  { value: "carousel", label: "קרוסלה", hint: "תמונה אחת במרכז, גוללים הצידה", Icon: GalleryHorizontal },
+  { value: "floating", label: "מרחפות", hint: "תמונות שמרחפות בעדינות במקום", Icon: Wind },
+];
+
+/** How the featured photos are shown (part of the design draft - visible in the preview right away). */
+function FeaturedLayoutPicker({ value, onChange }: { value: FeaturedBlock["layout"]; onChange: (v: FeaturedLayout) => void }) {
+  return (
+    <fieldset>
+      <legend className="mb-2 font-semibold">סגנון התצוגה</legend>
+      <div role="radiogroup" aria-label="סגנון התצוגה של התמונות המייצגות" className="grid gap-2 sm:grid-cols-2">
+        {LAYOUTS.map(({ value: v, label, hint, Icon }) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={value === v}
+            onClick={() => onChange(v)}
+            className={cx(
+              "flex min-h-16 items-center gap-3 rounded-xl border-2 px-3 py-2 text-start transition-colors duration-200",
+              value === v ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
+            )}
+          >
+            <span className={cx("flex size-10 shrink-0 items-center justify-center rounded-lg", value === v ? "bg-primary text-on-primary" : "bg-fg/5 text-fg")}>
+              <Icon className="size-5" aria-hidden />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-semibold">{label}</span>
+              <span className="block text-sm text-muted-fg">{hint}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

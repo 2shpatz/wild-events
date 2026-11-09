@@ -69,7 +69,12 @@ export const PART_TEXT_MAX = { title: 80, nav: 60, share: 60, calendar: 60, view
 
 export type DetailsBlock = BlockBase & { type: "details"; show: Record<DetailsPart, boolean>; texts: Record<DetailsText, string | null> };
 export type LiveBlock = BlockBase & { type: "live"; show: Record<LivePart, boolean>; texts: Record<LiveText, string | null> };
-export type SingletonBlock = (BlockBase & { type: "invitation" | "featured" }) | DetailsBlock | LiveBlock;
+/** How the hosts' featured photos are shown: standing scrapbook (the original), a pile to flip through, carousel, floating. */
+export const FEATURED_LAYOUTS = ["grid", "stack", "carousel", "floating"] as const;
+export type FeaturedLayout = (typeof FEATURED_LAYOUTS)[number];
+export type FeaturedBlock = BlockBase & { type: "featured"; layout: FeaturedLayout };
+
+export type SingletonBlock = (BlockBase & { type: "invitation" }) | FeaturedBlock | DetailsBlock | LiveBlock;
 export type Block = TextBlock | ImageBlock | SingletonBlock;
 export type BlockType = Block["type"];
 
@@ -96,6 +101,7 @@ const allNull = <K extends string>(keys: readonly K[]) => Object.fromEntries(key
 export function singletonBlock(type: SingletonType, id: string): SingletonBlock {
   if (type === "details") return { id, type, show: allOn(DETAILS_PARTS), texts: allNull(Object.keys(DETAILS_TEXTS) as DetailsText[]) };
   if (type === "live") return { id, type, show: allOn(LIVE_PARTS), texts: allNull(Object.keys(LIVE_TEXTS) as LiveText[]) };
+  if (type === "featured") return { id, type, layout: "grid" };
   return { id, type };
 }
 
@@ -201,6 +207,7 @@ function sanitizeBlock(input: unknown, seen: { ids: Set<string>; singles: Set<st
     seen.singles.add(b.type as string);
     const type = b.type as SingletonType;
     out = { ...singletonBlock(type, id), ...hidden };
+    if (out.type === "featured") out = { ...out, layout: oneOf(b.layout, FEATURED_LAYOUTS, "grid") };
     if (out.type === "details" || out.type === "live") {
       const show = obj(b.show);
       const texts = obj(b.texts);

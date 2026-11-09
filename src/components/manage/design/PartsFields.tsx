@@ -14,20 +14,25 @@ import {
 } from "../../../../shared/design";
 import type { ManageEvent } from "../../../../shared/types";
 import { Field, cx, inputClass } from "../../ui";
-import { Toggle } from "../Toggle";
+import { Switch } from "../Toggle";
 
 type TextKey = keyof typeof PART_TEXT_MAX;
 
 /**
- * One part of the page: a show / hide switch, and - when the part has texts - a pencil button
- * that opens them for editing (closed by default to keep the list short).
+ * One part of the page: its name (and a hint), then - when the part has texts - a pencil button right next to the
+ * show / hide switch that opens them for editing (closed by default to keep the list short).
  */
 export function PartCard({ label, hint, checked, onChange, children }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void; children?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const panel = useId();
+  const sw = useId();
   return (
     <div className="rounded-xl border border-border bg-card px-3 py-1 sm:px-4">
-      <div className="flex items-center gap-2">
+      <div className="flex min-h-12 items-center gap-2">
+        <label htmlFor={sw} className="min-w-0 flex-1 cursor-pointer py-1.5">
+          <span className="block font-semibold">{label}</span>
+          {hint && <span className="block text-sm text-muted-fg">{hint}</span>}
+        </label>
         {children && (
           <button
             type="button"
@@ -35,7 +40,7 @@ export function PartCard({ label, hint, checked, onChange, children }: { label: 
             aria-expanded={open}
             aria-controls={panel}
             aria-label={`עריכת הטקסט של ${label}`}
-            title="עריכת הטקסט"
+            title="עריכה"
             className={cx(
               "inline-flex size-11 shrink-0 items-center justify-center rounded-full transition-colors duration-200",
               open ? "bg-primary text-on-primary" : "bg-primary/10 text-primary hover:bg-primary/20",
@@ -44,9 +49,7 @@ export function PartCard({ label, hint, checked, onChange, children }: { label: 
             <Pencil className="size-5" aria-hidden />
           </button>
         )}
-        <div className="min-w-0 flex-1">
-          <Toggle checked={checked} onChange={onChange} label={label} hint={hint} />
-        </div>
+        <Switch id={sw} checked={checked} onChange={onChange} />
       </div>
       {children && open && (
         <div id={panel} className="space-y-4 border-t border-border pb-4 pt-3">
