@@ -19,6 +19,10 @@ import { StructureList } from "./StructureList";
 
 /** Unsaved drafts survive switching manage tabs (same page session). */
 const drafts = new Map<string, EventDesign>();
+const subtitleDrafts = new Map<string, string>();
+
+/** Same cleanup the server applies (cleanName), so "dirty" matches what would actually change. */
+const normSubtitle = (s: string) => s.normalize("NFKC").trim().replace(/\s+/g, " ");
 
 function useMedia(query: string) {
   const [match, setMatch] = useState(() => window.matchMedia(query).matches);
@@ -42,6 +46,9 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
   const desktop = useMedia("(min-width: 1024px)");
   const [base, setBase] = useState<EventDesign>(event.design);
   const [draft, dispatch] = useReducer(draftReducer, undefined, () => drafts.get(event.code) ?? event.design);
+  // The subtitle is stored on the event (not in the design JSON) but edited here as part of the same draft.
+  const [subtitleBase, setSubtitleBase] = useState(event.subtitle ?? "");
+  const [subtitle, setSubtitle] = useState(() => subtitleDrafts.get(event.code) ?? event.subtitle ?? "");
   const [selected, setSelected] = useState<string>("hero");
   const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
   const [device, setDevice] = useState<Device>("phone");
@@ -55,22 +62,34 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
   const pendingWhere = useRef<Where>("after");
   const inspector = useRef<HTMLDivElement>(null);
   const justSaved = useRef(false);
+  const justSavedSubtitle = useRef(false);
 
-  const dirty = designKey(draft) !== designKey(base);
+  const designDirty = designKey(draft) !== designKey(base);
+  const subtitleDirty = normSubtitle(subtitle) !== subtitleBase;
+  const dirty = designDirty || subtitleDirty;
   const savedKey = designKey(event.design);
 
   // Keep the draft across tab switches; drop it once it matches what's saved.
   useEffect(() => {
-    if (dirty) drafts.set(event.code, draft);
+    if (designDirty) drafts.set(event.code, draft);
     else drafts.delete(event.code);
-  }, [draft, dirty, event.code]);
+  }, [draft, designDirty, event.code]);
+  useEffect(() => {
+    if (subtitleDirty) subtitleDrafts.set(event.code, subtitle);
+    else subtitleDrafts.delete(event.code);
+  }, [subtitle, subtitleDirty, event.code]);
 
   // The saved design changed (our save, or someone else's): adopt it unless there are unsaved edits.
   useEffect(() => {
-    if (justSaved.current || !dirty) dispatch({ type: "reset", design: event.design });
+    if (justSaved.current || !designDirty) dispatch({ type: "reset", design: event.design });
     justSaved.current = false;
     setBase(event.design);
   }, [savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (justSavedSubtitle.current || !subtitleDirty) setSubtitle(event.subtitle ?? "");
+    justSavedSubtitle.current = false;
+    setSubtitleBase(event.subtitle ?? "");
+  }, [event.subtitle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!dirty) return;
@@ -92,8 +111,8 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
 
   const previewEvent: PublicEvent = useMemo(() => {
     const images = [...event.images.filter((i) => !(i.slot in extraImages)), ...Object.entries(extraImages).map(([slot, v]) => ({ slot: Number(slot), v }))];
-    return { ...event, images };
-  }, [event, extraImages]);
+    return { ...event, images, subtitle: normSubtitle(subtitle) || null };
+  }, [event, extraImages, subtitle]);
 
   const dark = isDarkBackground(event.background, event.theme);
   const against = dark ? "#18181b" : getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#ffffff";
@@ -148,13 +167,19 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
   const save = async () => {
     setSaving(true);
     try {
-      justSaved.current = true;
-      await api(`/e/${event.code}/manage`, { method: "PATCH", json: { design: draft } });
+      // Only flag what's actually sent: a flag left up would make the next server update overwrite unsaved edits.
+      justSaved.current = designDirty;
+      justSavedSubtitle.current = subtitleDirty;
+      await api(`/e/${event.code}/manage`, {
+        method: "PATCH",
+        json: { ...(designDirty ? { design: draft } : {}), ...(subtitleDirty ? { subtitle } : {}) },
+      });
       toast("העיצוב נשמר - האורחים כבר רואים אותו");
       onChanged();
       setTuning(null);
     } catch (e) {
       justSaved.current = false;
+      justSavedSubtitle.current = false;
       toast(errorMessage(e), "error");
     }
     setSaving(false);
@@ -162,6 +187,7 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
 
   const reset = () => {
     dispatch({ type: "reset", design: base });
+    setSubtitle(subtitleBase);
     setSelected("hero");
   };
 
@@ -242,6 +268,8 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
                   focusOn("hero");
                 }}
                 onGoSettings={goSettings}
+                subtitle={subtitle}
+                onSubtitle={setSubtitle}
               />
             )}
           </div>

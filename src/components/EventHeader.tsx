@@ -5,7 +5,7 @@ import type { PublicEvent } from "../../shared/types";
 import { backgroundProps } from "../lib/themes";
 import { cx } from "./ui";
 import { titleFontVars, useFonts } from "../lib/fonts";
-import { pagesTitleFont } from "../../shared/design";
+import { headerObjectPosition, pagesTitleFont } from "../../shared/design";
 
 export const headerImageUrl = (ev: PublicEvent) =>
   ev.headerVersion ? `/api/e/${ev.code}/asset/hd?v=${encodeURIComponent(ev.headerVersion)}` : null;
@@ -73,7 +73,7 @@ export function EventHeader({
         aria-hidden
       >
         {img ? (
-          <img src={img} alt="" className="size-full object-cover" style={{ transform: `scale(${1 + t * 0.06})` }} />
+          <img src={img} alt="" className="size-full object-cover" style={{ objectPosition: headerObjectPosition(event.design.hero), transform: `scale(${1 + t * 0.06})` }} />
         ) : (
           <div className={cx("size-full", bg.className)} style={bg.style} />
         )}

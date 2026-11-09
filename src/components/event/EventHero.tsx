@@ -1,6 +1,6 @@
 import { forwardRef, type CSSProperties } from "react";
 import { ChevronDown, Clock, MapPin, Quote } from "lucide-react";
-import type { HeroDesign, TitleSize } from "../../../shared/design";
+import { headerObjectPosition, type HeroDesign, type TitleSize } from "../../../shared/design";
 import type { PublicEvent } from "../../../shared/types";
 import { Reveal } from "../Reveal";
 import { cx } from "../ui";
@@ -49,13 +49,21 @@ export const EventHero = forwardRef<
       aria-label="האירוע"
     >
       {headerImg && (
-        <Reveal variant="scale" delay={0}>
-          <img
-            src={headerImg}
-            alt={`תמונת הכותרת של ${event.title}`}
-            className="mx-auto mb-4 size-24 rounded-full object-cover [@media(max-height:640px)]:mb-3 [@media(max-height:640px)]:size-16 shadow-[0_20px_60px_rgb(0_0_0/0.45)] ring-4 ring-white/75 sm:size-40"
-            style={{ transform: reduced ? undefined : `translate3d(0, ${Math.min(y, vh) * 0.12}px, 0)` }}
-          />
+        <Reveal variant="scale" delay={0} className="mb-6 w-full max-w-5xl [@media(max-height:640px)]:mb-4">
+          {/* Wide frame with rounded corners; the image is cropped around the hosts' chosen focal point (hero.headerPos). */}
+          <div className="relative aspect-[3/2] w-full overflow-hidden rounded-3xl shadow-[0_24px_60px_rgb(0_0_0/0.4)] ring-1 ring-white/30 sm:aspect-[16/9] lg:aspect-[21/9] lg:max-h-[48dvh] [@media(max-height:640px)]:aspect-[21/9]">
+            <img
+              src={headerImg}
+              alt={`תמונת הכותרת של ${event.title}`}
+              className="size-full object-cover"
+              style={{
+                objectPosition: headerObjectPosition(hero),
+                // Gentle zoom toward the focal point while scrolling (stays inside the frame, never covers the title).
+                transformOrigin: headerObjectPosition(hero),
+                transform: reduced ? undefined : `scale(${1 + (Math.min(y, vh) / Math.max(vh, 1)) * 0.08})`,
+              }}
+            />
+          </div>
         </Reveal>
       )}
       <Reveal variant="scale" delay={150}>

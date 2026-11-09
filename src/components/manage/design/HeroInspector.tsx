@@ -3,10 +3,12 @@ import type { DateStyle, EventDesign, HeroDesign, TitleSize } from "../../../../
 import { DATE_STYLES } from "../../../../shared/design";
 import type { ManageEvent } from "../../../../shared/types";
 import { DATE_STYLE_LABELS, dateSample, parseLocalDate } from "../../../lib/dateStyles";
-import { Button, Segmented, cx } from "../../ui";
+import { Button, Field, Segmented, cx, inputClass } from "../../ui";
+import { headerImageUrl } from "../../EventHeader";
 import { Toggle } from "../Toggle";
 import { ColorField } from "./ColorField";
 import { FontPicker } from "./FontPicker";
+import { HeaderFramer } from "./HeaderFramer";
 import type { DraftAction } from "./draft";
 
 const SIZES: { value: TitleSize; label: string }[] = [
@@ -25,6 +27,8 @@ export function HeroInspector({
   onHebrewOnly,
   onTune,
   onGoSettings,
+  subtitle,
+  onSubtitle,
 }: {
   event: ManageEvent;
   design: EventDesign;
@@ -36,20 +40,45 @@ export function HeroInspector({
   /** mobile: open full-screen font tuning over the live page */
   onTune: () => void;
   onGoSettings: () => void;
+  /** the subtitle text (part of the editor's draft, saved together with the design) */
+  subtitle: string;
+  onSubtitle: (v: string) => void;
 }) {
   const hero = design.hero;
   const set = (patch: Partial<HeroDesign>) => dispatch({ type: "hero", patch });
   const show = (patch: Partial<HeroDesign["show"]>) => dispatch({ type: "show", patch });
   const sampleDate = parseLocalDate(event.date) ?? new Date();
+  const headerSrc = headerImageUrl(event);
   return (
     <div className="space-y-7">
       <p className="text-sm text-muted-fg">
-        העמוד הראשי קבוע במקומו. כאן משנים איך הוא נראה. את הטקסטים עצמם (שם האירוע, התאריך, הברכה) עורכים ב
-        <button type="button" onClick={onGoSettings} className="mx-1 inline font-semibold text-primary underline underline-offset-4">
+        העמוד הראשי קבוע במקומו. כאן משנים איך הוא נראה ואת שורת המשנה. את שם האירוע והתאריך עורכים ב
+        <button type="button" onClick={onGoSettings} className="ms-1 inline font-semibold text-primary underline underline-offset-4">
           הגדרות
         </button>
-        ובכרטיס "עמוד הכניסה לאורחים".
+        . את תמונת הכותרת והברכה מעלים בכרטיס "עמוד הכניסה לאורחים".
       </p>
+
+      <Field
+        label="שורת משנה"
+        htmlFor="hero-subtitle"
+        hint={hero.show.subtitle ? "מופיעה מתחת לשם האירוע" : 'שורת המשנה מוסתרת כרגע - אפשר להציג אותה ב"מה מופיע בעמוד הראשי"'}
+      >
+        <input id="hero-subtitle" className={inputClass} value={subtitle} onChange={(e) => onSubtitle(e.target.value)} placeholder="למשל: מתחתנים!" maxLength={120} />
+      </Field>
+
+      <section className="space-y-3" aria-labelledby="hero-header-title">
+        <h4 id="hero-header-title" className="font-semibold">
+          תמונת הכותרת
+        </h4>
+        {!headerSrc ? (
+          <p className="text-sm text-muted-fg">עדיין אין תמונת כותרת. מעלים אותה בכרטיס "עמוד הכניסה לאורחים" שמתחת לעיצוב.</p>
+        ) : !hero.show.header ? (
+          <p className="text-sm text-muted-fg">תמונת הכותרת מוסתרת כרגע. אפשר להציג אותה ב"מה מופיע בעמוד הראשי".</p>
+        ) : (
+          <HeaderFramer src={headerSrc} value={hero.headerPos} onChange={(p) => set({ headerPos: p })} />
+        )}
+      </section>
 
       <div className="space-y-3">
         <FontPicker label="גופן הכותרת" value={hero.titleFont} onChange={(f) => set({ titleFont: f })} hebrewOnly={hebrewOnly} onHebrewOnly={onHebrewOnly} sample={event.title} />

@@ -17,6 +17,8 @@ export interface HeroDesign {
   textColor: string | null;
   dateStyle: DateStyle;
   show: { header: boolean; subtitle: boolean; date: boolean; info: boolean; welcome: boolean };
+  /** focal point of the header image inside its frame, in % (CSS object-position); 50/50 = centered */
+  headerPos: { x: number; y: number };
 }
 
 type BlockBase = { id: string; hidden?: boolean };
@@ -61,8 +63,12 @@ export function defaultHero(): HeroDesign {
     textColor: null,
     dateStyle: "invitation",
     show: { header: true, subtitle: true, date: true, info: true, welcome: true },
+    headerPos: { x: 50, y: 50 },
   };
 }
+
+/** CSS object-position for the header image (same focal point in every frame shape it's shown in). */
+export const headerObjectPosition = (hero: HeroDesign) => `${hero.headerPos.x}% ${hero.headerPos.y}%`;
 
 /** Same order the page had before the flexible design existed. */
 export function defaultDesign(): EventDesign {
@@ -97,6 +103,7 @@ const text = (v: unknown, max: number, multiline = false) => {
   const s = v.normalize("NFKC").replace(/\r\n?/g, "\n");
   return (multiline ? s.replace(/\n{3,}/g, "\n\n") : s.replace(/\s+/g, " ")).trim().slice(0, max);
 };
+const percent = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.round(Math.min(100, Math.max(0, v)) * 10) / 10 : 50);
 const font = (v: unknown) => (isKnownFont(v) ? v : null);
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
@@ -117,6 +124,7 @@ function sanitizeHero(input: unknown): HeroDesign {
       info: bool(s.info, true),
       welcome: bool(s.welcome, true),
     },
+    headerPos: { x: percent(obj(h.headerPos).x), y: percent(obj(h.headerPos).y) },
   };
 }
 
