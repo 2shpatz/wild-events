@@ -64,8 +64,8 @@ export function EventBlock({ block, ctx }: { block: Block; ctx: BlockCtx }) {
       return <DetailsSection block={block} event={event} dark={dark} />;
     case "featured":
       return (
-        // Pile / carousel / floating react to taps, so they stay usable in the editor preview (no links inside).
-        <section className="relative px-5 py-14 sm:py-24" aria-label="מבעלי השמחה" data-preview-interactive={block.layout !== "grid" || undefined}>
+        // Every layout reacts to taps (enlarge / flip / scroll), so it stays usable in the editor preview (no links inside).
+        <section className="relative px-5 py-14 sm:py-24" aria-label="מבעלי השמחה" data-preview-interactive>
           <FeaturedPhotos event={event} dark={dark} layout={block.layout} />
         </section>
       );

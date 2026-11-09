@@ -30,22 +30,60 @@ function Polaroid({ src, i, dark, className, style }: { src: string; i: number; 
   );
 }
 
-/** "עומדות" (the original): a staggered scrapbook, each photo revealed as it scrolls in. */
+/**
+ * "עומדות" (the original): a staggered scrapbook, each photo revealed as it scrolls in. Tapping a photo brings it
+ * to the front, enlarged and straightened (a modal <dialog>: top layer, focus kept inside, Esc closes);
+ * tapping again anywhere puts it back.
+ */
 function GridView({ event, dark }: Props) {
+  const dlg = useRef<HTMLDialogElement>(null);
+  const [zoomed, setZoomed] = useState<number | null>(null);
+  const open = (i: number) => {
+    setZoomed(i);
+    dlg.current?.showModal();
+  };
+  const close = () => dlg.current?.close();
+  const z = zoomed !== null ? event.featured[zoomed] : null;
   return (
-    <ul className="mx-auto grid max-w-5xl grid-cols-2 gap-4 sm:gap-8 md:grid-cols-3">
-      {event.featured.map((f, i) => (
-        <Reveal
-          as="li"
-          key={f.slot}
-          variant={i % 2 ? "end" : "start"}
-          delay={(i % 3) * 120}
-          className={cx(i % 3 === 1 && "md:translate-y-12", i === 0 && event.featured.length % 2 === 1 && "col-span-2 md:col-span-1")}
-        >
-          <Polaroid src={featuredUrl(event.code, f)} i={i} dark={dark} className="transition-transform duration-500 hover:rotate-0" style={{ rotate: `${ROT[i % ROT.length]}deg` }} />
-        </Reveal>
-      ))}
-    </ul>
+    <>
+      <ul className="mx-auto grid max-w-5xl grid-cols-2 gap-4 sm:gap-8 md:grid-cols-3">
+        {event.featured.map((f, i) => (
+          <Reveal
+            as="li"
+            key={f.slot}
+            variant={i % 2 ? "end" : "start"}
+            delay={(i % 3) * 120}
+            className={cx(i % 3 === 1 && "md:translate-y-12", i === 0 && event.featured.length % 2 === 1 && "col-span-2 md:col-span-1")}
+          >
+            <button
+              type="button"
+              onClick={() => open(i)}
+              aria-label={`${alt(i)} - הקישו להגדלה`}
+              aria-haspopup="dialog"
+              className="block w-full cursor-zoom-in rounded-2xl outline-none focus-visible:ring-4 focus-visible:ring-accent"
+            >
+              <Polaroid src={featuredUrl(event.code, f)} i={i} dark={dark} className="transition-transform duration-500 hover:rotate-0" style={{ rotate: `${ROT[i % ROT.length]}deg` }} />
+            </button>
+          </Reveal>
+        ))}
+      </ul>
+      <p className="mt-6 text-center text-sm opacity-75 md:mt-16">הקישו על תמונה כדי להגדיל אותה</p>
+      <dialog
+        ref={dlg}
+        aria-label={zoomed !== null ? alt(zoomed) : undefined}
+        onClose={() => setZoomed(null)}
+        onClick={close}
+        className="m-0 h-dvh max-h-none w-screen max-w-none cursor-zoom-out bg-transparent p-0 backdrop:bg-black/55 backdrop:backdrop-blur-sm"
+      >
+        {z && (
+          <div className="flex h-full items-center justify-center p-6">
+            <button type="button" onClick={close} aria-label="החזרת התמונה למקומה" autoFocus className="animate-pop-in block w-[min(88vw,26rem,62dvh)] cursor-zoom-out rounded-2xl outline-none focus-visible:ring-4 focus-visible:ring-accent">
+              <Polaroid src={featuredUrl(event.code, z)} i={zoomed!} dark={dark} />
+            </button>
+          </div>
+        )}
+      </dialog>
+    </>
   );
 }
 
