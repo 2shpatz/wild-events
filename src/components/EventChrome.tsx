@@ -51,11 +51,13 @@ export function EventTitle({ event, size = "lg" }: { event: PublicEvent; size?: 
 export function EventStatus({ error, loading }: { error: unknown; loading?: boolean }) {
   if (!error) return loading ? <Spinner className="min-h-dvh" /> : null;
   const notFound = error instanceof ApiError && error.status === 404;
+  // The site admin archived the event owner's account.
+  const unavailable = error instanceof ApiError && error.status === 410;
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
       <SearchX className="size-14 text-muted-fg" aria-hidden />
-      <h1 className="text-2xl font-bold">{notFound ? "האירוע לא נמצא" : "משהו השתבש"}</h1>
-      <p className="max-w-sm text-muted-fg">{errorMessage(error)}</p>
+      <h1 className="text-2xl font-bold">{notFound ? "האירוע לא נמצא" : unavailable ? "האירוע לא זמין כרגע" : "משהו השתבש"}</h1>
+      <p className="max-w-sm text-muted-fg">{unavailable ? "אפשר לפנות לבעלי האירוע כדי לברר." : errorMessage(error)}</p>
       <Link to="/" className="font-semibold text-primary underline">
         לעמוד הראשי
       </Link>

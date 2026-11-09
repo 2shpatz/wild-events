@@ -20,6 +20,7 @@ const Gallery = lazy(() => import("./routes/Gallery"));
 const Manage = lazy(() => import("./routes/Manage"));
 const AdminLogin = lazy(() => import("./routes/AdminLogin"));
 const ShareReceive = lazy(() => import("./routes/ShareReceive"));
+const SiteAdmin = lazy(() => import("./routes/SiteAdmin"));
 const Legal = lazy(() => import("./routes/Legal"));
 const NotFound = lazy(() => import("./routes/NotFound"));
 
@@ -44,6 +45,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/setup" element={<SetupWizard />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/dashboard/new" element={<CreateEventWizard />} />
+              <Route path="/admin" element={<SiteAdmin />} />
               <Route path="/share" element={<ShareReceive />} />
               <Route path="/privacy" element={<Legal kind="privacy" />} />
               <Route path="/terms" element={<Legal kind="terms" />} />

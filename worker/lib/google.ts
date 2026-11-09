@@ -13,6 +13,9 @@ export const SCOPES = [
   "https://www.googleapis.com/auth/drive.file",
 ];
 
+/** Only the site admin grants this (so the site can email users from the admin's own Gmail). */
+export const GMAIL_SEND = "https://www.googleapis.com/auth/gmail.send";
+
 const PHOTOS = "https://photoslibrary.googleapis.com/v1";
 const PICKER = "https://photospicker.googleapis.com/v1";
 
@@ -86,12 +89,12 @@ export async function getOAuthClient(env: Env): Promise<OAuthClient | null> {
   return value;
 }
 
-export function authUrl(client: OAuthClient, redirectUri: string, state: string, loginHint?: string) {
+export function authUrl(client: OAuthClient, redirectUri: string, state: string, loginHint?: string, extraScopes: string[] = []) {
   const p = new URLSearchParams({
     client_id: client.clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: SCOPES.join(" "),
+    scope: [...SCOPES, ...extraScopes].join(" "),
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "true",
@@ -134,6 +137,19 @@ async function refresh(client: OAuthClient, refreshToken: string) {
       grant_type: "refresh_token",
     }),
   });
+}
+
+/** Withdraws a grant (used when someone is not allowed in, or their account is deleted). Never throws. */
+export async function revokeToken(token: string) {
+  try {
+    await fetch("https://oauth2.googleapis.com/revoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token }),
+    });
+  } catch {
+    /* best effort */
+  }
 }
 
 export async function userInfo(accessToken: string) {

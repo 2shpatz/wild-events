@@ -28,6 +28,7 @@ interface Status {
   progress?: { v?: number; step?: number; projectId?: string; checks?: Record<string, boolean> };
   test?: { at: number; ok: boolean; result: Record<string, { ok: boolean; message?: string }> } | null;
   operator?: { name: string; email: string };
+  admin?: { email: string; name: string | null } | null;
 }
 
 const STEPS = ["פתיחה", "חשבון חיוב", "פרויקט", "הפעלת שירותים", "מסך הסכמה", "הרשאות", "פרסום", "מפתח חיבור", "הדבקת המפתח", "בדיקה", "סיום"];
@@ -450,7 +451,7 @@ export default function SetupWizard() {
 
         {step === 3 && (
           <Card className="space-y-5">
-            <h2 className="text-2xl font-bold">הפעלת 3 שירותים</h2>
+            <h2 className="text-2xl font-bold">הפעלת 4 שירותים</h2>
             <p className="text-muted-fg">
               לכל שירות: לוחצים על הכפתור, מוודאים שלמעלה נבחר הפרויקט <bdi dir="ltr" className="font-semibold">{projectId}</bdi>, ולוחצים על הכפתור הכחול <G>Enable</G>.
             </p>
@@ -458,6 +459,7 @@ export default function SetupWizard() {
               { k: "api_photos", name: "Photos Library API", id: "photoslibrary.googleapis.com", why: "שמירת התמונות ב-Google Photos" },
               { k: "api_picker", name: "Photos Picker API", id: "photospicker.googleapis.com", why: "ייבוא תמונות שכבר נמצאות ב-Google Photos" },
               { k: "api_drive", name: "Google Drive API", id: "drive.googleapis.com", why: "הצגת נפח האחסון ואזהרת ה-80%" },
+              { k: "api_gmail", name: "Gmail API", id: "gmail.googleapis.com", why: "שליחת הזמנות ועדכונים למשתמשים מה-Gmail שלך (רק מנהל/ת האתר)" },
             ].map((a) => (
               <div key={a.k} className={cx("flex flex-col gap-3 rounded-2xl border-2 p-4 sm:flex-row sm:items-center", checks[a.k] ? "border-emerald-500" : "border-border")}>
                 <div className="flex-1">
@@ -481,7 +483,7 @@ export default function SetupWizard() {
                 </label>
               </div>
             ))}
-            {nav(!!(checks.api_photos && checks.api_picker && checks.api_drive))}
+            {nav(!!(checks.api_photos && checks.api_picker && checks.api_drive && checks.api_gmail))}
           </Card>
         )}
 
@@ -667,7 +669,7 @@ export default function SetupWizard() {
           <Card className="space-y-5">
             <h2 className="text-2xl font-bold">בדיקת חיבור</h2>
             <p className="text-muted-fg">
-              לוחצים על הכפתור ומתחברים עם Google, כאילו אתם בעלי אירוע. אם מופיע "Google hasn't verified this app", לוחצים <G>Advanced</G> ואז <G>Go to … (unsafe)</G>,
+              לוחצים על הכפתור ומתחברים עם חשבון ה-Google שלכם. החשבון הזה יהיה גם <strong>מנהל/ת האתר</strong>: מי שמאשר משתמשים חדשים ומנהל אותם. אם מופיע "Google hasn't verified this app", לוחצים <G>Advanced</G> ואז <G>Go to … (unsafe)</G>,
               ומסמנים את כל ההרשאות.
             </p>
             {errorParam && (
@@ -747,11 +749,40 @@ export default function SetupWizard() {
             <div className="flex flex-col items-center gap-3 text-center">
               <Rocket className="size-14 text-emerald-600" aria-hidden />
               <h2 className="text-3xl font-bold">האתר מוכן!</h2>
-              <p className="max-w-md text-lg text-muted-fg">מעכשיו כל בעל אירוע יכול להיכנס עם Google, ליצור אירוע ולשלוח QR לאורחים.</p>
+              <p className="max-w-md text-lg text-muted-fg">מעכשיו בעלי אירועים שתאשרו יכולים להיכנס עם Google, ליצור אירוע ולשלוח QR לאורחים.</p>
               <a href="/dashboard" className="inline-flex min-h-14 items-center gap-2 rounded-2xl bg-accent px-6 text-lg font-bold text-on-accent">
                 ליצירת האירוע הראשון
                 <ArrowLeft className="size-5" aria-hidden />
               </a>
+            </div>
+            <div className="space-y-3 rounded-2xl bg-muted p-5">
+              <h3 className="flex items-center gap-2 text-lg font-bold">
+                <ShieldCheck className="size-5" aria-hidden />
+                ניהול האתר
+              </h3>
+              {status.admin ? (
+                <p>
+                  מנהל/ת האתר: <bdi dir="ltr" className="font-semibold">{status.admin.email}</bdi>. בלוח הניהול מאשרים משתמשים חדשים, מוסיפים משתמשים ומחברים שליחת מיילים.
+                </p>
+              ) : (
+                <p>עוד לא הוגדר/ה מנהל/ת לאתר. מתחברים עם חשבון ה-Google שלכם כדי לנהל מי יכול להשתמש באתר.</p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {status.admin && (
+                  <a href="/admin" className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-primary px-5 font-bold text-on-primary">
+                    ללוח ניהול האתר
+                  </a>
+                )}
+                <a
+                  href="/api/auth/login?mode=claim"
+                  className={cx(
+                    "inline-flex min-h-12 items-center gap-2 rounded-2xl px-5 font-bold",
+                    status.admin ? "border-2 border-primary text-fg" : "bg-primary text-on-primary",
+                  )}
+                >
+                  {status.admin ? "העברת הניהול לחשבון אחר" : "כניסה כמנהל/ת האתר"}
+                </a>
+              </div>
             </div>
             <details className="rounded-2xl border border-border p-4">
               <summary className="flex min-h-11 items-center gap-2 text-lg font-semibold">

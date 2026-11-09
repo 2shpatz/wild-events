@@ -2,19 +2,21 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../env";
 import { encrypt } from "../lib/crypto";
-import { clearClientCache, getOAuthClient, SCOPES } from "../lib/google";
+import { clearClientCache, getOAuthClient, GMAIL_SEND, SCOPES } from "../lib/google";
 import { createSession, hasSetupSession, rateLimit } from "../lib/session";
 import { cleanName } from "../lib/db";
+import { EMAIL_RE, getSetting, getSiteAdmin, putSetting } from "../lib/site";
 
 export const setup = new Hono<AppEnv>();
 
-export async function getSetting(c: { env: AppEnv["Bindings"] }, key: string) {
-  const r = await c.env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first<{ value: string }>();
-  return r?.value ?? null;
-}
-
-async function putSetting(c: { env: AppEnv["Bindings"] }, key: string, value: string) {
-  await c.env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").bind(key, value).run();
+/** Who runs this copy of the site (shown on the privacy / terms pages). Shared with the admin dashboard. */
+export async function saveOperator(c: { env: AppEnv["Bindings"] }, body: { name?: string; email?: string }) {
+  const name = cleanName(body.name || "", 80);
+  const email = (body.email || "").trim().slice(0, 120);
+  if (!name) throw new HTTPException(400, { message: "name_required" });
+  if (!EMAIL_RE.test(email)) throw new HTTPException(400, { message: "bad_email" });
+  await putSetting(c, "operator_name", name);
+  await putSetting(c, "operator_email", email);
 }
 
 setup.get("/status", async (c) => {
@@ -27,13 +29,20 @@ setup.get("/status", async (c) => {
     ...base,
     origin,
     redirectUri: `${origin}/api/auth/callback`,
-    scopes: SCOPES.filter((s) => s.startsWith("https://")),
+    // gmail.send is declared on the consent screen too, but only the site admin is ever asked for it.
+    scopes: [...SCOPES.filter((s) => s.startsWith("https://")), GMAIL_SEND],
     clientId: client?.clientId ?? null,
     progress: JSON.parse((await getSetting(c, "setup_progress")) || "{}"),
     test: JSON.parse((await getSetting(c, "setup_test")) || "null"),
     operator: { name: (await getSetting(c, "operator_name")) || "", email: (await getSetting(c, "operator_email")) || "" },
+    admin: await adminInfo(c.env),
   });
 });
+
+async function adminInfo(env: AppEnv["Bindings"]) {
+  const a = await getSiteAdmin(env);
+  return a ? { email: a.email, name: a.name } : null;
+}
 
 setup.post("/unlock", async (c) => {
   const ip = c.req.header("CF-Connecting-IP") || "local";
@@ -59,15 +68,8 @@ setup.post("/progress", async (c) => {
   return c.json({ ok: true });
 });
 
-/** Who runs this copy of the site (shown on the privacy / terms pages). */
 setup.post("/operator", async (c) => {
-  const body = await c.req.json<{ name?: string; email?: string }>();
-  const name = cleanName(body.name || "", 80);
-  const email = (body.email || "").trim().slice(0, 120);
-  if (!name) throw new HTTPException(400, { message: "name_required" });
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HTTPException(400, { message: "bad_email" });
-  await putSetting(c, "operator_name", name);
-  await putSetting(c, "operator_email", email);
+  await saveOperator(c, await c.req.json<{ name?: string; email?: string }>());
   return c.json({ ok: true });
 });
 

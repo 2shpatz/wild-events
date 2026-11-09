@@ -64,6 +64,32 @@ export const requireOwner: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 
+/** Is the logged-in owner the site admin (the Google account claimed through the setup link)? */
+export async function isSiteAdmin(c: Context<AppEnv>): Promise<boolean> {
+  const ownerId = c.get("ownerId");
+  if (!ownerId) return false;
+  const row = await c.env.DB.prepare(
+    "SELECT 1 FROM owners o JOIN settings s ON s.key = 'site_admin_sub' AND s.value = o.google_sub WHERE o.id = ?",
+  )
+    .bind(ownerId)
+    .first();
+  return !!row;
+}
+
+export const requireSiteAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (!c.get("ownerId")) throw new HTTPException(401, { message: "login_required" });
+  if (!(await isSiteAdmin(c))) throw new HTTPException(403, { message: "admin_only" });
+  await next();
+};
+
+/** Logs a user out everywhere: their Google-login sessions and password sessions of their events. */
+export function endUserSessions(env: Env, ownerId: string) {
+  return [
+    env.DB.prepare("DELETE FROM sessions WHERE owner_id = ?").bind(ownerId),
+    env.DB.prepare("DELETE FROM sessions WHERE event_id IN (SELECT id FROM events WHERE owner_id = ?)").bind(ownerId),
+  ];
+}
+
 /** Can the current visitor manage this event (Google owner, or holder of the event admin password)? */
 export async function canManage(c: Context<AppEnv>, eventId: string): Promise<boolean> {
   if (c.get("adminEventId") === eventId) return true;

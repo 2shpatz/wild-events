@@ -6,6 +6,6 @@ set -euo pipefail
 PROJECT_ID="${1:-live-event-albums-$RANDOM$RANDOM}"
 echo "Creating project: $PROJECT_ID"
 gcloud projects create "$PROJECT_ID" --name="Live Event Albums"
-gcloud services enable photoslibrary.googleapis.com photospicker.googleapis.com drive.googleapis.com --project "$PROJECT_ID"
+gcloud services enable photoslibrary.googleapis.com photospicker.googleapis.com drive.googleapis.com gmail.googleapis.com --project "$PROJECT_ID"
 echo
 echo "Done. Project ID (paste it in the setup wizard, step 1): $PROJECT_ID"

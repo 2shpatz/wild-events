@@ -8,6 +8,8 @@ interface Me {
   owner: OwnerMe | null;
   adminEventId: string | null;
   configured: boolean;
+  /** Only for the site admin: how many people wait for approval. */
+  siteAdmin?: { pending: number } | null;
 }
 
 const MeCtx = createContext<{ me: Me | null; refresh: () => Promise<void> }>({ me: null, refresh: async () => {} });

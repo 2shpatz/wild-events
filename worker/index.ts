@@ -3,13 +3,15 @@ import { HTTPException } from "hono/http-exception";
 import type { AppEnv, Env } from "./env";
 import { loadSession } from "./lib/session";
 import { GoogleError } from "./lib/google";
-import { getSetting, setup } from "./routes/setup";
+import { setup } from "./routes/setup";
+import { getSetting } from "./lib/site";
 import { auth } from "./routes/auth";
 import { owner, ownerStorage } from "./routes/owner";
 import { events } from "./routes/events";
 import { uploads } from "./routes/uploads";
 import { manage } from "./routes/manage";
 import { imports } from "./routes/import";
+import { admin } from "./routes/admin";
 
 const app = new Hono<AppEnv>().basePath("/api");
 
@@ -22,6 +24,7 @@ app.use("*", async (c, next) => {
 app.route("/setup", setup);
 app.route("/auth", auth);
 app.route("/owner", owner);
+app.route("/admin", admin);
 app.route("/", events);
 app.route("/", uploads);
 app.route("/", manage);
@@ -53,7 +56,8 @@ async function scheduled(_: ScheduledController, env: Env) {
   // Daily: refresh storage usage for owners with recent events (feeds the 80% banner).
   const owners = await env.DB.prepare(
     `SELECT DISTINCT o.id FROM owners o JOIN events e ON e.owner_id = o.id
-      WHERE o.refresh_token_enc IS NOT NULL AND e.deleted = 0 AND e.created_at > ? LIMIT 20`,
+      WHERE o.refresh_token_enc IS NOT NULL AND e.deleted = 0 AND e.created_at > ?
+        AND NOT EXISTS (SELECT 1 FROM members m WHERE m.google_sub = o.google_sub AND m.status = 'archived') LIMIT 20`,
   )
     .bind(Date.now() - 120 * 86_400_000)
     .all<{ id: string }>();

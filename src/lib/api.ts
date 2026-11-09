@@ -11,6 +11,16 @@ export class ApiError extends Error {
 /** Hebrew, human messages for every error code the server can return. */
 const MESSAGES: Record<string, string> = {
   event_not_found: "האירוע לא נמצא. כדאי לבדוק שהקישור נכון.",
+  event_unavailable: "האירוע הזה לא זמין כרגע.",
+  admin_only: "רק מנהל/ת האתר יכול/ה לגשת לכאן.",
+  member_not_found: "המשתמש/ת לא נמצא/ה - אולי כבר טופל/ה.",
+  already_member: "הכתובת הזו כבר ברשימת המשתמשים המורשים.",
+  member_archived: "הכתובת הזו בארכיון. אפשר להחזיר אותה מלשונית הארכיון.",
+  not_pending: "הבקשה הזו כבר טופלה.",
+  not_approved: "אפשר לשלוח הזמנה רק למשתמשים מורשים.",
+  already_archived: "החשבון כבר בארכיון.",
+  not_archived: "אפשר לבצע את זה רק לחשבון שנמצא בארכיון.",
+  cannot_change_self: "אי אפשר להעביר לארכיון או למחוק את החשבון שלך.",
   login_required: "צריך להתחבר כדי להמשיך.",
   not_allowed: "אין לך הרשאה לפעולה הזו.",
   owner_only: "רק בעל האירוע (שמחובר עם Google) יכול לבצע את הפעולה הזו.",

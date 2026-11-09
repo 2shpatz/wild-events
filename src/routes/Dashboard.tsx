@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CalendarPlus, ExternalLink, Images, LogOut, QrCode, Settings, Users, AlertTriangle } from "lucide-react";
+import { CalendarPlus, ExternalLink, Images, LogOut, QrCode, Settings, Users, AlertTriangle, ShieldCheck, Hourglass } from "lucide-react";
 import { useMe } from "../lib/session";
 import { api } from "../lib/api";
 import { applyTheme, THEME_LABELS } from "../lib/themes";
@@ -36,6 +36,18 @@ export default function Dashboard() {
             אירוע פרוע
           </Link>
           <div className="flex items-center gap-3">
+            {me.siteAdmin && (
+              <LinkButton href="/admin" variant="outline" size="sm" className="relative" icon={<ShieldCheck className="size-4" aria-hidden />}>
+                <span className="hidden sm:inline">ניהול האתר</span>
+                <span className="sm:hidden">ניהול</span>
+                {me.siteAdmin.pending > 0 && (
+                  <span className="absolute -end-2 -top-2 min-w-6 rounded-full bg-amber-500 px-1.5 text-center text-xs leading-6 text-white">
+                    <span aria-hidden>{me.siteAdmin.pending}</span>
+                    <span className="sr-only">({me.siteAdmin.pending} ממתינים לאישור)</span>
+                  </span>
+                )}
+              </LinkButton>
+            )}
             {me.owner.picture && <img src={me.owner.picture} alt="" className="size-9 rounded-full" referrerPolicy="no-referrer" />}
             <span className="hidden text-sm text-muted-fg sm:inline">{me.owner.email}</span>
             <Button
@@ -65,6 +77,18 @@ export default function Dashboard() {
             <div className="max-w-sm">
               <GoogleButton href="/api/auth/login?next=/dashboard" label="התחברות מחדש עם Google" />
             </div>
+          </Card>
+        )}
+
+        {me.siteAdmin && me.siteAdmin.pending > 0 && (
+          <Card className="flex flex-wrap items-center justify-between gap-3 border-amber-300 bg-amber-50 text-amber-900">
+            <p className="flex items-center gap-2 text-lg font-bold" role="status">
+              <Hourglass className="size-5 shrink-0" aria-hidden />
+              {me.siteAdmin.pending === 1 ? "משתמש/ת אחד/ת מחכה לאישור שלך" : `${me.siteAdmin.pending} משתמשים מחכים לאישור שלך`}
+            </p>
+            <LinkButton href="/admin?tab=waitlist" variant="primary">
+              לרשימת ההמתנה
+            </LinkButton>
           </Card>
         )}
 

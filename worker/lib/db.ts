@@ -82,10 +82,17 @@ export interface MediaRow {
 export const cleanTime = (v: unknown) => (typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : null);
 
 export async function eventByCode(env: Env, code: string): Promise<EventRow> {
-  const ev = await env.DB.prepare("SELECT * FROM events WHERE code = ? AND deleted = 0")
+  const ev = await env.DB.prepare(
+    `SELECT e.*, (SELECT 1 FROM owners o JOIN members m ON m.google_sub = o.google_sub
+                   WHERE o.id = e.owner_id AND m.status = 'archived') AS owner_archived
+       FROM events e WHERE e.code = ? AND e.deleted = 0`,
+  )
     .bind(code.toLowerCase())
-    .first<EventRow>();
+    .first<EventRow & { owner_archived: number | null }>();
   if (!ev) throw new HTTPException(404, { message: "event_not_found" });
+  // The site admin archived the owner's account: the event is offline until they restore it.
+  if (ev.owner_archived) throw new HTTPException(410, { message: "event_unavailable" });
+  delete (ev as { owner_archived?: unknown }).owner_archived;
   return ev;
 }
 

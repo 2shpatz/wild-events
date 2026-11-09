@@ -122,6 +122,51 @@ export interface OwnerMe {
   connected: boolean;
 }
 
+// ---------------------------------------------------------------- site admin
+
+export type MemberSource = "manual" | "waitlist" | "open" | "legacy" | "admin";
+
+export interface MemberDTO {
+  email: string;
+  name: string | null;
+  picture: string | null;
+  status: "approved" | "pending" | "archived";
+  source: MemberSource;
+  isAdmin: boolean;
+  requestedAt: number | null;
+  approvedAt: number | null;
+  archivedAt: number | null;
+  /** When the invitation email was last sent (null = never). */
+  invitedAt: number | null;
+  lastLoginAt: number | null;
+  events: number;
+  albums: number;
+  photos: number;
+}
+
+export interface MemberEventDTO {
+  code: string;
+  title: string;
+  date: string | null;
+  createdAt: number;
+  albums: number;
+  photos: number;
+}
+
+export interface AdminOverview {
+  counts: { approved: number; pending: number; archived: number };
+  waitlistEnabled: boolean;
+  mail: { connected: boolean; email: string | null };
+  admin: { email: string; name: string | null } | null;
+  operator: { name: string; email: string };
+}
+
+/** Result of an admin action that may send an email. */
+export interface MailOutcome {
+  mailed?: boolean;
+  mailError?: "not_connected" | "api_disabled" | "reauth" | "error";
+}
+
 export interface OwnerEventSummary {
   id: string;
   code: string;

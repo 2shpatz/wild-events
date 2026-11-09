@@ -53,9 +53,9 @@
 האשף מלווה אתכם בכל לחיצה:
 1. ממלאים את פרטי מפעיל האתר.
 2. פותחים חשבון חיוב ב-Google Cloud (בלי תשלום) ופרויקט חדש.
-3. מפעילים 3 שירותים.
+3. מפעילים 4 שירותים.
 4. ממלאים את מסך ההסכמה ואת ההרשאות, ומפרסמים את האפליקציה.
-5. יוצרים מפתח חיבור, מדביקים אותו באשף ובודקים שהחיבור עובד.
+5. יוצרים מפתח חיבור, מדביקים אותו באשף ובודקים שהחיבור עובד. חשבון ה-Google שאיתו בודקים הופך ל**מנהל/ת האתר**.
 
 כל כפתור כחול פותח את הדף הנכון ב-Google בלשונית חדשה. אפשר לעצור באמצע ולחזור, כי ההתקדמות נשמרת.
 
@@ -63,6 +63,22 @@
 
 ### שלב 5: אירוע ראשון
 נכנסים לאתר, לוחצים "התחברות עם Google" ויוצרים אירוע. האתר נותן קישור ו-QR לשתף עם האורחים.
+
+---
+
+## ניהול האתר: מי יכול להשתמש בו
+מנהל/ת האתר (מי שמארח/ת אותו) רואה בלוח הבקרה כפתור **"ניהול האתר"** (`/admin`). שם:
+- **משתמשים**: מוסיפים משתמשים לפי מייל (ושם, לא חובה), ורואים לכל אחד כמה אירועים, אלבומים ותמונות יש לו.
+- **ממתינים**: מי שמתחבר בפעם הראשונה נכנס לרשימת המתנה ומקבל הודעה על כך. המנהל/ת מקבל/ת מייל, ומאשר/ת או דוחה. אחרי האישור נשלח למשתמש מייל הזמנה עם קישור.
+- **ארכיון**: "מחיקה" של משתמש מעבירה אותו לארכיון. הוא לא יכול להתחבר, ודפי האירועים שלו לא זמינים לאורחים. מהארכיון אפשר להחזיר, או למחוק לצמיתות (התמונות נשארות ב-Google Photos שלו).
+- **הגדרות**: הפעלה או כיבוי של רשימת ההמתנה (כשהיא כבויה, כל מי שמתחבר יכול להשתמש מיד), חיבור שליחת מיילים, ופרטי מפעיל האתר.
+
+**מי המנהל/ת?** מי שמחזיק/ה את קישור ההגדרה. זה לא תלוי בשרת או בפלטפורמה: הקישור מבוסס על סוד (`SETUP_TOKEN`) שנשמר בהגדרות האתר, והמנהל/ת נשמר/ת במסד הנתונים לפי חשבון ה-Google. כדי להפוך למנהל/ת (או להעביר את הניהול לחשבון אחר): פותחים את קישור ההגדרה, ובשלב האחרון לוחצים **"כניסה כמנהל/ת האתר"**. משתמשים שהיו באתר לפני שהתכונה נוספה נשארים מורשים.
+
+**שליחת מיילים** יוצאת מה-Gmail של המנהל/ת, בלי שירות נוסף:
+1. מפעילים את [Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com) בפרויקט של האתר.
+2. ב-[Data Access](https://console.cloud.google.com/auth/scopes) מוסיפים את ההרשאה `https://www.googleapis.com/auth/gmail.send`.
+3. בניהול האתר, בלשונית **הגדרות**, לוחצים **"חיבור שליחת מיילים"** ומאשרים. רק המנהל/ת מתבקש/ת לאשר את ההרשאה הזו.
 
 ---
 
@@ -106,7 +122,7 @@ npm run dev           # http://localhost:5173
 ```
 
 ## מבנה הקוד
-- `worker/`: ה-API (Hono על Cloudflare Workers). כולל התחברות Google, העלאות (רגילות ובחלקים לסרטונים), feed חי, ניהול, וייבוא מ-Google Photos (Picker).
+- `worker/`: ה-API (Hono על Cloudflare Workers). כולל התחברות Google, העלאות (רגילות ובחלקים לסרטונים), feed חי, ניהול, וייבוא מ-Google Photos (Picker). ניהול האתר: `worker/routes/admin.ts`, מיילים: `worker/lib/mail.ts` ו-`worker/lib/emails.ts`.
 - `src/`: האתר (React + Tailwind, RTL). כולל דף אירוע, העלאה, גלריה, ניהול ואשפים.
 - `migrations/`: סכמת מסד הנתונים (D1).
 - `scripts/setup.mjs`: ההתקנה המודרכת. `scripts/deploy.mjs`: עדכונים. `scripts/lib/deploy-core.mjs`: הלוגיקה המשותפת.
@@ -126,5 +142,7 @@ npm run dev           # http://localhost:5173
 2. Download the ZIP.
 3. Run `install-windows.bat` / `install-mac.command`, or `npm run setup`.
 4. The guided installer logs you in to Cloudflare, deploys, and opens the in-site Google setup wizard.
+
+**Site admin:** whoever holds the setup link (`SETUP_TOKEN`, a plain secret, so it works on any host) claims the site admin role by logging in with Google from the last step of the setup wizard. The admin's `/admin` dashboard manages the allowlist, the waitlist (on by default; new users wait for approval), an archive (blocked accounts, event pages offline) and permanent deletion. Emails (invitations, new-request alerts) are sent from the admin's own Gmail via the Gmail API (`gmail.send`, granted only by the admin).
 
 **Update:** copy `.deploy-state.json` into the new version's folder, then `npm install && npm run deploy`.
