@@ -223,6 +223,10 @@ export interface OwnerEventSummary {
   albumCount: number;
   googleAlbumUrl: string | null;
   createdAt: number;
+  /** the Google account that holds the event ("self" = the login account) */
+  storageAccountId: string;
+  /** the event is moving to another account right now */
+  migrating: boolean;
 }
 
 /** An event album that mirrors an album the owner has in Google Photos (copied in, re-synced on demand). */

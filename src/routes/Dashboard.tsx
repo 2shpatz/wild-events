@@ -1,29 +1,61 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { CalendarPlus, ExternalLink, Images, LogOut, QrCode, Settings, Users, AlertTriangle, ShieldCheck, Hourglass } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  CalendarPlus,
+  ExternalLink,
+  Images,
+  LogOut,
+  QrCode,
+  Settings,
+  Users,
+  AlertTriangle,
+  ShieldCheck,
+  Hourglass,
+  HardDrive,
+  ArrowLeftRight,
+  Link2,
+} from "lucide-react";
 import { useMe } from "../lib/session";
 import { api } from "../lib/api";
 import { applyTheme, THEME_LABELS } from "../lib/themes";
-import { formatDate } from "../lib/format";
-import { StorageMeter } from "../components/StorageMeter";
-import { Button, Card, LinkButton, Modal, Spinner } from "../components/ui";
+import { formatBytes, formatDate } from "../lib/format";
+import { Button, Card, LinkButton, Modal, Spinner, cx, useToast } from "../components/ui";
+import { freeBytes, StorageBar, storageLevel } from "../components/StorageBar";
+import { connectHref } from "../components/StorageAccountPicker";
 import { QRShare } from "../components/QRShare";
 import { GoogleButton } from "../components/GoogleButton";
-import type { OwnerEventSummary } from "../../shared/types";
+import type { OwnerEventSummary, StorageAccountDTO } from "../../shared/types";
 
 export default function Dashboard() {
   const { me, refresh } = useMe();
   const navigate = useNavigate();
   const [events, setEvents] = useState<OwnerEventSummary[] | null>(null);
   const [qrFor, setQrFor] = useState<OwnerEventSummary | null>(null);
+  const [accounts, setAccounts] = useState<StorageAccountDTO[] | null>(null);
+  const [params, setParams] = useSearchParams();
+  const toast = useToast();
 
   useEffect(() => applyTheme("general"), []);
   useEffect(() => {
     if (me && !me.owner) navigate("/login?next=/dashboard", { replace: true });
   }, [me, navigate]);
   useEffect(() => {
-    if (me?.owner) api<{ events: OwnerEventSummary[] }>("/owner/events").then((r) => setEvents(r.events)).catch(() => setEvents([]));
+    if (!me?.owner) return;
+    api<{ events: OwnerEventSummary[] }>("/owner/events").then((r) => setEvents(r.events)).catch(() => setEvents([]));
+    // Storage of every account the events live in (one request, cached per account on the server).
+    api<{ accounts: StorageAccountDTO[] }>("/owner/accounts").then((r) => setAccounts(r.accounts)).catch(() => setAccounts([]));
   }, [me]);
+
+  // Back from reconnecting an event's Google account.
+  useEffect(() => {
+    const connected = params.get("connected");
+    const self = params.get("account") === "self";
+    const err = params.get("account_error");
+    if (!connected && !self && !err) return;
+    setParams({}, { replace: true });
+    toast(err ? "לא הצלחנו לחבר את החשבון. אפשר לנסות שוב." : "החשבון חובר מחדש", err ? "error" : "success");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!me?.owner) return <Spinner className="min-h-dvh" />;
 
@@ -92,8 +124,6 @@ export default function Dashboard() {
           </Card>
         )}
 
-        <StorageMeter />
-
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold">האירועים שלי</h1>
           <LinkButton href="/dashboard/new" variant="primary" size="lg" icon={<CalendarPlus className="size-5" aria-hidden />}>
@@ -137,6 +167,7 @@ export default function Dashboard() {
                       <Users className="size-4 text-muted-fg" aria-hidden /> {ev.albumCount.toLocaleString("he-IL")} אלבומים
                     </span>
                   </p>
+                  <EventStorage event={ev} accounts={accounts} />
                   <div className="mt-auto grid grid-cols-2 gap-2">
                     <LinkButton href={`/${ev.code}/manage`} variant="primary" icon={<Settings className="size-4" aria-hidden />}>
                       ניהול
@@ -163,6 +194,74 @@ export default function Dashboard() {
       <Modal open={!!qrFor} onClose={() => setQrFor(null)} title={qrFor ? `שיתוף: ${qrFor.title}` : ""}>
         {qrFor && <QRShare code={qrFor.code} title={qrFor.title} />}
       </Modal>
+    </div>
+  );
+}
+
+/** The Google account that holds one event, and how full it is. */
+function EventStorage({ event, accounts }: { event: OwnerEventSummary; accounts: StorageAccountDTO[] | null }) {
+  const account = accounts?.find((a) => a.id === event.storageAccountId);
+  if (!accounts) {
+    return <div className="h-[4.5rem] animate-pulse rounded-2xl bg-muted" aria-label="טוען נפח אחסון" />;
+  }
+  if (!account) return null;
+  const s = account.storage;
+  const level = storageLevel(s);
+  const left = freeBytes(s);
+  return (
+    <div
+      className={cx(
+        "space-y-2 rounded-2xl border p-3",
+        !account.connected || level === "critical" ? "border-destructive/40 bg-destructive/5" : level === "warn" ? "border-amber-300 bg-amber-50" : "border-border bg-muted/40",
+      )}
+    >
+      <p className="flex min-w-0 items-center gap-2 text-sm">
+        <HardDrive className="size-4 shrink-0 text-muted-fg" aria-hidden />
+        <span className="min-w-0 truncate font-semibold" dir="ltr">
+          {account.email}
+        </span>
+        <span
+          className={cx(
+            "shrink-0 rounded-full px-2 py-0.5 text-xs font-bold",
+            account.personal ? "bg-destructive/10 text-destructive" : "bg-emerald-100 text-emerald-800",
+          )}
+        >
+          {account.personal ? "חשבון פרטי" : "חשבון ייעודי"}
+        </span>
+      </p>
+
+      {event.migrating ? (
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+          <ArrowLeftRight className="size-4 shrink-0" aria-hidden />
+          האירוע עובר עכשיו לחשבון אחר. ההעלאות סגורות עד הסוף.
+        </p>
+      ) : !account.connected ? (
+        <div className="space-y-2">
+          <p className="flex gap-1.5 text-sm font-semibold text-destructive" role="alert">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            החיבור לחשבון פג. האורחים לא יכולים להעלות עד שמחברים אותו מחדש.
+          </p>
+          <LinkButton href={connectHref("/dashboard", account.email)} size="sm" icon={<Link2 className="size-4" aria-hidden />}>
+            חיבור מחדש
+          </LinkButton>
+        </div>
+      ) : s ? (
+        <>
+          <StorageBar storage={s} label={`שימוש באחסון של ${account.email}`} />
+          <p className={cx("text-sm", level === "critical" ? "font-bold text-destructive" : level === "warn" ? "font-semibold text-amber-900" : "text-muted-fg")}>
+            {left === null ? (
+              <>ללא מגבלת נפח · בשימוש {formatBytes(s.usage)}</>
+            ) : (
+              <>
+                {level === "critical" ? "כמעט מלא! " : level === "warn" ? "מעל 80% · " : ""}
+                נשארו {formatBytes(left)} מתוך {formatBytes(s.limit)}
+              </>
+            )}
+          </p>
+        </>
+      ) : (
+        <p className="text-sm text-muted-fg">לא הצלחנו לקרוא כרגע את נתוני הנפח.</p>
+      )}
     </div>
   );
 }

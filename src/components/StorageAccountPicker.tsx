@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Check, ExternalLink, HardDrive, Link2, RefreshCw, ShieldCheck, Sparkles, Unlink, UserPlus } from "lucide-react";
 import { api, errorMessage } from "../lib/api";
 import { formatBytes } from "../lib/format";
-import type { Quality, StorageAccountDTO, StorageInfo } from "../../shared/types";
+import type { Quality, StorageAccountDTO } from "../../shared/types";
 import { Button, ConfirmDialog, IconButton, LinkButton, cx, useToast } from "./ui";
 import { UnverifiedGuide } from "./UnverifiedGuide";
+import { freeBytes, StorageBar } from "./StorageBar";
 
 /** Average stored size of one photo, for "room for about N photos". */
 const PHOTO_BYTES: Record<Quality, number> = { compressed: 700_000, original: 3_500_000 };
@@ -14,7 +15,7 @@ export const GOOGLE_SIGNUP = "https://accounts.google.com/signup";
 export const connectHref = (next: string, hint?: string | null) =>
   `/api/auth/login?mode=storage&next=${encodeURIComponent(next)}${hint ? `&hint=${encodeURIComponent(hint)}` : ""}`;
 
-const free = (s: StorageInfo | null) => (s && s.limit !== null ? Math.max(0, s.limit - s.usage) : null);
+const free = freeBytes;
 
 /**
  * Choose the Google account that will hold an event's photos: the owner's own account (with a loud red
@@ -238,10 +239,7 @@ function AccountCard({
   onDisconnect?: () => void;
 }) {
   const s = a.storage;
-  const pct = s?.percent ?? null;
   const left = free(s);
-  const level = pct === null ? "ok" : pct >= 0.95 ? "critical" : pct >= 0.8 ? "warn" : "ok";
-  const bar = level === "critical" ? "bg-destructive" : level === "warn" ? "bg-amber-500" : "bg-emerald-500";
   return (
     <div
       className={cx(
@@ -292,16 +290,7 @@ function AccountCard({
           <span className="font-semibold text-destructive">החיבור לחשבון הזה פג. צריך לחבר אותו מחדש כדי להשתמש בו.</span>
         ) : s ? (
           <span className="block space-y-1.5">
-            <span
-              className="block h-3 w-full overflow-hidden rounded-full bg-muted"
-              role="meter"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={pct === null ? undefined : Math.round(pct * 100)}
-              aria-label={`שימוש באחסון של ${a.email}`}
-            >
-              <span className={cx("block h-full rounded-full transition-[width] duration-500", bar)} style={{ width: `${Math.min(100, (pct ?? 0) * 100)}%` }} />
-            </span>
+            <StorageBar storage={s} label={`שימוש באחסון של ${a.email}`} />
             <span className="block text-base">
               {left === null ? (
                 <>ללא מגבלת נפח · בשימוש {formatBytes(s.usage)}</>
