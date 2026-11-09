@@ -14,7 +14,6 @@ export function SettingsForm({ event, onChanged }: { event: ManageEvent; onChang
   const toast = useToast();
   const navigate = useNavigate();
   const [title, setTitle] = useState(event.title);
-  const [subtitle, setSubtitle] = useState(event.subtitle || "");
   const [date, setDate] = useState(event.date || "");
   const [time, setTime] = useState(event.time || "");
   const [venueName, setVenueName] = useState(event.venueName || "");
@@ -31,7 +30,6 @@ export function SettingsForm({ event, onChanged }: { event: ManageEvent; onChang
 
   const dirty =
     title !== event.title ||
-    subtitle !== (event.subtitle || "") ||
     date !== (event.date || "") ||
     time !== (event.time || "") ||
     venueName !== (event.venueName || "") ||
@@ -43,9 +41,6 @@ export function SettingsForm({ event, onChanged }: { event: ManageEvent; onChang
         <h2 className="text-xl font-bold">פרטי האירוע</h2>
         <Field label="שם האירוע" htmlFor="s-title">
           <input id="s-title" className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} />
-        </Field>
-        <Field label="שורת משנה" htmlFor="s-sub">
-          <input id="s-sub" className={inputClass} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} maxLength={120} />
         </Field>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="תאריך" htmlFor="s-date">
@@ -67,7 +62,7 @@ export function SettingsForm({ event, onChanged }: { event: ManageEvent; onChang
           icon={<Save className="size-4" aria-hidden />}
           onClick={async () => {
             setBusy(true);
-            await patch({ title, subtitle, date, time, venueName, venueAddress });
+            await patch({ title, date, time, venueName, venueAddress });
             setBusy(false);
           }}
         >

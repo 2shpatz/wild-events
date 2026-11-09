@@ -106,8 +106,11 @@ export default function Manage() {
       </header>
 
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
-        {/* Always show the storage of the event's Google account + link to the real Google Photos (+ moving to another account). */}
-        <StorageAccountSection event={event} onChanged={load} />
+        {/* The event's Google account storage (+ moving to another account) appears only under "Settings", but stays
+            mounted on every tab so a running move keeps copying while the owner looks at other tabs. */}
+        <div hidden={tab !== "settings"}>
+          <StorageAccountSection event={event} onChanged={load} />
+        </div>
 
         {tab === "share" && (
           <Card>

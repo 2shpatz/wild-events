@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Link } from "react-router-dom";
 import { Camera, ImageIcon, Images, Lock, Play, Radio, Wrench, X, ZoomIn } from "lucide-react";
-import type { Block, ImageBlock, TextBlock } from "../../../shared/design";
+import { DETAILS_TEXTS, LIVE_TEXTS, partText, type Block, type DetailsBlock, type ImageBlock, type LiveBlock, type TextBlock } from "../../../shared/design";
 import type { MediaDTO, PublicEvent } from "../../../shared/types";
 import { Reveal } from "../Reveal";
 import { cx } from "../ui";
 import { api } from "../../lib/api";
 import { thumbUrl } from "../../lib/media";
-import { EventDetails, hasDetails } from "../EventDetails";
+import { EventDetails, detailsCardHasContent } from "../EventDetails";
 
 export const featuredUrl = (code: string, f: { slot: number; v: string }) => `/api/e/${code}/asset/f${f.slot}?v=${encodeURIComponent(f.v)}`;
 export const blockImageUrl = (ev: PublicEvent, slot: number) => {
@@ -23,11 +23,11 @@ export function blockHasContent(b: Block, ev: PublicEvent): boolean {
     case "invitation":
       return !!ev.invitationVersion;
     case "details":
-      return hasDetails(ev);
+      return detailsCardHasContent(ev, b.show);
     case "featured":
       return ev.featured.length > 0;
     case "live":
-      return true;
+      return Object.values(b.show).some(Boolean);
     case "text":
       return !!(b.heading || b.body);
     case "image":
@@ -54,18 +54,7 @@ export function EventBlock({ block, ctx }: { block: Block; ctx: BlockCtx }) {
         </section>
       );
     case "details":
-      return (
-        <section id="event-details" className="relative scroll-mt-20 px-5 py-14 sm:py-20" aria-labelledby="details-title">
-          <Reveal variant="up">
-            <h2 id="details-title" className="mb-8 text-center font-display text-4xl sm:text-5xl">
-              פרטי האירוע
-            </h2>
-          </Reveal>
-          <Reveal variant="up" delay={120}>
-            <EventDetails event={event} dark={dark} />
-          </Reveal>
-        </section>
-      );
+      return <DetailsSection block={block} event={event} dark={dark} />;
     case "featured":
       return (
         <section className="relative px-5 py-14 sm:py-24" aria-label="מבעלי השמחה">
@@ -73,7 +62,7 @@ export function EventBlock({ block, ctx }: { block: Block; ctx: BlockCtx }) {
         </section>
       );
     case "live":
-      return <LiveSection event={event} dark={dark} choiceRef={ctx.choiceRef} />;
+      return <LiveSection block={block} event={event} dark={dark} choiceRef={ctx.choiceRef} />;
     case "text":
       return <TextSection block={block} dark={dark} />;
     case "image":
@@ -83,9 +72,9 @@ export function EventBlock({ block, ctx }: { block: Block; ctx: BlockCtx }) {
 
 const PLACEHOLDER: Record<Block["type"], string> = {
   invitation: "כאן תופיע תמונת ההזמנה - עדיין לא הועלתה",
-  details: "כאן יופיעו פרטי האירוע - הוסיפו תאריך, שעה או מקום",
+  details: "כאן יופיעו פרטי האירוע - הוסיפו תאריך, שעה או מקום, או הציגו לפחות חלק אחד",
   featured: "כאן יופיעו התמונות המייצגות - עדיין לא נוספו",
-  live: "",
+  live: "כל החלקים של האלבום בזמן אמת מוסתרים - הציגו לפחות חלק אחד",
   text: "בלוק טקסט ריק - כתבו כותרת או טקסט",
   image: "כאן תופיע התמונה - בחרו תמונה",
 };
@@ -183,63 +172,105 @@ function FeaturedGallery({ event, dark }: { event: PublicEvent; dark: boolean })
   );
 }
 
-/** The album, live, closing with the two big Upload / View actions. */
-function LiveSection({ event, dark, choiceRef }: { event: PublicEvent; dark: boolean; choiceRef?: Ref<HTMLDivElement> }) {
+function DetailsSection({ block, event, dark }: { block: DetailsBlock; event: PublicEvent; dark: boolean }) {
+  const title = partText(block.texts, "title", DETAILS_TEXTS.title);
   return (
-    <section id="live-strip" className="relative px-5 pb-20 pt-14 sm:pt-20" aria-labelledby="live-title">
-      <LiveStrip event={event} dark={dark} />
+    <section
+      id="event-details"
+      className="relative scroll-mt-20 px-5 py-14 sm:py-20"
+      {...(block.show.title ? { "aria-labelledby": "details-title" } : { "aria-label": title })}
+    >
+      {block.show.title && (
+        <Reveal variant="up">
+          <h2 id="details-title" className="mb-8 text-center font-display text-4xl [text-wrap:balance] sm:text-5xl">
+            {title}
+          </h2>
+        </Reveal>
+      )}
+      <Reveal variant="up" delay={120}>
+        <EventDetails event={event} dark={dark} block={block} />
+      </Reveal>
+    </section>
+  );
+}
+
+/** The album, live, closing with the two big Upload / View actions. Each part can be hidden and its texts rewritten. */
+function LiveSection({ block, event, dark, choiceRef }: { block: LiveBlock; event: PublicEvent; dark: boolean; choiceRef?: Ref<HTMLDivElement> }) {
+  const { show, texts } = block;
+  const t = (k: keyof typeof LIVE_TEXTS) => partText(texts, k, LIVE_TEXTS[k]);
+  const top = show.title || show.count || show.strip;
+  const cards = show.view || show.upload;
+  return (
+    <section
+      id="live-strip"
+      className={cx("relative px-5 pb-20", top ? "pt-14 sm:pt-20" : "pt-8")}
+      {...(show.title ? { "aria-labelledby": "live-title" } : { "aria-label": t("title") })}
+    >
+      {top && <LiveStrip event={event} dark={dark} block={block} />}
 
       {/* Two large, clearly separated actions (MASTER project overrides). */}
-      <div ref={choiceRef} className="mx-auto mt-10 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
-        <Reveal variant="start" delay={100}>
-          <Link
-            to={`/${event.code}/gallery`}
-            className={cx(
-              "flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] border-2 px-6 py-8 text-center backdrop-blur-md transition-[background-color,transform] duration-200 active:scale-[0.99]",
-              dark ? "border-white/45 bg-white/10 hover:bg-white/20" : "border-primary bg-card/85 hover:bg-card",
-            )}
-          >
-            <span className={cx("flex size-16 items-center justify-center rounded-2xl", dark ? "bg-white/15" : "bg-primary/10 text-primary")}>
-              <Images className="size-9" aria-hidden />
-            </span>
-            <span className="text-2xl font-bold">צפייה בתמונות האירוע</span>
-            <span className="text-base opacity-85">כל התמונות של כולם, בזמן אמת</span>
-          </Link>
-        </Reveal>
-        <Reveal variant="end" delay={200}>
-          {event.uploadsOpen && event.maintenance ? (
-            <div role="status" className={cx("flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 py-8 text-center", dark ? "bg-white/10" : "bg-card/80")}>
-              <Wrench className="size-8" aria-hidden />
-              <span className="text-lg font-semibold">האתר בתחזוקה קצרה</span>
-              <span className="text-base opacity-85">נסו להעלות שוב בעוד כמה דקות</span>
-            </div>
-          ) : event.uploadsOpen ? (
-            <Link
-              to={`/${event.code}/upload`}
-              className="flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] bg-accent px-6 py-8 text-center text-on-accent shadow-lift transition-[filter,transform] duration-200 hover:brightness-110 active:scale-[0.99]"
-            >
-              <span className="flex size-16 items-center justify-center rounded-2xl bg-white/20">
-                <Camera className="size-9" aria-hidden />
-              </span>
-              <span className="text-2xl font-bold">הוסיפו את התמונות שלכם</span>
-              <span className="text-base opacity-90">צילמתם? העלו לאלבום - מהגלריה או מהמצלמה</span>
-            </Link>
-          ) : (
-            <div className={cx("flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 py-8 text-center", dark ? "bg-white/10" : "bg-card/80")}>
-              <Lock className="size-8" aria-hidden />
-              <span className="text-lg font-semibold">ההעלאות לאירוע הזה סגורות</span>
-            </div>
+      {cards && (
+        <div
+          ref={choiceRef}
+          className={cx("mx-auto grid w-full gap-4", top && "mt-10", show.view && show.upload ? "max-w-3xl sm:grid-cols-2" : "max-w-md")}
+        >
+          {show.view && (
+            <Reveal variant="start" delay={100}>
+              <Link
+                to={`/${event.code}/gallery`}
+                className={cx(
+                  "flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] border-2 px-6 py-8 text-center backdrop-blur-md transition-[background-color,transform] duration-200 active:scale-[0.99]",
+                  dark ? "border-white/45 bg-white/10 hover:bg-white/20" : "border-primary bg-card/85 hover:bg-card",
+                )}
+              >
+                <span className={cx("flex size-16 items-center justify-center rounded-2xl", dark ? "bg-white/15" : "bg-primary/10 text-primary")}>
+                  <Images className="size-9" aria-hidden />
+                </span>
+                <span className="text-2xl font-bold [text-wrap:balance]">{t("viewTitle")}</span>
+                <span className="text-base opacity-85 [text-wrap:balance]">{t("viewText")}</span>
+              </Link>
+            </Reveal>
           )}
-        </Reveal>
-      </div>
+          {show.upload && (
+            <Reveal variant="end" delay={200}>
+              {event.uploadsOpen && event.maintenance ? (
+                <div role="status" className={cx("flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 py-8 text-center", dark ? "bg-white/10" : "bg-card/80")}>
+                  <Wrench className="size-8" aria-hidden />
+                  <span className="text-lg font-semibold">האתר בתחזוקה קצרה</span>
+                  <span className="text-base opacity-85">נסו להעלות שוב בעוד כמה דקות</span>
+                </div>
+              ) : event.uploadsOpen ? (
+                <Link
+                  to={`/${event.code}/upload`}
+                  className="flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] bg-accent px-6 py-8 text-center text-on-accent shadow-lift transition-[filter,transform] duration-200 hover:brightness-110 active:scale-[0.99]"
+                >
+                  <span className="flex size-16 items-center justify-center rounded-2xl bg-white/20">
+                    <Camera className="size-9" aria-hidden />
+                  </span>
+                  <span className="text-2xl font-bold [text-wrap:balance]">{t("uploadTitle")}</span>
+                  <span className="text-base opacity-90 [text-wrap:balance]">{t("uploadText")}</span>
+                </Link>
+              ) : (
+                <div className={cx("flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 py-8 text-center", dark ? "bg-white/10" : "bg-card/80")}>
+                  <Lock className="size-8" aria-hidden />
+                  <span className="text-lg font-semibold">ההעלאות לאירוע הזה סגורות</span>
+                </div>
+              )}
+            </Reveal>
+          )}
+        </div>
+      )}
     </section>
   );
 }
 
 /** Newest photos from the album, refreshed every 30s while visible. */
-function LiveStrip({ event, dark }: { event: PublicEvent; dark: boolean }) {
+function LiveStrip({ event, dark, block }: { event: PublicEvent; dark: boolean; block: LiveBlock }) {
+  const { show, texts } = block;
+  const t = (k: keyof typeof LIVE_TEXTS) => partText(texts, k, LIVE_TEXTS[k]);
   const [items, setItems] = useState<MediaDTO[] | null>(null);
   useEffect(() => {
+    if (!show.strip) return;
     let stop = false;
     const load = () =>
       api<{ media: MediaDTO[] }>(`/e/${event.code}/latest?n=12`)
@@ -251,23 +282,29 @@ function LiveStrip({ event, dark }: { event: PublicEvent; dark: boolean }) {
       stop = true;
       clearInterval(t);
     };
-  }, [event.code]);
+  }, [event.code, show.strip]);
 
   const shown = (items ?? []).filter((m) => m.url);
   return (
     <div className="mx-auto max-w-4xl">
-      <Reveal variant="up">
-        <h2 id="live-title" className="mb-2 flex items-center justify-center gap-2 text-center font-display text-4xl sm:text-5xl">
-          מהאלבום, בזמן אמת
-        </h2>
-        <p className="mb-8 flex items-center justify-center gap-2 text-base opacity-85" aria-live="polite">
-          <Radio className="size-4 animate-pulse text-red-500" aria-hidden />
-          {event.mediaCount > 0
-            ? `${event.mediaCount.toLocaleString("he-IL")} תמונות וסרטונים עד עכשיו`
-            : "כל תמונה שמועלית מופיעה כאן מיד"}
-        </p>
-      </Reveal>
-      {items === null ? (
+      {(show.title || show.count) && (
+        <Reveal variant="up" className={cx(show.strip && "mb-8")}>
+          {show.title && (
+            <h2 id="live-title" className={cx("flex items-center justify-center gap-2 text-center font-display text-4xl [text-wrap:balance] sm:text-5xl", show.count && "mb-2")}>
+              {t("title")}
+            </h2>
+          )}
+          {show.count && (
+            <p className="flex items-center justify-center gap-2 text-base opacity-85" aria-live="polite">
+              <Radio className="size-4 animate-pulse text-red-500" aria-hidden />
+              {event.mediaCount > 0
+                ? `${event.mediaCount.toLocaleString("he-IL")} תמונות וסרטונים עד עכשיו`
+                : "כל תמונה שמועלית מופיעה כאן מיד"}
+            </p>
+          )}
+        </Reveal>
+      )}
+      {!show.strip ? null : items === null ? (
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-6" aria-hidden>
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="skeleton aspect-square rounded-xl" />
@@ -294,8 +331,8 @@ function LiveStrip({ event, dark }: { event: PublicEvent; dark: boolean }) {
         <Reveal variant="up" delay={100}>
           <div className={cx("mx-auto max-w-md rounded-[2rem] px-6 py-10 text-center backdrop-blur-md", dark ? "bg-white/10" : "bg-card/85 shadow-soft")}>
             <Camera className="mx-auto mb-3 size-10 opacity-80" aria-hidden />
-            <p className="text-xl font-bold">האלבום עוד ריק</p>
-            <p className="mt-1 opacity-85">היו הראשונים להעלות תמונה מהאירוע</p>
+            <p className="text-xl font-bold [text-wrap:balance]">{t("emptyTitle")}</p>
+            <p className="mt-1 opacity-85 [text-wrap:balance]">{t("emptyText")}</p>
           </div>
         </Reveal>
       )}

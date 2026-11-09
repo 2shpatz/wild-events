@@ -16,7 +16,7 @@ export interface HeroDesign {
   /** subtitle, date, time / venue, welcome; #rrggbb or null */
   textColor: string | null;
   dateStyle: DateStyle;
-  show: { header: boolean; subtitle: boolean; date: boolean; info: boolean; welcome: boolean };
+  show: { header: boolean; subtitle: boolean; date: boolean; time: boolean; countdown: boolean; venue: boolean; welcome: boolean };
   /** focal point of the header image inside its frame, in % (CSS object-position); 50/50 = centered */
   headerPos: { x: number; y: number };
 }
@@ -35,7 +35,41 @@ export type TextBlock = BlockBase & {
 export type ImageBlock = BlockBase & { type: "image"; slot: number; caption: string; shape: "wide" | "card" | "round" };
 export type SingletonType = "invitation" | "details" | "featured" | "live";
 
-export type SingletonBlock = BlockBase & { type: SingletonType };
+/**
+ * Parts of the "details" / "live" blocks that the hosts can show or hide, and the texts they can rewrite.
+ * A text of null (or "" while typing) means the built-in default (DETAILS_TEXTS / LIVE_TEXTS).
+ */
+export const DETAILS_PARTS = ["title", "when", "where", "nav", "share", "calendar"] as const;
+export type DetailsPart = (typeof DETAILS_PARTS)[number];
+export const DETAILS_TEXTS = {
+  title: "פרטי האירוע",
+  nav: "איך מגיעים",
+  /** with an address to share; without one the default is DETAILS_SHARE_NO_ADDRESS */
+  share: "שיתוף הכתובת",
+  calendar: "הוספה ליומן",
+} as const;
+export const DETAILS_SHARE_NO_ADDRESS = "שיתוף פרטי האירוע";
+export type DetailsText = keyof typeof DETAILS_TEXTS;
+
+export const LIVE_PARTS = ["title", "count", "strip", "view", "upload"] as const;
+export type LivePart = (typeof LIVE_PARTS)[number];
+export const LIVE_TEXTS = {
+  title: "מהאלבום, בזמן אמת",
+  viewTitle: "צפייה בתמונות האירוע",
+  viewText: "כל התמונות של כולם, בזמן אמת",
+  uploadTitle: "הוסיפו את התמונות שלכם",
+  uploadText: "צילמתם? העלו לאלבום - מהגלריה או מהמצלמה",
+  emptyTitle: "האלבום עוד ריק",
+  emptyText: "היו הראשונים להעלות תמונה מהאירוע",
+} as const;
+export type LiveText = keyof typeof LIVE_TEXTS;
+
+/** Max length of each editable heading / card text. */
+export const PART_TEXT_MAX = { title: 80, nav: 60, share: 60, calendar: 60, viewTitle: 60, viewText: 120, uploadTitle: 60, uploadText: 120, emptyTitle: 60, emptyText: 120 } as const;
+
+export type DetailsBlock = BlockBase & { type: "details"; show: Record<DetailsPart, boolean>; texts: Record<DetailsText, string | null> };
+export type LiveBlock = BlockBase & { type: "live"; show: Record<LivePart, boolean>; texts: Record<LiveText, string | null> };
+export type SingletonBlock = (BlockBase & { type: "invitation" | "featured" }) | DetailsBlock | LiveBlock;
 export type Block = TextBlock | ImageBlock | SingletonBlock;
 export type BlockType = Block["type"];
 
@@ -55,6 +89,19 @@ export const DATE_STYLES: DateStyle[] = ["invitation", "line", "numeric", "hebre
 
 export const newBlockId = () => Math.random().toString(36).slice(2, 10);
 
+const allOn = <K extends string>(keys: readonly K[]) => Object.fromEntries(keys.map((k) => [k, true])) as Record<K, boolean>;
+const allNull = <K extends string>(keys: readonly K[]) => Object.fromEntries(keys.map((k) => [k, null])) as Record<K, null>;
+
+/** A built-in block with everything shown and the default texts. */
+export function singletonBlock(type: SingletonType, id: string): SingletonBlock {
+  if (type === "details") return { id, type, show: allOn(DETAILS_PARTS), texts: allNull(Object.keys(DETAILS_TEXTS) as DetailsText[]) };
+  if (type === "live") return { id, type, show: allOn(LIVE_PARTS), texts: allNull(Object.keys(LIVE_TEXTS) as LiveText[]) };
+  return { id, type };
+}
+
+/** The text to show for an editable part: the hosts' own, or the default. */
+export const partText = <T extends string>(texts: Record<T, string | null>, key: T, fallback: string) => texts[key]?.trim() || fallback;
+
 export function defaultHero(): HeroDesign {
   return {
     titleFont: null,
@@ -62,7 +109,7 @@ export function defaultHero(): HeroDesign {
     titleColor: null,
     textColor: null,
     dateStyle: "invitation",
-    show: { header: true, subtitle: true, date: true, info: true, welcome: true },
+    show: { header: true, subtitle: true, date: true, time: true, countdown: true, venue: true, welcome: true },
     headerPos: { x: 50, y: 50 },
   };
 }
@@ -76,12 +123,7 @@ export function defaultDesign(): EventDesign {
     v: 1,
     hero: defaultHero(),
     before: [],
-    after: [
-      { id: "invitation", type: "invitation" },
-      { id: "details", type: "details" },
-      { id: "featured", type: "featured" },
-      { id: "live", type: "live" },
-    ],
+    after: [singletonBlock("invitation", "invitation"), singletonBlock("details", "details"), singletonBlock("featured", "featured"), singletonBlock("live", "live")],
     pagesFont: null,
   };
 }
@@ -90,7 +132,7 @@ export function newBlock(type: BlockType, slot = 0): Block {
   const id = newBlockId();
   if (type === "text") return { id, type, heading: "", body: "", align: "center", size: "md", color: null, card: true };
   if (type === "image") return { id, type, slot, caption: "", shape: "card" };
-  return { id, type };
+  return singletonBlock(type, id);
 }
 
 const COLOR_RE = /^#[0-9a-f]{6}$/;
@@ -121,7 +163,10 @@ function sanitizeHero(input: unknown): HeroDesign {
       header: bool(s.header, true),
       subtitle: bool(s.subtitle, true),
       date: bool(s.date, true),
-      info: bool(s.info, true),
+      // These three used to be one switch ("info"); older designs keep its value.
+      time: bool(s.time, bool(s.info, true)),
+      countdown: bool(s.countdown, bool(s.info, true)),
+      venue: bool(s.venue, bool(s.info, true)),
       welcome: bool(s.welcome, true),
     },
     headerPos: { x: percent(obj(h.headerPos).x), y: percent(obj(h.headerPos).y) },
@@ -154,7 +199,19 @@ function sanitizeBlock(input: unknown, seen: { ids: Set<string>; singles: Set<st
   } else if (SINGLETONS.includes(b.type as SingletonType)) {
     if (seen.singles.has(b.type as string)) return null;
     seen.singles.add(b.type as string);
-    out = { id, type: b.type as SingletonType, ...hidden };
+    const type = b.type as SingletonType;
+    out = { ...singletonBlock(type, id), ...hidden };
+    if (out.type === "details" || out.type === "live") {
+      const show = obj(b.show);
+      const texts = obj(b.texts);
+      const parts: readonly string[] = out.type === "details" ? DETAILS_PARTS : LIVE_PARTS;
+      const keys = Object.keys(out.type === "details" ? DETAILS_TEXTS : LIVE_TEXTS) as (keyof typeof PART_TEXT_MAX)[];
+      out = {
+        ...out,
+        show: Object.fromEntries(parts.map((k) => [k, bool(show[k], true)])),
+        texts: Object.fromEntries(keys.map((k) => [k, text(texts[k], PART_TEXT_MAX[k]) || null])),
+      } as DetailsBlock | LiveBlock;
+    }
   }
   if (out) seen.ids.add(id);
   return out;

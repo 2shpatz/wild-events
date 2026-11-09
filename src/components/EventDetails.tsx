@@ -1,6 +1,7 @@
 import { CalendarDays, CalendarPlus, Copy, Download, Map, MapPin, MapPinned, Navigation, Share2 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { PublicEvent } from "../../shared/types";
+import { DETAILS_SHARE_NO_ADDRESS, DETAILS_TEXTS, partText, singletonBlock, type DetailsBlock } from "../../shared/design";
 import { countdown, destination, googleCalendarUrl, hasCalendar, icsFile, navLinks, shareText, whenText } from "../lib/eventInfo";
 import { WhatsAppIcon } from "./QRShare";
 import { cx, useToast } from "./ui";
@@ -8,11 +9,27 @@ import { isAndroid } from "../lib/device";
 
 export const hasDetails = (ev: PublicEvent) => !!(ev.date || ev.time || ev.venueName || ev.venueAddress);
 
+const allShown = singletonBlock("details", "details") as DetailsBlock;
+
+/** Would the details card show anything with these parts switched on? (Sharing works whenever there are details.) */
+export function detailsCardHasContent(ev: PublicEvent, show: DetailsBlock["show"]) {
+  if (!hasDetails(ev)) return false;
+  const dest = destination(ev);
+  return (
+    (show.when && !!whenText(ev)) ||
+    (show.where && !!(ev.venueName || ev.venueAddress)) ||
+    (show.nav && !!dest) ||
+    show.share ||
+    (show.calendar && hasCalendar(ev) && countdown(ev.date) !== null)
+  );
+}
+
 /**
  * "פרטי האירוע": when + where, one-tap navigation (Waze / Google Maps / Apple Maps - not on Android),
  * sharing the address with the links, and add-to-calendar. Links only - no embedded map / third-party scripts.
  */
-export function EventDetails({ event, dark }: { event: PublicEvent; dark: boolean }) {
+export function EventDetails({ event, dark, block = allShown }: { event: PublicEvent; dark: boolean; block?: DetailsBlock }) {
+  const { show, texts } = block;
   const toast = useToast();
   const dest = destination(event);
   const links = dest ? navLinks(dest) : null;
@@ -56,24 +73,26 @@ export function EventDetails({ event, dark }: { event: PublicEvent; dark: boolea
 
   return (
     <div className={cx("mx-auto w-full max-w-2xl space-y-6 rounded-[2rem] p-4 backdrop-blur-md sm:p-8", dark ? "bg-white/10" : "bg-card/85 shadow-soft")}>
-      <dl className="space-y-4">
-        {when && (
-          <Row icon={<CalendarDays className="size-6" aria-hidden />} label="מתי">
-            <span className="font-semibold">{when}</span>
-            {soon && <span className={cx("ms-2 inline-block rounded-full px-2.5 py-0.5 text-sm font-bold", dark ? "bg-white/20" : "bg-accent text-on-accent")}>{soon}</span>}
-          </Row>
-        )}
-        {(event.venueName || event.venueAddress) && (
-          <Row icon={<MapPin className="size-6" aria-hidden />} label="איפה">
-            {event.venueName && <span className="block font-semibold">{event.venueName}</span>}
-            {event.venueAddress && <span className="block opacity-85">{event.venueAddress}</span>}
-          </Row>
-        )}
-      </dl>
+      {((show.when && when) || (show.where && (event.venueName || event.venueAddress))) && (
+        <dl className="space-y-4">
+          {show.when && when && (
+            <Row icon={<CalendarDays className="size-6" aria-hidden />} label="מתי">
+              <span className="font-semibold">{when}</span>
+              {soon && <span className={cx("ms-2 inline-block rounded-full px-2.5 py-0.5 text-sm font-bold", dark ? "bg-white/20" : "bg-accent text-on-accent")}>{soon}</span>}
+            </Row>
+          )}
+          {show.where && (event.venueName || event.venueAddress) && (
+            <Row icon={<MapPin className="size-6" aria-hidden />} label="איפה">
+              {event.venueName && <span className="block font-semibold">{event.venueName}</span>}
+              {event.venueAddress && <span className="block opacity-85">{event.venueAddress}</span>}
+            </Row>
+          )}
+        </dl>
+      )}
 
-      {links && (
+      {show.nav && links && (
         <div className="space-y-3">
-          <h3 className="text-lg font-bold">איך מגיעים</h3>
+          <h3 className="text-lg font-bold">{partText(texts, "nav", DETAILS_TEXTS.nav)}</h3>
           <div className={cx("grid grid-cols-2 gap-3", !isAndroid && "sm:grid-cols-3")}>
             <a
               href={links.waze}
@@ -98,28 +117,30 @@ export function EventDetails({ event, dark }: { event: PublicEvent; dark: boolea
         </div>
       )}
 
-      <div className="space-y-3">
-        <h3 className="text-lg font-bold">{links ? "שיתוף הכתובת" : "שיתוף פרטי האירוע"}</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <a
-            href={`https://wa.me/?text=${encodeURIComponent(text)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-4 text-base font-bold text-[#062e16] shadow-soft transition-[filter] duration-200 hover:brightness-105"
-          >
-            <WhatsAppIcon className="size-5" />
-            וואטסאפ
-          </a>
-          <button type="button" onClick={shareOrCopy} className={btn}>
-            {"share" in navigator ? <Share2 className="size-5" aria-hidden /> : <Copy className="size-5" aria-hidden />}
-            {"share" in navigator ? "שיתוף" : "העתקה"}
-          </button>
-        </div>
-      </div>
-
-      {hasCalendar(event) && soon !== null && (
+      {show.share && (
         <div className="space-y-3">
-          <h3 className="text-lg font-bold">הוספה ליומן</h3>
+          <h3 className="text-lg font-bold">{partText(texts, "share", links ? DETAILS_TEXTS.share : DETAILS_SHARE_NO_ADDRESS)}</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(text)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-4 text-base font-bold text-[#062e16] shadow-soft transition-[filter] duration-200 hover:brightness-105"
+            >
+              <WhatsAppIcon className="size-5" />
+              וואטסאפ
+            </a>
+            <button type="button" onClick={shareOrCopy} className={btn}>
+              {"share" in navigator ? <Share2 className="size-5" aria-hidden /> : <Copy className="size-5" aria-hidden />}
+              {"share" in navigator ? "שיתוף" : "העתקה"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {show.calendar && hasCalendar(event) && soon !== null && (
+        <div className="space-y-3">
+          <h3 className="text-lg font-bold">{partText(texts, "calendar", DETAILS_TEXTS.calendar)}</h3>
           <div className="grid grid-cols-2 gap-3">
             {gcal && (
               <a href={gcal} target="_blank" rel="noopener noreferrer" className={btn}>

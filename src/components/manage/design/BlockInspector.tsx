@@ -8,6 +8,7 @@ import { useAssetActions } from "../useAssetActions";
 import { ColorField } from "./ColorField";
 import { BLOCK_META } from "./blockMeta";
 import type { DraftAction } from "./draft";
+import { DetailsFields, LiveFields } from "./PartsFields";
 
 /** Editing one block: its content / style, hide-show and delete. */
 export function BlockInspector({
@@ -42,14 +43,22 @@ export function BlockInspector({
       {block.type === "invitation" && <InvitationFields event={event} onChanged={onChanged} />}
       {block.type === "featured" && <FeaturedFields event={event} onChanged={onChanged} />}
       {block.type === "details" && (
-        <div className="space-y-3">
-          <p className="text-muted-fg">מוצגים מתוך פרטי האירוע: תאריך, שעה, שם המקום וכתובת, עם כפתורי ניווט, שיתוף והוספה ליומן.</p>
-          <Button variant="outline" icon={<Settings className="size-4" aria-hidden />} onClick={onGoSettings}>
-            עריכת הפרטים בהגדרות
-          </Button>
-        </div>
+        <>
+          <div className="space-y-3">
+            <p className="text-muted-fg">התאריך, השעה, שם המקום והכתובת עצמם נלקחים מההגדרות. כאן בוחרים אילו חלקים יופיעו ואיך ייקראו הכותרות.</p>
+            <Button variant="outline" icon={<Settings className="size-4" aria-hidden />} onClick={onGoSettings}>
+              עריכת הפרטים בהגדרות
+            </Button>
+          </div>
+          <DetailsFields event={event} block={block} update={update} />
+        </>
       )}
-      {block.type === "live" && <p className="text-muted-fg">התמונות האחרונות שהועלו לאלבום מתעדכנות כאן מעצמן, ומתחתן שני הכפתורים הגדולים: צפייה בתמונות והעלאת תמונות.</p>}
+      {block.type === "live" && (
+        <>
+          <p className="text-muted-fg">התמונות האחרונות שהועלו לאלבום מתעדכנות כאן מעצמן, ומתחתן שני הכרטיסים הגדולים: צפייה בתמונות והעלאת תמונות.</p>
+          <LiveFields block={block} update={update} />
+        </>
+      )}
 
       <div className="flex flex-wrap gap-3 border-t border-border pt-5">
         <Button

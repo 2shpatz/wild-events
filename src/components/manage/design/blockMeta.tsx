@@ -14,5 +14,6 @@ export const BLOCK_META: Record<BlockType, { label: string; hint: string; Icon: 
 export function blockSummary(b: Block): string {
   if (b.type === "text") return b.heading || b.body.split("\n")[0] || "ריק";
   if (b.type === "image") return b.caption || "";
+  if (b.type === "details" || b.type === "live") return b.texts.title?.trim() || "";
   return "";
 }

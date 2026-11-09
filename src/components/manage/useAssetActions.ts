@@ -39,7 +39,7 @@ export function useAssetActions(event: ManageEvent, onChanged: () => void) {
           for (let i = 0; i < files.length && i < free.length; i++) {
             await api(`/e/${event.code}/manage/featured/${free[i]}`, { method: "PUT", body: await compressBackground(files[i], 1600), headers: jpeg });
           }
-          toast("התמונות נוספו לדף הכניסה");
+          toast("התמונות המייצגות נוספו");
         } catch (e) {
           toast(errorMessage(e), "error");
         }

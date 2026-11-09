@@ -27,7 +27,8 @@ export function StorageAccountSection({ event, onChanged }: { event: ManageEvent
   const [, setSeen] = useState(0);
   const stop = useRef(false);
   const code = event.code;
-  const manageNext = `/${code}/manage`;
+  // Google returns to the settings tab, where this section is shown.
+  const manageNext = `/${code}/manage?tab=settings`;
 
   useEffect(() => {
     if (!running) setJob(event.migration);
@@ -153,7 +154,7 @@ export function StorageAccountSection({ event, onChanged }: { event: ManageEvent
             await start(to);
           }}
           onCancel={cancel}
-          connectNext={`${manageNext}?migrate=1`}
+          connectNext={`${manageNext}&migrate=1`}
         />
       )}
     </>

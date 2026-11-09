@@ -37,7 +37,10 @@ export const EventHero = forwardRef<
   const headerImg = hero.show.header ? headerImageUrl(event) : null;
   const soon = countdown(event.date);
   const text: CSSProperties | undefined = hero.textColor ? { color: hero.textColor } : undefined;
-  const showInfo = hero.show.info && (event.time || soon || event.venueName || event.venueAddress);
+  const showTime = hero.show.time && !!event.time;
+  const showCountdown = hero.show.countdown && !!soon;
+  const showVenue = hero.show.venue && !!(event.venueName || event.venueAddress);
+  const showInfo = showTime || showCountdown || showVenue;
 
   return (
     <section
@@ -86,14 +89,14 @@ export const EventHero = forwardRef<
       {showInfo && (
         <Reveal variant="fade" delay={520}>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-lg" style={text}>
-            {event.time && (
+            {showTime && (
               <span className="inline-flex items-center gap-1.5 font-semibold">
                 <Clock className="size-5" aria-hidden />
                 בשעה {event.time}
               </span>
             )}
-            {soon && <span className={cx("rounded-full px-3 py-0.5 text-base font-bold", dark ? "bg-white/20" : "bg-accent text-on-accent")}>{soon}</span>}
-            {(event.venueName || event.venueAddress) && (
+            {showCountdown && <span className={cx("rounded-full px-3 py-0.5 text-base font-bold", dark ? "bg-white/20" : "bg-accent text-on-accent")}>{soon}</span>}
+            {showVenue && (
               <button type="button" onClick={onVenue} className="inline-flex min-h-11 items-center gap-1.5 font-semibold underline decoration-current/40 underline-offset-4 hover:decoration-current">
                 <MapPin className="size-5" aria-hidden />
                 {event.venueName || event.venueAddress}

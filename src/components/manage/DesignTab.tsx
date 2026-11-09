@@ -4,19 +4,15 @@ import type { EventType, ManageEvent } from "../../../shared/types";
 import { api, errorMessage } from "../../lib/api";
 import { EVENT_TYPES } from "../../lib/themes";
 import { BackgroundPicker, compressBackground } from "../ThemePicker";
-import { InvitationEditor } from "../InvitationEditor";
 import { Button, Card, useToast } from "../ui";
-import { useManagePatch } from "./useManagePatch";
-import { useAssetActions } from "./useAssetActions";
 import { FlexibleDesignCard } from "./design/FlexibleDesignCard";
 
-/** "עיצוב" tab: theme + background, the flexible page design, and the guest entry page content. */
+/** "עיצוב" tab: theme + background, and the flexible page design (which also holds the guest page texts and images). */
 export function DesignTab({ event, onChanged }: { event: ManageEvent; onChanged: () => void }) {
   return (
     <div className="space-y-6">
       <DesignCard event={event} onChanged={onChanged} />
       <FlexibleDesignCard event={event} onChanged={onChanged} />
-      <GuestEntryCard event={event} onChanged={onChanged} />
     </div>
   );
 }
@@ -125,35 +121,6 @@ function DesignCard({ event, onChanged }: { event: ManageEvent; onChanged: () =>
           </>
         )}
       </div>
-    </Card>
-  );
-}
-
-/** Header image, invitation image, featured photos and the hosts' welcome. */
-function GuestEntryCard({ event, onChanged }: { event: ManageEvent; onChanged: () => void }) {
-  const patch = useManagePatch(event, onChanged);
-  const a = useAssetActions(event, onChanged);
-  const [welcome, setWelcome] = useState(event.welcome || "");
-  useEffect(() => setWelcome(event.welcome || ""), [event.welcome]);
-  return (
-    <Card className="space-y-5">
-      <h2 className="text-xl font-bold">עמוד הכניסה לאורחים</h2>
-      <InvitationEditor
-        header={a.headerSrc}
-        onHeader={a.setHeader}
-        onClearHeader={a.clearHeader}
-        invitation={a.invitationSrc}
-        onInvitation={a.setInvitation}
-        onClearInvitation={a.clearInvitation}
-        featured={a.featuredSlots}
-        onAddFeatured={a.addFeatured}
-        onRemoveFeatured={a.removeFeatured}
-        welcome={welcome}
-        onWelcome={setWelcome}
-      />
-      <Button disabled={welcome === (event.welcome || "")} icon={<Save className="size-4" aria-hidden />} onClick={() => patch({ welcome }, "הברכה נשמרה")}>
-        שמירת הברכה
-      </Button>
     </Card>
   );
 }
