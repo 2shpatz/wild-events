@@ -235,6 +235,8 @@ export interface OwnerEventSummary {
 export interface AlbumLink {
   sourceUrl: string | null; // the share link the owner pasted, if any
   syncedAt: number; // 0 = never finished a sync
+  /** the Google account the album is picked from ("self" = the login account) */
+  sourceAccount: string;
 }
 
 export type ManageAlbum = AlbumDTO & { googleAlbumId: string | null; link: AlbumLink | null };
@@ -263,6 +265,8 @@ export interface ImportJobDTO {
   estBytes: number;
   albumId: string;
   linked: boolean; // links or re-syncs a whole Google Photos album
+  /** the Google account whose library the picker shows ("self" = the login account) */
+  source: string;
   error?: string | null;
 }
 

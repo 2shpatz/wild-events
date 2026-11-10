@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
   CloudDownload,
+  Copy,
   ExternalLink,
   FolderHeart,
   Images,
@@ -10,14 +13,26 @@ import {
   Loader2,
   RefreshCw,
   RotateCcw,
+  Search,
+  UserPlus,
 } from "lucide-react";
 import { api, errorMessage } from "../../lib/api";
 import { formatBytes, formatDay, formatTime } from "../../lib/format";
-import type { ImportJobDTO, ManageAlbum, StorageInfo } from "../../../shared/types";
+import type { ImportJobDTO, ManageAlbum, StorageAccountDTO, StorageAccountRef, StorageInfo } from "../../../shared/types";
 import { StepDot } from "../Stepper";
-import { Button, Card, Field, cx, inputClass, useToast } from "../ui";
+import { connectHref } from "../StorageAccountPicker";
+import { UnverifiedGuide } from "../UnverifiedGuide";
+import { Button, Card, Field, LinkButton, cx, inputClass, useToast } from "../ui";
 
 const jobKey = (code: string) => `lea:import:${code}`;
+const sourceKey = (code: string) => `lea:import-source:${code}`;
+
+/**
+ * Touch devices (iPhone/Android) open the picker in the Google Photos app or a separate tab: no "/autoclose"
+ * there (Google recommends it for desktop web flows only).
+ */
+const isTouch = () => typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+const pickerHref = (uri: string) => (isTouch() ? uri : `${uri}/autoclose`);
 
 type Mode = "own" | "shared" | "photos";
 
@@ -48,14 +63,23 @@ export function ImportFromGoogle({
   code,
   albums,
   quality,
+  eventAccount,
   onImported,
 }: {
   code: string;
   albums: ManageAlbum[];
   quality: "compressed" | "original";
+  /** the account that holds the event (the copies always go there) */
+  eventAccount: StorageAccountRef;
   onImported: () => void;
 }) {
   const toast = useToast();
+  const [params, setParams] = useSearchParams();
+  const [accounts, setAccounts] = useState<StorageAccountDTO[] | null>(null);
+  const [source, setSource] = useState<string>(() => localStorage.getItem(sourceKey(code)) || "self");
+  const [guide, setGuide] = useState<{ hint: string | null } | null>(null);
+  const [opened, setOpened] = useState(false);
+  const [checking, setChecking] = useState(false);
   const managed = albums.filter((a) => a.kind !== "guest");
   const linked = albums.filter((a) => a.link);
   const [mode, setMode] = useState<Mode | null>(null);
@@ -78,21 +102,82 @@ export function ImportFromGoogle({
     if (id) api<ImportJobDTO>(`/e/${code}/import/${id}`).then(setJob).catch(() => localStorage.removeItem(jobKey(code)));
   }, [code]);
 
-  // Poll while the user is picking in Google Photos.
+  // The Google accounts the photos can come from.
+  useEffect(() => {
+    api<{ accounts: StorageAccountDTO[] }>("/owner/accounts")
+      .then((r) => setAccounts(r.accounts))
+      .catch(() => setAccounts([]));
+  }, []);
+
+  // Back from Google after connecting another account as the photo source.
+  useEffect(() => {
+    if (params.get("source") !== "1") return;
+    const connected = params.get("connected");
+    const self = params.get("account") === "self";
+    const err = params.get("account_error");
+    setParams({ tab: "import" }, { replace: true });
+    if (err) toast("לא הצלחנו להתחבר לחשבון. אפשר לנסות שוב.", "error");
+    else if (connected) {
+      setSource(connected);
+      toast("החשבון חובר ונבחר. עכשיו בוחרים מה להוסיף.", "success");
+    } else if (self) {
+      setSource("self");
+      toast("זה החשבון שאיתו נכנסת לאתר, והוא כבר מופיע ברשימה.", "info");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(sourceKey(code), source);
+  }, [source, code]);
+
+  // A remembered account that was removed or lost its connection: back to the login account.
+  useEffect(() => {
+    if (accounts?.length && !accounts.some((a) => a.id === source && a.connected)) setSource("self");
+  }, [accounts, source]);
+
+  const inFlight = useRef(false);
+  const check = useCallback(async () => {
+    // One check at a time: coming back fires both "focus" and "visibilitychange".
+    if (!job || job.status !== "picking" || inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const j = await api<ImportJobDTO>(`/e/${code}/import/${job.id}`);
+      setJob(j);
+      if (j.status === "done") onImportedRef.current(); // nothing new to copy: the sync time changed
+      return j;
+    } catch {
+      return null; // keep polling
+    } finally {
+      inFlight.current = false;
+    }
+  }, [job, code]);
+
+  // Poll while the user is picking in Google Photos, and check right away when they come back
+  // (phones pause timers in background tabs).
   useEffect(() => {
     if (job?.status !== "picking") return;
-    const t = setInterval(async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const j = await api<ImportJobDTO>(`/e/${code}/import/${job.id}`);
-        setJob(j);
-        if (j.status === "done") onImportedRef.current(); // nothing new to copy: the sync time changed
-      } catch {
-        /* keep polling */
-      }
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") check();
     }, 3000);
-    return () => clearInterval(t);
-  }, [job?.status, job?.id, code]);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [job?.status, check]);
+
+  const checkNow = async () => {
+    setChecking(true);
+    const j = await check();
+    setChecking(false);
+    if (j?.status === "picking") toast('Google עוד לא קיבלה את הבחירה. בחלון של Google לוחצים "Done" (סיום) ואז חוזרים לכאן.', "info");
+  };
 
   useEffect(() => {
     if (job?.status === "listed" && !storage) api<StorageInfo>(`/e/${code}/manage/storage`).then(setStorage).catch(() => {});
@@ -103,23 +188,31 @@ export function ImportFromGoogle({
     setAlbumName(m === "shared" ? "אלבום משותף" : "");
   };
 
+  /**
+   * Step 1 only creates the Google picker session. The picker itself opens from a real link the owner taps
+   * on the next screen: a direct tap is what iPhones (Safari, home-screen app, Google Photos app) need.
+   */
   const startPicking = async (body: Record<string, unknown>, key: string) => {
-    // Open the window synchronously (popup blockers), then point it at the picker.
-    const win = window.open("about:blank", "_blank");
     setBusy(key);
     try {
       const j = await api<ImportJobDTO>(`/e/${code}/import`, { method: "POST", json: body });
       localStorage.setItem(jobKey(code), j.id);
+      setOpened(false);
       setJob(j);
       if (body.newAlbumName) onImported(); // the new album shows up in the lists right away
-      const uri = `${j.pickerUri}/autoclose`;
-      if (win) win.location.href = uri;
-      else window.location.href = uri;
     } catch (e) {
-      win?.close();
       toast(errorMessage(e), "error");
     } finally {
       setBusy(null);
+    }
+  };
+
+  const copyLink = async (uri: string) => {
+    try {
+      await navigator.clipboard.writeText(uri);
+      toast("הקישור הועתק. מדביקים אותו בשורת הכתובת של הדפדפן.", "success");
+    } catch {
+      window.prompt("מעתיקים את הקישור:", uri);
     }
   };
 
@@ -165,6 +258,7 @@ export function ImportFromGoogle({
     setLink("");
     setLinkTouched(false);
     setLinkOpened(false);
+    setOpened(false);
   };
 
   const remaining = storage?.limit ? storage.limit - storage.usage : null;
@@ -172,6 +266,17 @@ export function ImportFromGoogle({
   const processed = job ? job.done + job.failed : 0;
   const jobAlbum = job ? albums.find((a) => a.id === job.albumId) : undefined;
   const linkOk = isAlbumLink(link);
+  const sameAsEvent = (id: string) => id === eventAccount.id;
+  // The login account first, then the event's account, then the other connected accounts.
+  const sourceList: StorageAccountDTO[] = accounts?.length
+    ? [...accounts].sort((a, b) => rank(a) - rank(b))
+    : [{ id: "self", email: null, name: null, picture: null, personal: true, connected: true, storage: null, eventsCount: 0 }];
+  function rank(a: StorageAccountDTO) {
+    return a.id === "self" ? 0 : sameAsEvent(a.id) ? 1 : 2;
+  }
+  const emailOf = (id: string) => accounts?.find((a) => a.id === id)?.email ?? (id === eventAccount.id ? eventAccount.email : null);
+  const usable = (id: string) => !accounts?.length || accounts.some((a) => a.id === id && a.connected);
+  const connectNext = `/${code}/manage?tab=import&source=1`;
   const linkError = linkTouched && link.trim() && !linkOk ? "הקישור צריך להתחיל ב-https://photos.app.goo.gl/ או ב-https://photos.google.com/" : null;
 
   const pickButton = (
@@ -181,11 +286,14 @@ export function ImportFromGoogle({
       loading={busy === "new-link"}
       disabled={!albumName.trim() || (mode === "shared" && !linkOk)}
       onClick={() =>
-        startPicking({ newAlbumName: albumName.trim(), link: { sourceUrl: mode === "shared" ? link.trim() : null } }, "new-link")
+        startPicking(
+          { newAlbumName: albumName.trim(), link: { sourceUrl: mode === "shared" ? link.trim() : null }, sourceAccount: source },
+          "new-link",
+        )
       }
-      icon={<ExternalLink className="size-5" aria-hidden />}
+      icon={<ChevronLeft className="size-5" aria-hidden />}
     >
-      בחירת האלבום ב-Google Photos
+      המשך לבחירת התמונות
     </Button>
   );
 
@@ -205,8 +313,8 @@ export function ImportFromGoogle({
           <div className="space-y-1">
             <h2 className="text-xl font-bold">אלבומים ותמונות מ-Google Photos</h2>
             <p className="text-muted-fg">
-              מחברים לאירוע אלבום שכבר קיים ב-Google Photos: אלבום שלכם, או אלבום ששיתפו איתכם בקישור (למשל הצלם). התמונות מועתקות לאירוע, וכשמתווספות לאלבום
-              תמונות חדשות לוחצים "עדכון" כדי להביא רק את החדשות.
+              מכניסים לאירוע תמונות שכבר נמצאות ב-Google Photos: מאלבום שלכם, מאלבום ששיתפו איתכם (למשל הצלם), או תמונות בודדות. התמונות מועתקות לאירוע.
+              כשמתווספות תמונות חדשות לאלבום שחיברתם, לוחצים "עדכון" ורק החדשות נכנסות.
             </p>
           </div>
         </div>
@@ -214,11 +322,89 @@ export function ImportFromGoogle({
         {/* ------------------------------------------------ choose what to add */}
         {!job && (
           <>
+            {/* ------------------------------------------------ which Google account to pick from */}
             <fieldset className="space-y-3">
+              <legend className="mb-1 font-semibold">מאיזה חשבון Google לוקחים את התמונות?</legend>
+              <p className="text-sm text-muted-fg">
+                בוחרים את החשבון שבו נמצאות התמונות. ההעתקות תמיד נשמרות בחשבון של האירוע
+                {eventAccount.email && (
+                  <>
+                    {" "}
+                    (<span dir="ltr">{eventAccount.email}</span>)
+                  </>
+                )}
+                .
+              </p>
+              {!accounts && <p className="text-muted-fg">טוען חשבונות…</p>}
+              {accounts &&
+                sourceList.map((a) => (
+                  <label
+                    key={a.id}
+                    className={cx(
+                      "flex min-h-14 items-center gap-3 rounded-xl border-2 px-4 py-3 transition-colors duration-200",
+                      !a.connected
+                        ? "cursor-not-allowed border-border opacity-80"
+                        : source === a.id
+                          ? "cursor-pointer border-primary bg-primary/5"
+                          : "cursor-pointer border-border hover:border-primary/40",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="import-source"
+                      checked={source === a.id}
+                      disabled={!a.connected}
+                      onChange={() => setSource(a.id)}
+                      className="size-5 shrink-0 accent-[var(--primary)]"
+                    />
+                    {a.picture ? (
+                      <img src={a.picture} alt="" referrerPolicy="no-referrer" className="size-10 shrink-0 rounded-full bg-muted" />
+                    ) : (
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted font-bold" aria-hidden>
+                        {(a.name || a.email || "?").slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">
+                        {a.id === "self" ? "החשבון שאיתו נכנסת לאתר" : sameAsEvent(a.id) ? "החשבון של האירוע" : a.name || "חשבון נוסף"}
+                      </span>
+                      {a.email && (
+                        <span className="block truncate text-sm text-muted-fg" dir="ltr">
+                          {a.email}
+                        </span>
+                      )}
+                      {a.id === "self" && sameAsEvent("self") && (
+                        <span className="mt-1 inline-block rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-fg">גם החשבון של האירוע</span>
+                      )}
+                      {!a.connected && <span className="block text-sm font-semibold text-destructive">החיבור לחשבון הזה פג</span>}
+                    </span>
+                    {!a.connected && (
+                      <Button variant="outline" size="sm" onClick={() => setGuide({ hint: a.email })}>
+                        חיבור מחדש
+                      </Button>
+                    )}
+                  </label>
+                ))}
+              <button
+                type="button"
+                onClick={() => setGuide({ hint: null })}
+                className="flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-border px-4 py-3 text-start transition-colors duration-200 hover:border-primary/40"
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary" aria-hidden>
+                  <UserPlus className="size-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-semibold">התחברות עם חשבון Google אחר</span>
+                  <span className="block text-sm text-muted-fg">למשל חשבון של בן/בת הזוג או של הצלם. החשבון יישמר ברשימת החשבונות שלך באתר.</span>
+                </span>
+              </button>
+            </fieldset>
+
+            <fieldset className="space-y-3 border-t border-border pt-5">
               <legend className="mb-2 font-semibold">מה רוצים להוסיף?</legend>
               {(
                 [
-                  { m: "own", icon: <FolderHeart className="size-5" />, title: "אלבום מהחשבון שלי", desc: "אלבום שיצרתם בעצמכם ב-Google Photos" },
+                  { m: "own", icon: <FolderHeart className="size-5" />, title: "אלבום מהחשבון שלי", desc: "אלבום שנמצא בחשבון שבחרתם. בוחרים את התמונות שבו, ואפשר לעדכן אחר כך" },
                   { m: "shared", icon: <Link2 className="size-5" />, title: "אלבום ששיתפו איתי בקישור", desc: "קיבלתם קישור לאלבום, למשל מהצלם או מחברים" },
                   { m: "photos", icon: <Images className="size-5" />, title: "תמונות בודדות", desc: "בוחרים תמונות מסוימות ומכניסים אותן לאלבום באירוע" },
                 ] as const
@@ -251,7 +437,7 @@ export function ImportFromGoogle({
                 <li className="flex gap-3">
                   <StepDot n={2} done={false} />
                   <div className="min-w-0 flex-1 space-y-3">
-                    <p className="font-semibold">בוחרים את האלבום בחלון של Google</p>
+                    <p className="font-semibold">ממשיכים לבחירה ב-Google Photos</p>
                     {pickButton}
                   </div>
                 </li>
@@ -288,7 +474,14 @@ export function ImportFromGoogle({
                   <div className="min-w-0 flex-1 space-y-3">
                     <p className="font-semibold">מצטרפים לאלבום ב-Google Photos</p>
                     <p className="text-muted-fg">
-                      בדף שנפתח לוחצים על <strong className="text-fg">הצטרפות</strong> (Join). ככה האלבום מופיע גם בחשבון שלכם ואפשר לבחור אותו. אין כפתור כזה? כנראה
+                      בדף שנפתח לוחצים על <strong className="text-fg">הצטרפות</strong> (Join), כשאתם מחוברים לחשבון שבחרתם למעלה
+                      {emailOf(source) && (
+                        <>
+                          {" "}
+                          (<span dir="ltr">{emailOf(source)}</span>)
+                        </>
+                      )}
+                      . ככה האלבום מופיע גם בחשבון הזה ואפשר לבחור ממנו. אין כפתור כזה? כנראה
                       שכבר הצטרפתם, וממשיכים.
                     </p>
                     <Button
@@ -311,7 +504,7 @@ export function ImportFromGoogle({
                 <li className="flex gap-3">
                   <StepDot n={4} done={false} />
                   <div className="min-w-0 flex-1 space-y-3">
-                    <p className="font-semibold">בוחרים את האלבום בחלון של Google</p>
+                    <p className="font-semibold">ממשיכים לבחירה ב-Google Photos</p>
                     {pickButton}
                   </div>
                 </li>
@@ -323,12 +516,12 @@ export function ImportFromGoogle({
                 <fieldset className="space-y-3">
                   <legend className="mb-2 font-semibold">לאיזה אלבום באירוע להכניס?</legend>
                   {managed.map((a) => (
-                    <label key={a.id} className={cx("flex min-h-12 items-center gap-3 rounded-xl border-2 px-4", target === a.id ? "border-primary" : "border-border")}>
+                    <label key={a.id} className={cx("flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border-2 px-4", target === a.id ? "border-primary" : "border-border")}>
                       <input type="radio" name="import-target" checked={target === a.id} onChange={() => setTarget(a.id)} className="size-5 accent-[var(--primary)]" />
                       {a.name}
                     </label>
                   ))}
-                  <label className={cx("flex min-h-12 items-center gap-3 rounded-xl border-2 px-4", target === "new" ? "border-primary" : "border-border")}>
+                  <label className={cx("flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border-2 px-4", target === "new" ? "border-primary" : "border-border")}>
                     <input type="radio" name="import-target" checked={target === "new"} onChange={() => setTarget("new")} className="size-5 accent-[var(--primary)]" />
                     אלבום חדש
                   </label>
@@ -343,10 +536,12 @@ export function ImportFromGoogle({
                   variant="accent"
                   loading={busy === "photos"}
                   disabled={target === "new" && !newName.trim()}
-                  onClick={() => startPicking(target === "new" ? { newAlbumName: newName } : { albumId: target }, "photos")}
-                  icon={<ExternalLink className="size-5" aria-hidden />}
+                  onClick={() =>
+                    startPicking(target === "new" ? { newAlbumName: newName, sourceAccount: source } : { albumId: target, sourceAccount: source }, "photos")
+                  }
+                  icon={<ChevronLeft className="size-5" aria-hidden />}
                 >
-                  פתיחת Google Photos לבחירה
+                  המשך לבחירת התמונות
                 </Button>
               </div>
             )}
@@ -360,42 +555,89 @@ export function ImportFromGoogle({
         )}
 
         {/* ------------------------------------------------ job progress */}
-        {job?.status === "picking" && (
-          <div className="space-y-4 rounded-2xl bg-muted p-5" aria-live="polite">
-            <p className="flex items-center gap-2 text-lg font-semibold">
-              <Loader2 className="size-5 animate-spin" aria-hidden />
-              מחכים שתסיימו לבחור ב-Google Photos…
-            </p>
+        {job?.status === "picking" && job.pickerUri && (
+          <div className="space-y-5 rounded-2xl bg-muted p-5">
+            <div className="space-y-1">
+              <p className="text-lg font-bold">{opened ? "בוחרים ב-Google Photos" : "עכשיו פותחים את Google Photos"}</p>
+              {emailOf(job.source) && (
+                <p className="text-base">
+                  החשבון: <strong dir="ltr">{emailOf(job.source)}</strong>. אם Google מבקשת לבחור חשבון, בוחרים בו.
+                </p>
+              )}
+            </div>
+
             {job.linked ? (
-              <ol className="list-inside list-decimal space-y-1 text-base">
-                <li>
-                  בחלון של Google עוברים ל<strong>אלבומים</strong> (Albums) ופותחים את האלבום
-                  {jobAlbum?.link?.syncedAt ? <> שקישרתם ל"{jobAlbum.name}"</> : <> שרוצים לחבר</>}.
-                </li>
-                <li>
-                  לוחצים <strong>בחירת הכל</strong> (Select all). מה שכבר נמצא באירוע ידולג.
-                </li>
-                <li>
-                  לוחצים <strong>Done</strong> למעלה וחוזרים לכאן.
-                </li>
-              </ol>
+              <div className="space-y-3">
+                <p className="rounded-xl bg-card p-3 text-base">
+                  Google לא מאפשרת לאתרים לבחור אלבום שלם בלחיצה אחת, ולכן בוחרים את התמונות שבתוך האלבום. מה שכבר נמצא באירוע ידולג.
+                </p>
+                <ol className="space-y-2 text-base">
+                  <li className="flex gap-3">
+                    <StepDot n={1} done={false} />
+                    <span className="pt-0.5">
+                      בחלון של Google לוחצים על החיפוש <Search className="inline size-4 align-[-2px]" aria-label="זכוכית מגדלת" /> ומקלידים את שם האלבום
+                      {jobAlbum?.link?.syncedAt ? <> שקישרתם ל"{jobAlbum.name}"</> : null}.
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <StepDot n={2} done={false} />
+                    <span className="pt-0.5">פותחים את האלבום ומסמנים את כל התמונות והסרטונים שבו.</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <StepDot n={3} done={false} />
+                    <span className="pt-0.5">
+                      לוחצים <strong>Done</strong> (סיום) וחוזרים לכאן.
+                    </span>
+                  </li>
+                </ol>
+                <p className="text-sm text-muted-fg">אפשר לבחור עד 2,000 פריטים בכל פעם. באלבום גדול יותר מעדכנים שוב, וכל פעם נכנסים הפריטים הבאים.</p>
+              </div>
             ) : (
-              <ol className="list-inside list-decimal space-y-1 text-base">
-                <li>בחלון של Google מסמנים את התמונות והסרטונים (עד 2,000 בכל פעם).</li>
-                <li>
-                  לוחצים על <strong>Done</strong> למעלה.
+              <ol className="space-y-2 text-base">
+                <li className="flex gap-3">
+                  <StepDot n={1} done={false} />
+                  <span className="pt-0.5">בחלון של Google מסמנים את התמונות והסרטונים (עד 2,000 בכל פעם).</span>
                 </li>
-                <li>חוזרים לכאן - הייבוא יתחיל אחרי אישור.</li>
+                <li className="flex gap-3">
+                  <StepDot n={2} done={false} />
+                  <span className="pt-0.5">
+                    לוחצים <strong>Done</strong> (סיום) וחוזרים לכאן. הייבוא יתחיל אחרי אישור.
+                  </span>
+                </li>
               </ol>
             )}
-            {job.linked && <p className="text-sm text-muted-fg">אפשר לבחור עד 2,000 פריטים בכל פעם. באלבום גדול יותר מעדכנים שוב, וכל פעם נכנסים הפריטים הבאים.</p>}
-            <div className="flex flex-wrap gap-3">
-              {job.pickerUri && (
-                <Button variant="outline" onClick={() => window.open(`${job.pickerUri}/autoclose`, "_blank")} icon={<ExternalLink className="size-4" aria-hidden />}>
-                  פתיחה מחדש של החלון
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <LinkButton
+                href={pickerHref(job.pickerUri)}
+                target="_blank"
+                rel="noopener"
+                size="lg"
+                variant={opened ? "outline" : "accent"}
+                onClick={() => setOpened(true)}
+                icon={<ExternalLink className="size-5" aria-hidden />}
+              >
+                {opened ? "פתיחה מחדש של Google Photos" : "פתיחת Google Photos"}
+              </LinkButton>
+              {opened && (
+                <Button size="lg" variant="accent" loading={checking} onClick={checkNow} icon={<CheckCircle2 className="size-5" aria-hidden />}>
+                  סיימתי לבחור
                 </Button>
               )}
-              <Button variant="ghost" onClick={reset}>
+            </div>
+
+            {opened && (
+              <p className="flex items-center gap-2 text-muted-fg" aria-live="polite">
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                מחכים שתסיימו לבחור ב-Google Photos…
+              </p>
+            )}
+
+            <div className="flex flex-wrap gap-2 border-t border-border/70 pt-3">
+              <Button variant="ghost" size="sm" onClick={() => copyLink(job.pickerUri!)} icon={<Copy className="size-4" aria-hidden />}>
+                החלון לא נפתח? העתקת הקישור
+              </Button>
+              <Button variant="ghost" size="sm" onClick={reset}>
                 ביטול
               </Button>
             </div>
@@ -483,6 +725,11 @@ export function ImportFromGoogle({
                   <p className="text-sm text-muted-fg">
                     {a.count.toLocaleString("he-IL")} פריטים · {syncedLabel(a.link!.syncedAt)}
                   </p>
+                  {emailOf(a.link!.sourceAccount) && (
+                    <p className="truncate text-sm text-muted-fg">
+                      מתוך: <span dir="ltr">{emailOf(a.link!.sourceAccount)}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   {a.link!.sourceUrl && (
@@ -502,7 +749,10 @@ export function ImportFromGoogle({
                     size="sm"
                     disabled={!!job || (!!busy && busy !== a.id)}
                     loading={busy === a.id}
-                    onClick={() => startPicking({ albumId: a.id }, a.id)}
+                    // The account the album came from; if it was removed or disconnected, the one chosen above.
+                    onClick={() =>
+                      startPicking({ albumId: a.id, sourceAccount: usable(a.link!.sourceAccount) ? a.link!.sourceAccount : source }, a.id)
+                    }
                     icon={<RefreshCw className="size-4" aria-hidden />}
                     aria-label={`עדכון תמונות חדשות באלבום ${a.name}`}
                   >
@@ -512,9 +762,16 @@ export function ImportFromGoogle({
               </li>
             ))}
           </ul>
-          <p className="text-sm text-muted-fg">"עדכון" פותח שוב את החלון של Google. בוחרים שם את אותו אלבום, ורק התמונות החדשות מועתקות.</p>
+          <p className="text-sm text-muted-fg">"עדכון" פותח שוב את Google Photos. בוחרים שם שוב את התמונות של אותו אלבום, ורק החדשות מועתקות.</p>
         </section>
       )}
+
+      <UnverifiedGuide
+        open={!!guide}
+        onClose={() => setGuide(null)}
+        href={connectHref(connectNext, guide?.hint)}
+        firstStep={guide?.hint ? <>בוחרים את החשבון <span dir="ltr">{guide.hint}</span></> : 'בוחרים את החשבון שבו נמצאות התמונות (אם הוא לא מופיע: "שימוש בחשבון אחר")'}
+      />
     </div>
   );
 }

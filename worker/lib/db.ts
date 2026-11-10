@@ -67,6 +67,7 @@ export interface AlbumRow {
   linked: number;
   source_url: string | null;
   synced_at: number;
+  source_account?: string | null;
 }
 
 export interface MediaRow {
@@ -207,7 +208,7 @@ export async function toPublicEvent(
 
 export async function listAlbums(env: Env, eventId: string, includeEmpty = false): Promise<ManageAlbum[]> {
   const rows = await env.DB.prepare(
-    `SELECT a.id, a.name, a.kind, a.google_album_id, a.linked, a.source_url, a.synced_at,
+    `SELECT a.id, a.name, a.kind, a.google_album_id, a.linked, a.source_url, a.synced_at, a.source_account,
             (SELECT COUNT(*) FROM media m WHERE m.album_id = a.id AND m.hidden = 0) AS count,
             (SELECT m.id FROM media m WHERE m.album_id = a.id AND m.hidden = 0 AND m.kind = 'photo'
                ORDER BY m.uploaded_at DESC LIMIT 1) AS cover
@@ -223,6 +224,7 @@ export async function listAlbums(env: Env, eventId: string, includeEmpty = false
       linked: number;
       source_url: string | null;
       synced_at: number;
+      source_account: string | null;
       count: number;
       cover: string | null;
     }>();
@@ -235,7 +237,7 @@ export async function listAlbums(env: Env, eventId: string, includeEmpty = false
       count: r.count,
       cover: r.cover,
       googleAlbumId: r.google_album_id,
-      link: r.linked ? { sourceUrl: r.source_url, syncedAt: r.synced_at } : null,
+      link: r.linked ? { sourceUrl: r.source_url, syncedAt: r.synced_at, sourceAccount: r.source_account || "self" } : null,
     }));
 }
 

@@ -120,7 +120,7 @@ export default function Manage() {
         {tab === "media" && <MediaManager code={code} feed={feed} albums={feed.albums} />}
         {tab === "albums" && <AlbumsManager event={event} onChanged={() => { load(); feed.reload(); }} />}
         {tab === "import" && event.isOwner && (
-          <ImportFromGoogle code={code} albums={event.albums} quality={event.quality} onImported={() => { load(); feed.reload(); }} />
+          <ImportFromGoogle code={code} albums={event.albums} quality={event.quality} eventAccount={event.storageAccount} onImported={() => { load(); feed.reload(); }} />
         )}
         {tab === "design" && <DesignTab event={event} onChanged={load} />}
         {tab === "music" && <MusicTab event={event} onChanged={load} />}

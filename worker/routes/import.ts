@@ -5,7 +5,6 @@ import { cleanName, createEventAlbum, eventByCode, type AlbumRow, type EventRow 
 import { randomId } from "../lib/crypto";
 import {
   GoogleError,
-  ownerToken,
   pickerCreate,
   pickerDelete,
   pickerDownload,
@@ -14,7 +13,7 @@ import {
   uploadRaw,
 } from "../lib/google";
 import { commitMedia, type CreatedItem } from "../lib/media";
-import { assertNotMigrating, eventToken } from "../lib/accounts";
+import { assertNotMigrating, assertOwnAccount, eventToken, SELF, tokenForRef } from "../lib/accounts";
 import type { ImportJobDTO } from "../../shared/types";
 
 export const imports = new Hono<AppEnv>();
@@ -44,6 +43,7 @@ interface JobRow {
   listed_at: number;
   relist: number;
   linked: number;
+  source_ref: string | null;
   error: string | null;
 }
 
@@ -73,6 +73,7 @@ function dto(j: JobRow): ImportJobDTO {
     estBytes: j.est_bytes,
     albumId: j.album_id,
     linked: !!j.linked,
+    source: j.source_ref || SELF,
     error: j.error,
   };
 }
@@ -98,7 +99,20 @@ function albumLink(raw: unknown): string | null {
 const markSynced = (c: Context<AppEnv>, job: JobRow) =>
   c.env.DB.prepare("UPDATE albums SET synced_at = ? WHERE id = ? AND linked = 1").bind(Date.now(), job.album_id);
 
-/** Import reads the owner's own Google library (the picker shows *their* photos) → Google owner only. */
+/**
+ * The picker shows the library of the job's source account: the owner's login account or one of the
+ * accounts they connected. An expired grant asks to reconnect that account (not the event's account).
+ */
+async function sourceToken(c: Context<AppEnv>, ownerId: string, ref: string | null | undefined) {
+  try {
+    return await tokenForRef(c.env, ownerId, ref || SELF);
+  } catch (e) {
+    if (e instanceof GoogleError && e.needsReauth) throw new HTTPException(409, { message: "account_disconnected" });
+    throw e;
+  }
+}
+
+/** Import reads a Google library of the owner (the picker shows *their* photos) → Google owner only. */
 async function ownerEvent(c: Context<AppEnv>) {
   const ev = await eventByCode(c.env, c.req.param("code")!);
   if (c.get("ownerId") !== ev.owner_id) throw new HTTPException(403, { message: "owner_only" });
@@ -116,24 +130,40 @@ async function loadJob(c: Context<AppEnv>, ev: EventRow) {
 imports.post("/e/:code/import", async (c) => {
   const ev = await ownerEvent(c);
   assertNotMigrating(ev);
-  const b = await c.req.json<{ albumId?: string; newAlbumName?: string; link?: { sourceUrl?: string | null } }>();
+  const b = await c.req.json<{
+    albumId?: string;
+    newAlbumName?: string;
+    link?: { sourceUrl?: string | null };
+    /** "self" or a connected account id; a re-synced linked album defaults to the account it came from */
+    sourceAccount?: string;
+  }>();
   let album: AlbumRow | null = null;
+  let source: string | null = null;
   if (b.newAlbumName) {
     // Validate before creating anything in Google.
     const sourceUrl = b.link ? albumLink(b.link.sourceUrl) : null;
+    source = await assertOwnAccount(c.env, ev.owner_id, b.sourceAccount);
     album = await createEventAlbum(c.env, ev, "custom", cleanName(b.newAlbumName, 40) || "ייבוא");
     if (b.link) {
-      await c.env.DB.prepare("UPDATE albums SET linked = 1, source_url = ? WHERE id = ?").bind(sourceUrl, album.id).run();
+      await c.env.DB.prepare("UPDATE albums SET linked = 1, source_url = ?, source_account = ? WHERE id = ?")
+        .bind(sourceUrl, source, album.id)
+        .run();
       album.linked = 1;
       album.source_url = sourceUrl;
+      album.source_account = source;
     }
   } else {
     album = b.albumId
       ? await c.env.DB.prepare("SELECT * FROM albums WHERE id = ? AND event_id = ? AND hidden = 0").bind(b.albumId, ev.id).first<AlbumRow>()
       : await c.env.DB.prepare("SELECT * FROM albums WHERE event_id = ? AND kind = 'host' AND hidden = 0 LIMIT 1").bind(ev.id).first<AlbumRow>();
+    if (!album) throw new HTTPException(404, { message: "album_not_found" });
+    source = await assertOwnAccount(c.env, ev.owner_id, b.sourceAccount || (album.linked ? album.source_account : null));
+    // Re-syncing from another account than before: later syncs read the new one.
+    if (album.linked && b.sourceAccount && source !== (album.source_account || SELF)) {
+      await c.env.DB.prepare("UPDATE albums SET source_account = ? WHERE id = ?").bind(source, album.id).run();
+    }
   }
-  if (!album) throw new HTTPException(404, { message: "album_not_found" });
-  const token = await ownerToken(c.env, ev.owner_id);
+  const token = await sourceToken(c, ev.owner_id, source);
   const session = await pickerCreate(token);
   const job: JobRow = {
     id: randomId(10),
@@ -155,13 +185,26 @@ imports.post("/e/:code/import", async (c) => {
     relist: 0,
     // Syncing a linked album: the picker instructions say "pick the whole album".
     linked: album.linked ? 1 : 0,
+    source_ref: source === SELF ? null : source,
     error: null,
   };
   await c.env.DB.prepare(
-    `INSERT INTO import_jobs (id, event_id, owner_id, album_id, picker_session_id, picker_uri, status, quality, linked, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO import_jobs (id, event_id, owner_id, album_id, picker_session_id, picker_uri, status, quality, linked, source_ref, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
   )
-    .bind(job.id, job.event_id, job.owner_id, job.album_id, job.picker_session_id, job.picker_uri, job.status, job.quality, job.linked, Date.now())
+    .bind(
+      job.id,
+      job.event_id,
+      job.owner_id,
+      job.album_id,
+      job.picker_session_id,
+      job.picker_uri,
+      job.status,
+      job.quality,
+      job.linked,
+      job.source_ref,
+      Date.now(),
+    )
     .run();
   return c.json(dto(job));
 });
@@ -247,7 +290,7 @@ imports.get("/e/:code/import/:job", async (c) => {
   const ev = await ownerEvent(c);
   let job = await loadJob(c, ev);
   if (job.status === "picking") {
-    const token = await ownerToken(c.env, ev.owner_id);
+    const token = await sourceToken(c, ev.owner_id, job.source_ref);
     const session = await pickerGet(token, job.picker_session_id);
     if (session.mediaItemsSet) {
       const complete = await listStep(c, job, token, false);
@@ -276,8 +319,8 @@ imports.post("/e/:code/import/:job/next", async (c) => {
   assertNotMigrating(ev);
   const job = await loadJob(c, ev);
   if (job.status !== "running") return c.json(dto(job));
-  // The picker reads the owner's own library; the copies go to the account that holds the event.
-  const token = await ownerToken(c.env, ev.owner_id);
+  // The picker reads the source account's library; the copies go to the account that holds the event.
+  const token = await sourceToken(c, ev.owner_id, job.source_ref);
   const target = await eventToken(c.env, ev);
 
   // Picker base URLs expire after ~60 minutes: re-list to refresh them.
@@ -383,7 +426,7 @@ imports.delete("/e/:code/import/:job", async (c) => {
   const job = await loadJob(c, ev);
   await c.env.DB.prepare("UPDATE import_jobs SET status = 'cancelled' WHERE id = ?").bind(job.id).run();
   try {
-    await pickerDelete(await ownerToken(c.env, ev.owner_id), job.picker_session_id);
+    await pickerDelete(await sourceToken(c, ev.owner_id, job.source_ref), job.picker_session_id);
   } catch {
     /* ignore */
   }

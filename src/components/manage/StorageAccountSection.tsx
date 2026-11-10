@@ -40,6 +40,8 @@ export function StorageAccountSection({ event, onChanged }: { event: ManageEvent
     const self = params.get("account") === "self";
     const err = params.get("account_error");
     if (!connected && !self && !err) return;
+    // Connected as a photo source on the import tab: that tab handles it.
+    if (params.get("source") === "1") return;
     const migrate = params.get("migrate") === "1";
     const tab = params.get("tab");
     setParams(tab ? { tab } : {}, { replace: true });
