@@ -152,6 +152,8 @@ export type ChecklistBlock = BlockBase &
     inBar: boolean;
     /** items shown before the list scrolls */
     visible: number;
+    /** the "3 מתוך 7 בוצעו" line and progress bar */
+    showProgress: boolean;
   };
 
 export type SingletonBlock = (BlockBase & { type: "invitation" }) | FeaturedBlock | DetailsBlock | LiveBlock | MessagesBlock;
@@ -263,7 +265,7 @@ export function newBlock(type: BlockType, slot = 0): Block {
   if (type === "image") return { id, type, slot, caption: "", shape: "card", font: null, textFont: null, color: null };
   if (type === "whatsapp") return { id, type, url: "", texts: allNull(Object.keys(WHATSAPP_TEXTS) as WhatsAppText[]), font: null, textFont: null, color: null };
   if (type === "checklist")
-    return { id, type, texts: allNull(Object.keys(CHECKLIST_TEXTS) as ChecklistText[]), guestsTick: false, guestsAdd: false, guestsDelete: false, inBar: false, visible: VISIBLE_ITEMS.default, font: null, textFont: null, color: null };
+    return { id, type, texts: allNull(Object.keys(CHECKLIST_TEXTS) as ChecklistText[]), guestsTick: false, guestsAdd: false, guestsDelete: false, inBar: false, visible: VISIBLE_ITEMS.default, showProgress: true, font: null, textFont: null, color: null };
   return singletonBlock(type, id);
 }
 
@@ -370,6 +372,7 @@ function sanitizeBlock(input: unknown, seen: { ids: Set<string>; singles: Set<st
       guestsDelete: bool(b.guestsDelete, edit),
       inBar: bool(b.inBar, false),
       visible: visibleItems(b.visible),
+      showProgress: bool(b.showProgress, true),
       font: font(b.font),
       textFont: font(b.textFont),
       color: color(b.color),

@@ -126,7 +126,7 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
               </div>
             ) : (
               <>
-                {list.length > 0 && (
+                {block.showProgress && list.length > 0 && (
                   <div className="mb-5">
                     <p className="mb-2 flex items-baseline justify-between gap-2 font-semibold">
                       <span>
@@ -153,7 +153,7 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                 <ul
                   ref={scroll.ref}
                   style={scroll.style}
-                  className={cx("space-y-2", scroll.scrolls && "-mx-1 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]")}
+                  className={cx("space-y-2", scroll.scrolls && "-mx-1 overflow-y-auto px-1 [scrollbar-width:thin]")}
                   tabIndex={scroll.scrolls ? 0 : undefined}
                   aria-label={scroll.scrolls ? `הפריטים ב${title}` : undefined}
                   data-preview-interactive

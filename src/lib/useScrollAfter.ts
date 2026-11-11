@@ -7,6 +7,7 @@ const PEEK = 24;
  * A list that shows its first `n` items and scrolls inside its box beyond them. Items are the children marked with
  * `data-list-item`; the height is measured from them (any item height), and re-measured when they change size.
  * `deps`: re-measure when the items change (e.g. the loaded list).
+ * Don't add overscroll-behavior: contain to such lists - at their top / bottom the page must keep scrolling.
  */
 export function useScrollAfter<T extends HTMLElement>(n: number, deps: DependencyList) {
   const ref = useRef<T>(null);

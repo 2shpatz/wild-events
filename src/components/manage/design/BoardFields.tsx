@@ -227,6 +227,7 @@ export function ChecklistFields({
           {block.guestsTick || block.guestsAdd || block.guestsDelete ? "ההרשאות נכנסות לתוקף כשתשמרו את העיצוב." : "כרגע האורחים רק רואים את הרשימה. אתם יכולים לסמן ולערוך כאן."}
         </p>
       </fieldset>
+      <Toggle checked={block.showProgress} onChange={(v) => update({ showProgress: v })} label="פס ההתקדמות" hint={'השורה "3 מתוך 7 בוצעו" והפס שמתמלא'} />
       <VisibleItemsField id={`${block.id}-visible`} value={block.visible} onChange={(visible) => update({ visible })} noun="פריטים" />
       <Toggle
         checked={block.inBar}

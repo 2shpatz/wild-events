@@ -108,7 +108,7 @@ export function MessageBoard({ block, event, dark, preview }: { block: MessagesB
             <ul
               ref={scroll.ref}
               style={scroll.style}
-              className={cx("space-y-3 rounded-3xl p-1", scroll.scrolls && "overflow-y-auto overscroll-contain [scrollbar-width:thin]")}
+              className={cx("space-y-3 rounded-3xl p-1", scroll.scrolls && "overflow-y-auto [scrollbar-width:thin]")}
               tabIndex={scroll.scrolls ? 0 : undefined}
               aria-label={`ההודעות ב${t("title")}`}
               data-preview-interactive

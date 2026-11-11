@@ -128,7 +128,7 @@ export function FontPicker({
           רק גופנים עם עברית
         </label>
       </div>
-      <ul className="relative max-h-80 space-y-1 overflow-y-auto overscroll-contain rounded-xl border border-border bg-bg p-1" role="listbox" aria-label={label}>
+      <ul className="relative max-h-80 space-y-1 overflow-y-auto rounded-xl border border-border bg-bg p-1" role="listbox" aria-label={label}>
         {!query && <FontRow family={null} active={value === null} onPick={() => onChange(null)} />}
         {list.map((f) => (
           <FontRow key={f.family} family={f.family} active={value === f.family} onPick={() => onChange(f.family)} />
