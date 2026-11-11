@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, Plus, Trash2, Undo2 } from "lucide-react";
+import { Check, Trash2, Undo2 } from "lucide-react";
 import { CHECKLIST_ITEM_MAX, CHECKLIST_TEXTS, partText, type ChecklistBlock } from "../../../shared/design";
 import type { ChecklistItem, PublicEvent } from "../../../shared/types";
 import { errorMessage } from "../../lib/api";
 import { boardApi, guestName, setGuestName } from "../../lib/guestName";
-import { Button, IconButton, Modal, cx, inputClass } from "../ui";
+import { Button, IconButton, Modal, PlusButton, cx, inputClass } from "../ui";
 import { Reveal } from "../Reveal";
 import { blockStyle } from "./EventBlocks";
 import { useScrollAfter } from "../../lib/useScrollAfter";
@@ -92,6 +92,15 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
       setBusy(false);
     });
 
+  const undoButton = lastDeleted ? (
+    <IconButton
+      label={`ביטול המחיקה של "${lastDeleted.text}"`}
+      onClick={undo}
+      className={cx("shrink-0 border", dark ? "border-white/30 bg-white/10 hover:bg-white/20" : "border-border bg-card hover:bg-fg/5")}
+    >
+      <Undo2 className="size-5" aria-hidden />
+    </IconButton>
+  ) : null;
   const list = items ?? [];
   const scroll = useScrollAfter<HTMLUListElement>(block.visible, [items]);
   const done = list.filter((i) => i.done).length;
@@ -136,18 +145,6 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                     >
                       <div className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out" style={{ width: `${pct}%` }} />
                     </div>
-                  </div>
-                )}
-
-                {lastDeleted && (
-                  <div className="-mt-2 mb-2 flex justify-end">
-                    <IconButton
-                      label={`ביטול המחיקה של "${lastDeleted.text}"`}
-                      onClick={undo}
-                      className={cx("border", dark ? "border-white/30 bg-white/10 hover:bg-white/20" : "border-border bg-card hover:bg-fg/5")}
-                    >
-                      <Undo2 className="size-5" aria-hidden />
-                    </IconButton>
                   </div>
                 )}
 
@@ -213,9 +210,9 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                   })}
                 </ul>
 
-                {(canAdd || (preview && block.guestsAdd)) && (
+                {(canAdd || (preview && block.guestsAdd)) ? (
                   <form
-                    className="mt-4 flex gap-2"
+                    className="mt-4 flex items-center gap-2"
                     onSubmit={(e) => {
                       e.preventDefault();
                       add();
@@ -233,10 +230,12 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                       disabled={preview}
                       enterKeyHint="done"
                     />
-                    <Button type="submit" loading={busy} disabled={preview || !text.trim()} icon={<Plus className="size-5" aria-hidden />} className="min-h-12 shrink-0">
-                      הוספה
-                    </Button>
+                    <PlusButton type="submit" label="הוספה לרשימה" loading={busy} disabled={preview || !text.trim()} />
+                    {undoButton}
                   </form>
+                ) : (
+                  // No add field (only the hosts add): the undo still gets its own row.
+                  undoButton && <div className="mt-3 flex justify-end">{undoButton}</div>
                 )}
               </>
             )}

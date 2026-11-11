@@ -16,7 +16,7 @@ import type { BoardMessage, ChecklistItem, ManageEvent } from "../../../../share
 import { api, errorMessage } from "../../../lib/api";
 import { timeAgo } from "../../../lib/format";
 import { useLastDeleted } from "../../../lib/useLastDeleted";
-import { Button, ConfirmDialog, Field, IconButton, Spinner, cx, inputClass } from "../../ui";
+import { Button, ConfirmDialog, Field, IconButton, PlusButton, Spinner, cx, inputClass } from "../../ui";
 import { Toggle } from "../Toggle";
 import { PartText } from "./PartsFields";
 
@@ -282,16 +282,9 @@ function ItemsEditor({ code, listId, onChanged }: { code: string; listId: string
 
   return (
     <section className="space-y-3 border-t border-border pt-5" aria-labelledby={`todo-items-${listId}`}>
-      <div className="flex items-center justify-between gap-2">
-        <h4 id={`todo-items-${listId}`} className="font-semibold">
-          הפריטים ברשימה
-        </h4>
-        {lastDeleted && (
-          <IconButton label={`ביטול המחיקה של "${lastDeleted.text}"`} onClick={undo} className="border border-border bg-card hover:bg-fg/5">
-            <Undo2 className="size-5" aria-hidden />
-          </IconButton>
-        )}
-      </div>
+      <h4 id={`todo-items-${listId}`} className="font-semibold">
+        הפריטים ברשימה
+      </h4>
       <p className="text-sm text-muted-fg">השינויים ברשימה נשמרים מיד.</p>
       {error && (
         <p className="text-sm font-medium text-destructive" role="alert">
@@ -339,7 +332,7 @@ function ItemsEditor({ code, listId, onChanged }: { code: string; listId: string
         </ul>
       )}
       <form
-        className="flex gap-2"
+        className="flex items-center gap-2"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!text.trim()) return;
@@ -359,9 +352,12 @@ function ItemsEditor({ code, listId, onChanged }: { code: string; listId: string
           placeholder="למשל: לאשר הגעה עד יום חמישי"
           onChange={(e) => setText(e.target.value)}
         />
-        <Button type="submit" loading={busy} disabled={!text.trim()} icon={<Plus className="size-5" aria-hidden />} className="min-h-12 shrink-0">
-          הוספה
-        </Button>
+        <PlusButton type="submit" label="הוספה לרשימה" loading={busy} disabled={!text.trim()} />
+        {lastDeleted && (
+          <IconButton label={`ביטול המחיקה של "${lastDeleted.text}"`} onClick={undo} className="shrink-0 border border-border bg-card hover:bg-fg/5">
+            <Undo2 className="size-5" aria-hidden />
+          </IconButton>
+        )}
       </form>
     </section>
   );

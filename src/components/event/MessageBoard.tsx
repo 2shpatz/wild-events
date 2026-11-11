@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquareHeart, Plus, Send, Trash2 } from "lucide-react";
+import { MessageSquareHeart, Send, Trash2 } from "lucide-react";
 import { MESSAGE_MAX, MESSAGES_TEXTS, partText, type MessagesBlock } from "../../../shared/design";
 import type { BoardMessage, PublicEvent } from "../../../shared/types";
 import { errorMessage } from "../../lib/api";
 import { boardApi, setGuestName, useGuestName } from "../../lib/guestName";
 import { timeAgo } from "../../lib/format";
-import { Button, ConfirmDialog, IconButton, Modal, cx, inputClass } from "../ui";
+import { Button, ConfirmDialog, IconButton, Modal, PlusButton, cx, inputClass } from "../ui";
 import { Reveal } from "../Reveal";
 import { blockStyle } from "./EventBlocks";
 import { useScrollAfter } from "../../lib/useScrollAfter";
@@ -71,18 +71,7 @@ export function MessageBoard({ block, event, dark, preview }: { block: MessagesB
   const colors = useMemo(() => guestColors(list ?? []), [list]);
   const scroll = useScrollAfter<HTMLUListElement>(block.visible, [list, more]);
   // Just a "+" (its text is the accessible name and the writing window's title).
-  const addButton = (
-    <button
-      type="button"
-      onClick={() => setWriting(true)}
-      disabled={preview}
-      aria-label={t("add")}
-      title={t("add")}
-      className="inline-flex size-14 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary shadow-lift transition-[filter,transform] duration-200 hover:brightness-110 active:scale-95 disabled:opacity-60"
-    >
-      <Plus className="size-7" strokeWidth={2.5} aria-hidden />
-    </button>
-  );
+  const addButton = <PlusButton type="button" size="lg" label={t("add")} onClick={() => setWriting(true)} disabled={preview} />;
   return (
     <section className="relative px-5 py-14 sm:py-20" style={blockStyle(block)} aria-labelledby={`msg-title-${block.id}`}>
       <div className="mx-auto w-full max-w-2xl">

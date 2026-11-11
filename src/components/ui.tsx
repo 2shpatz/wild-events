@@ -9,7 +9,7 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
-import { Check, Copy, Loader2, X, AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import { Check, Copy, Loader2, Plus, X, AlertTriangle, CheckCircle2, Info } from "lucide-react";
 
 export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
@@ -83,6 +83,38 @@ export function IconButton({
       {...rest}
     >
       {children}
+    </button>
+  );
+}
+
+/**
+ * The round "+" add button (icon only - `label` is its accessible name / tooltip): theme color, raised, with a soft
+ * ring, a press animation and a spinner while busy. md = 44px (the same circle as the icon buttons beside it), lg = 56px.
+ */
+export function PlusButton({
+  label,
+  loading,
+  disabled,
+  size = "md",
+  className,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; loading?: boolean; size?: "md" | "lg" }) {
+  return (
+    <button
+      aria-label={label}
+      title={label}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      className={cx(
+        "inline-flex shrink-0 items-center justify-center rounded-full bg-primary text-on-primary shadow-lift ring-4 ring-primary/20",
+        "transition-[filter,transform,box-shadow] duration-200 hover:brightness-110 hover:ring-primary/30 active:scale-90",
+        "disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none disabled:active:scale-100",
+        size === "lg" ? "size-14" : "size-11",
+        className,
+      )}
+      {...rest}
+    >
+      {loading ? <Loader2 className="size-5 animate-spin" aria-hidden /> : <Plus className={size === "lg" ? "size-7" : "size-6"} strokeWidth={2.75} aria-hidden />}
     </button>
   );
 }
