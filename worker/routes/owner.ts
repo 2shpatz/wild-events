@@ -51,7 +51,7 @@ owner.delete("/accounts/:id", async (c) => {
 owner.get("/events", async (c) => {
   const rows = await c.env.DB.prepare(
     `SELECT e.id, e.code, e.title, e.event_date, e.type, e.theme, e.quality, e.google_album_url, e.created_at,
-            e.storage_account_id, e.migrating,
+            e.storage_account_id, e.migrating, e.share_text,
             (SELECT COUNT(*) FROM media m WHERE m.event_id = e.id AND m.hidden = 0) AS media_count,
             (SELECT COUNT(*) FROM albums a WHERE a.event_id = e.id AND a.hidden = 0) AS album_count
        FROM events e WHERE e.owner_id = ? AND e.deleted = 0 ORDER BY e.created_at DESC`,
@@ -69,6 +69,7 @@ owner.get("/events", async (c) => {
     mediaCount: r.media_count,
     albumCount: r.album_count,
     googleAlbumUrl: r.google_album_url,
+    shareText: r.share_text ?? null,
     createdAt: r.created_at,
     storageAccountId: r.storage_account_id || SELF,
     migrating: !!r.migrating,

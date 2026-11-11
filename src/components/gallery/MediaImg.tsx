@@ -49,11 +49,15 @@ export const MediaImg = memo(function MediaImg({
     return () => io.disconnect();
   }, [eager]);
 
-  useEffect(() => {
-    if (visible && (!m.url || m.processing)) onNeedUrl([m.id]);
-  }, [visible, m.url, m.id, m.processing, onNeedUrl]);
+  // `eager` can turn on after mount (a carousel slide that comes next to the current one). The observer above is
+  // dropped then, and a slide clipped by a horizontal scroller never "intersects" anyway - so eager always shows.
+  const show = visible || !!eager;
 
-  const src = visible ? thumbUrl(m, width) : null;
+  useEffect(() => {
+    if (show && (!m.url || m.processing)) onNeedUrl([m.id]);
+  }, [show, m.url, m.id, m.processing, onNeedUrl]);
+
+  const src = show ? thumbUrl(m, width) : null;
   return (
     <div ref={ref} className={cx("relative overflow-hidden bg-white/5", className)}>
       {!loaded && <div className="skeleton absolute inset-0" aria-hidden />}

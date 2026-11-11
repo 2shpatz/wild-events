@@ -192,7 +192,7 @@ export default function Dashboard() {
       </main>
 
       <Modal open={!!qrFor} onClose={() => setQrFor(null)} title={qrFor ? `שיתוף: ${qrFor.title}` : ""}>
-        {qrFor && <QRShare code={qrFor.code} title={qrFor.title} />}
+        {qrFor && <QRShare code={qrFor.code} title={qrFor.title} shareText={qrFor.shareText} />}
       </Modal>
     </div>
   );

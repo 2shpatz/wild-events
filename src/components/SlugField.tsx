@@ -55,31 +55,36 @@ export function SlugField({
       <div
         dir="ltr"
         className={cx(
-          "flex min-h-12 items-stretch overflow-hidden rounded-xl border bg-card transition-shadow focus-within:ring-4",
+          "overflow-hidden rounded-xl border bg-card transition-shadow focus-within:ring-4",
           state === "taken" || state === "format" ? "border-destructive focus-within:ring-destructive/20" : "border-border focus-within:border-primary focus-within:ring-primary/20",
         )}
       >
-        <span className="flex shrink-0 items-center gap-1.5 bg-muted px-3 text-sm text-muted-fg">
-          <Link2 className="size-4" aria-hidden />
-          {location.host}/
-        </span>
-        <input
-          id="ev-slug"
-          className="min-w-0 flex-1 bg-transparent px-3 text-base text-fg placeholder:text-muted-fg/70 focus:outline-none focus-visible:outline-none"
-          value={value}
-          onChange={(e) => onChange(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 40))}
-          placeholder="noa-itai"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-          inputMode="url"
-          aria-describedby="ev-slug-status"
-        />
-        <span className="flex w-10 shrink-0 items-center justify-center" aria-hidden>
-          {state === "checking" && <Loader2 className="size-5 animate-spin text-muted-fg" />}
-          {state === "ok" && <CheckCircle2 className="size-5 text-emerald-600" />}
-          {(state === "taken" || state === "format") && <XCircle className="size-5 text-destructive" />}
-        </span>
+        {/* The site address on its own line, so the part the hosts type gets the whole row and is easy to read. */}
+        <div className="flex items-center gap-1.5 break-all bg-muted px-3 py-1.5 text-sm text-muted-fg">
+          <Link2 className="size-4 shrink-0" aria-hidden />
+          <span>{location.host}/</span>
+        </div>
+        <div className="flex min-h-12 items-stretch">
+          <input
+            id="ev-slug"
+            // the whole box shows the focus ring (focus-within); the global :focus-visible outline would double it
+            style={{ outline: "none" }}
+            className="min-w-0 flex-1 bg-transparent px-3 text-lg font-semibold tracking-wide text-fg placeholder:font-normal placeholder:text-muted-fg/70 focus:outline-none focus-visible:outline-none"
+            value={value}
+            onChange={(e) => onChange(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 40))}
+            placeholder="noa-itai"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode="url"
+            aria-describedby="ev-slug-status"
+          />
+          <span className="flex w-11 shrink-0 items-center justify-center" aria-hidden>
+            {state === "checking" && <Loader2 className="size-5 animate-spin text-muted-fg" />}
+            {state === "ok" && <CheckCircle2 className="size-5 text-emerald-600" />}
+            {(state === "taken" || state === "format") && <XCircle className="size-5 text-destructive" />}
+          </span>
+        </div>
       </div>
       <p id="ev-slug-status" className={cx("text-sm", state === "taken" || state === "format" ? "font-medium text-destructive" : "text-muted-fg")} aria-live="polite">
         {state === "taken" ? (

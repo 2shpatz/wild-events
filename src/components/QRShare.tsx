@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { Download, Link2, Share2 } from "lucide-react";
-import { Button, CopyField, useToast } from "./ui";
+import { Download, Link2, MessageSquareText, RotateCcw, Save, Share2 } from "lucide-react";
+import { Button, CopyField, inputClass, useToast } from "./ui";
 import { eventUrl } from "../lib/format";
 
 export function WhatsAppIcon({ className }: { className?: string }) {
@@ -43,11 +43,30 @@ async function printableCard(url: string, title: string, color: string) {
   return canvas.toDataURL("image/png");
 }
 
-export function QRShare({ code, title }: { code: string; title: string }) {
+export const SHARE_TEXT_MAX = 500;
+
+/** The built-in share message (without the link). */
+export const defaultShareText = (title: string) => `📸 ${title}\nמעלים תמונות מהאירוע וצופים בכולן בלייב - בלי הרשמה:`;
+
+/** The message that is shared: the hosts' text (or the built-in one), with the event link always on its own last line. */
+export const shareMessage = (text: string | null, title: string, url: string) => `${text?.trim() || defaultShareText(title)}\n${url}`;
+
+export function QRShare({
+  code,
+  title,
+  shareText,
+  onSaveText,
+}: {
+  code: string;
+  title: string;
+  shareText?: string | null;
+  /** given = the hosts can edit the message here; null = back to the built-in text */
+  onSaveText?: (text: string | null) => Promise<void>;
+}) {
   const url = eventUrl(code);
   const [src, setSrc] = useState<string | null>(null);
   const toast = useToast();
-  const message = `📸 ${title}\nמעלים תמונות מהאירוע וצופים בכולן בלייב - בלי הרשמה:\n${url}`;
+  const message = shareMessage(shareText ?? null, title, url);
 
   useEffect(() => {
     QRCode.toDataURL(url, { width: 560, margin: 1, errorCorrectionLevel: "M" }).then(setSrc);
@@ -102,7 +121,88 @@ export function QRShare({ code, title }: { code: string; title: string }) {
           <Link2 className="size-4" aria-hidden />
           כל מי שיש לו את הקישור יכול להעלות ולצפות
         </p>
+        {onSaveText && <ShareTextEditor title={title} url={url} shareText={shareText ?? null} onSave={onSaveText} />}
       </div>
     </div>
+  );
+}
+
+/** The hosts rewrite the message that goes with the link; the link itself is added automatically so it can't break. */
+function ShareTextEditor({
+  title,
+  url,
+  shareText,
+  onSave,
+}: {
+  title: string;
+  url: string;
+  shareText: string | null;
+  onSave: (text: string | null) => Promise<void>;
+}) {
+  const saved = shareText?.trim() || defaultShareText(title);
+  const [text, setText] = useState(saved);
+  const [busy, setBusy] = useState<"save" | "reset" | null>(null);
+  useEffect(() => setText(saved), [saved]);
+
+  const clean = text.trim();
+  const isDefault = clean === defaultShareText(title);
+  const dirty = clean !== saved;
+  const save = async (value: string | null, which: "save" | "reset") => {
+    setBusy(which);
+    await onSave(value);
+    setBusy(null);
+  };
+
+  return (
+    <section className="mt-2 flex flex-col gap-3 border-t border-border pt-5" aria-labelledby="share-text-title">
+      <h3 id="share-text-title" className="flex items-center gap-2 text-lg font-bold">
+        <MessageSquareText className="size-5" aria-hidden />
+        נוסח ההודעה לאורחים
+      </h3>
+      <label htmlFor="share-text" className="sr-only">
+        נוסח ההודעה לאורחים
+      </label>
+      <textarea
+        id="share-text"
+        className={`${inputClass} min-h-28 resize-y py-3 leading-relaxed`}
+        value={text}
+        maxLength={SHARE_TEXT_MAX}
+        onChange={(e) => setText(e.target.value)}
+        aria-describedby="share-text-hint"
+      />
+      <p id="share-text-hint" className="flex justify-between gap-3 text-sm text-muted-fg">
+        <span>הקישור לאירוע מתווסף אוטומטית בסוף ההודעה.</span>
+        <span dir="ltr" className="shrink-0 tabular-nums">
+          {text.length}/{SHARE_TEXT_MAX}
+        </span>
+      </p>
+
+      <div className="rounded-2xl bg-[#efeae2] p-3" aria-label="תצוגה מקדימה של ההודעה">
+        <p className="mb-1.5 text-xs font-semibold text-[#54656f]">כך זה ייראה בוואטסאפ</p>
+        <div className="ms-auto w-fit max-w-[92%] whitespace-pre-wrap break-words rounded-xl rounded-se-sm bg-[#d9fdd3] px-3 py-2 text-[15px] leading-relaxed text-[#111b21] shadow-sm">
+          {clean || defaultShareText(title)}
+          {"\n"}
+          <bdi dir="ltr" className="text-[#027eb5] underline">
+            {url}
+          </bdi>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <Button disabled={!dirty} loading={busy === "save"} icon={<Save className="size-4" aria-hidden />} onClick={() => save(isDefault || !clean ? null : clean, "save")}>
+          שמירת הנוסח
+        </Button>
+        {(shareText || !isDefault) && (
+          <Button
+            variant="ghost"
+            loading={busy === "reset"}
+            icon={<RotateCcw className="size-4" aria-hidden />}
+            onClick={() => (shareText ? save(null, "reset") : setText(defaultShareText(title)))}
+          >
+            חזרה לנוסח המקורי
+          </Button>
+        )}
+      </div>
+    </section>
   );
 }

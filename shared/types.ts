@@ -224,6 +224,8 @@ export interface OwnerEventSummary {
   mediaCount: number;
   albumCount: number;
   googleAlbumUrl: string | null;
+  /** the hosts' share message (see ManageEvent.shareText) */
+  shareText: string | null;
   createdAt: number;
   /** the Google account that holds the event ("self" = the login account) */
   storageAccountId: string;
@@ -243,6 +245,8 @@ export type ManageAlbum = AlbumDTO & { googleAlbumId: string | null; link: Album
 
 export interface ManageEvent extends PublicEvent {
   hasPassword: boolean;
+  /** the hosts' own share message (the event link is appended automatically); null = the built-in text */
+  shareText: string | null;
   albums: ManageAlbum[];
   /** the saved music settings (also when off) */
   musicConfig: EventMusic;

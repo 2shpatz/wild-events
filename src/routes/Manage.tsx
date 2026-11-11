@@ -15,6 +15,7 @@ import { DesignTab } from "../components/manage/DesignTab";
 import { MusicTab } from "../components/manage/MusicTab";
 import { ImportFromGoogle } from "../components/manage/ImportFromGoogle";
 import { Card, LinkButton, cx } from "../components/ui";
+import { useManagePatch } from "../components/manage/useManagePatch";
 
 type Tab = "share" | "media" | "albums" | "import" | "design" | "music" | "settings";
 
@@ -44,6 +45,25 @@ export default function Manage() {
   }, [load, feed.eventVersion]);
 
   if (!event) return <EventStatus error={error} loading />;
+  return <ManageView event={event} code={code} tab={tab} feed={feed} load={load} setParams={setParams} />;
+}
+
+function ManageView({
+  event,
+  code,
+  tab,
+  feed,
+  load,
+  setParams,
+}: {
+  event: ManageEvent;
+  code: string;
+  tab: Tab;
+  feed: ReturnType<typeof useFeed>;
+  load: () => Promise<void>;
+  setParams: ReturnType<typeof useSearchParams>[1];
+}) {
+  const patch = useManagePatch(event, load);
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean }[] = [
     { id: "share", label: "שיתוף ו-QR", icon: <QrCode className="size-4" aria-hidden /> },
@@ -114,7 +134,12 @@ export default function Manage() {
 
         {tab === "share" && (
           <Card>
-            <QRShare code={event.code} title={event.title} />
+            <QRShare
+              code={event.code}
+              title={event.title}
+              shareText={event.shareText}
+              onSaveText={(text) => patch({ shareText: text }, text === null ? "חזרתם לנוסח המקורי" : "נוסח ההודעה נשמר")}
+            />
           </Card>
         )}
         {tab === "media" && <MediaManager code={code} feed={feed} albums={feed.albums} />}

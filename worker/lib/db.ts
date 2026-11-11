@@ -35,6 +35,8 @@ export interface EventRow {
   uploads_open: number;
   design: string | null;
   music: string | null;
+  /** hosts' share message for the event link; NULL = the built-in text */
+  share_text: string | null;
   /** NULL = the owner's login account */
   storage_account_id: string | null;
   /** id of the running move to another account (uploads pause meanwhile) */

@@ -33,6 +33,7 @@ manage.get("/e/:code/manage", async (c) => {
   const body: ManageEvent = {
     ...pub,
     hasPassword: !!ev.admin_password_hash,
+    shareText: ev.share_text,
     albums: await listAlbums(c.env, ev.id, true),
     musicConfig: parseMusic(ev.music, ev.type as EventType),
     uploadedTracks: await eventTracks(c.env, ev.id),
@@ -74,6 +75,8 @@ manage.patch("/e/:code/manage", async (c) => {
   if (TYPES.includes(b.type)) set("type", b.type);
   if (TYPES.includes(b.theme)) set("theme", b.theme);
   if (typeof b.background === "string" || b.background === null) set("background", b.background);
+  if (typeof b.shareText === "string" || b.shareText === null)
+    set("share_text", (b.shareText ?? "").normalize("NFKC").replace(/\r\n?/g, "\n").trim().slice(0, 500) || null);
   if (typeof b.bgReveal === "boolean") set("bg_reveal", b.bgReveal ? 1 : 0);
   if (b.quality === "compressed" || b.quality === "original") set("quality", b.quality);
   if (typeof b.keepGps === "boolean") set("keep_gps", b.keepGps ? 1 : 0);
