@@ -85,6 +85,8 @@ export type WhatsAppText = keyof typeof WHATSAPP_TEXTS;
 /** Message board ("לוח ברכות"): guests write messages everyone can read. */
 export const MESSAGES_TEXTS = {
   title: "לוח הברכות",
+  /** the button that opens the writing window */
+  add: "הוספת ברכה",
   prompt: "כתבו ברכה לבעלי השמחה",
   button: "שליחה",
 } as const;
@@ -109,6 +111,7 @@ export const PART_TEXT_MAX = {
   text: 160,
   button: 40,
   prompt: 120,
+  add: 40,
 } as const;
 
 /** Lengths of the guest-written content (server-enforced). */

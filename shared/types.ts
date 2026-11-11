@@ -67,6 +67,8 @@ export interface BoardMessage {
   createdAt: number;
   /** written from this device (it may delete it) */
   mine: boolean;
+  /** short tag of the writer's device (not reversible) - the same guest gets the same color on the board */
+  by: string;
 }
 
 export interface ChecklistItem {

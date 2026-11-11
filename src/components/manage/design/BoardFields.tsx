@@ -68,8 +68,9 @@ export function MessagesFields({ event, block, update }: { event: ManageEvent; b
   const text = (k: keyof typeof MESSAGES_TEXTS) => (v: string | null) => update({ texts: { ...block.texts, [k]: v } });
   return (
     <>
-      <p className="text-muted-fg">האורחים כותבים את השם שלהם פעם אחת ואז יכולים לכתוב הודעות. ההודעות מופיעות מיד לכולם. אורח יכול למחוק רק הודעה שכתב מהטלפון שלו, ואתם יכולים למחוק כל הודעה כאן למטה.</p>
+      <p className="text-muted-fg">האורחים רואים את כל ההודעות, כל אורח בצבע משלו, ולחיצה על כפתור הפלוס פותחת חלון לכתיבה. את השם כותבים פעם אחת. ההודעות מופיעות מיד לכולם. אורח יכול למחוק רק הודעה שכתב מהטלפון שלו, ואתם יכולים למחוק כל הודעה כאן למטה.</p>
       <PartText id={`${block.id}-title`} label="כותרת" value={block.texts.title} fallback={MESSAGES_TEXTS.title} max={PART_TEXT_MAX.title} onChange={text("title")} />
+      <PartText id={`${block.id}-add`} label="כותרת חלון הכתיבה (הכפתור עצמו הוא פלוס)" value={block.texts.add} fallback={MESSAGES_TEXTS.add} max={PART_TEXT_MAX.add} onChange={text("add")} />
       <PartText id={`${block.id}-prompt`} label="ההזמנה לכתוב (מעל תיבת הטקסט)" value={block.texts.prompt} fallback={MESSAGES_TEXTS.prompt} max={PART_TEXT_MAX.prompt} onChange={text("prompt")} />
       <PartText id={`${block.id}-button`} label="הטקסט על כפתור השליחה" value={block.texts.button} fallback={MESSAGES_TEXTS.button} max={PART_TEXT_MAX.button} onChange={text("button")} />
       <Moderation code={event.code} />

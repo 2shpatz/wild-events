@@ -11,6 +11,7 @@ import { canManage, rateLimit } from "../lib/session";
 import { randomId } from "../lib/crypto";
 import { CHECKLIST_ITEM_MAX, MAX_CHECKLIST_ITEMS, MESSAGE_MAX, checklistIds, parseDesign, visibleBlock, type ChecklistBlock } from "../../shared/design";
 import type { BoardMessage, ChecklistItem } from "../../shared/types";
+import { deviceTag } from "../../shared/deviceTag";
 
 export const board = new Hono<AppEnv>();
 
@@ -61,6 +62,8 @@ const toMessage = (r: MessageRow, device: string | null): BoardMessage => ({
   body: r.body,
   createdAt: r.created_at,
   mine: !!device && r.device_id === device,
+  // Salted, so it can't be matched with the tag on the same guest's photos.
+  by: deviceTag(`board:${r.device_id}`) ?? "",
 });
 
 /** Newest first, PAGE at a time (`before` = createdAt of the last one already shown). */
