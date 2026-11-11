@@ -30,7 +30,7 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     backgrounds: [
       { id: "wedding-blush", label: "ורוד עדין" },
       { id: "wedding-gold", label: "בורדו וזהב" },
-      { id: "wedding-rings", label: "טבעות זהב" },
+      { id: "wedding-rings", label: "טבעות על עץ" },
       { id: "wedding-white", label: "טבעות על לבן" },
       { id: "religious-synagogue", label: "בית כנסת" },
       { id: "religious-jerusalem", label: "ירושלים" },

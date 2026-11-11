@@ -314,10 +314,10 @@ summary {
   background: linear-gradient(180deg, rgb(9 9 11 / 0.45), rgb(9 9 11 / 0.65)), url("./assets/backgrounds/party-disco.webp") center / cover no-repeat, #111;
 }
 .bg-preset-karaoke-gold {
-  background: linear-gradient(180deg, rgb(9 9 11 / 0.35), rgb(9 9 11 / 0.6)), url("./assets/backgrounds/karaoke-gold.webp") center / cover no-repeat, #0b1230;
+  background: linear-gradient(180deg, rgb(9 9 11 / 0.6), rgb(9 9 11 / 0.72)), url("./assets/backgrounds/karaoke-gold.webp") center / cover no-repeat, #1a1a1a;
 }
 .bg-preset-karaoke-mono {
-  background: linear-gradient(180deg, rgb(9 9 11 / 0.5), rgb(9 9 11 / 0.7)), url("./assets/backgrounds/karaoke-mono.webp") center / cover no-repeat, #222;
+  background: linear-gradient(180deg, rgb(9 9 11 / 0.62), rgb(9 9 11 / 0.75)), url("./assets/backgrounds/karaoke-mono.webp") center / cover no-repeat, #222;
 }
 .bg-preset-religious-synagogue {
   background: linear-gradient(180deg, rgb(28 16 8 / 0.45), rgb(28 16 8 / 0.65)), url("./assets/backgrounds/religious-synagogue.webp") center / cover no-repeat, #5a3a1a;

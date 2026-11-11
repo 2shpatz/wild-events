@@ -14,9 +14,9 @@ and converted to WebP. Portrait pictures suit the vertically scrolling guest pag
 | music-notes.webp | https://www.rawpixel.com/image/5922010/photo-image-paper-public-domain-free |
 | karaoke-gold.webp | https://www.rawpixel.com/image/5920078/photo-image-public-domain-shape-vintage |
 | karaoke-mono.webp | https://www.rawpixel.com/image/5906108/photo-image-public-domain-shape-sea |
-| wedding-rings.webp | https://www.rawpixel.com/image/5920717/free-wedding-rings-public-domain-cc0 |
-| wedding-white.webp | https://www.rawpixel.com/image/5920586/free-wedding-rings-public-domain-cc0 |
-| religious-synagogue.webp | https://www.rawpixel.com/image/6082946/grande-synagogue-budapest |
-| religious-jerusalem.webp | https://www.rawpixel.com/image/13967822/image-cloud-plant-person (distant view of Jerusalem, public domain lithograph) |
+| wedding-rings.webp | https://www.rawpixel.com/image/6029933/photo-image-background-public-domain-wedding |
+| wedding-white.webp | https://www.rawpixel.com/image/6030256/photo-image-background-public-domain-gold |
+| religious-synagogue.webp | https://www.rawpixel.com/image/13731376/interior-the-portuguese-synagogue-amsterdam-1680-emanuel-witte (painting, public domain) |
+| religious-jerusalem.webp | https://www.rawpixel.com/image/7652223/photo-image-vintage-art-public-domain (the Golden Gate, Jerusalem; public domain photo) |
 
 License: https://creativecommons.org/publicdomain/zero/1.0/
