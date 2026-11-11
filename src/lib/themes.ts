@@ -70,7 +70,7 @@ export const EVENT_TYPES: EventTypeInfo[] = [
       { id: "party-disco", label: "כדור דיסקו" },
       { id: "karaoke-gold", label: "קריוקי" },
       { id: "karaoke-mono", label: "מיקרופון אולפן" },
-      { id: "music-notes", label: "תווים" },
+      { id: "music-notes", label: "פסנתר" },
       { id: "general-night", label: "לילה" },
     ],
   },
@@ -94,7 +94,7 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     backgrounds: [
       { id: "general-mono", label: "בהיר נקי" },
       { id: "general-night", label: "לילה" },
-      { id: "music-notes", label: "תווים" },
+      { id: "music-notes", label: "פסנתר" },
     ],
   },
 ];
@@ -177,5 +177,5 @@ export function backgroundProps(ev: { code: string; background: string | null; b
 export function isDarkBackground(background: string | null, theme: ThemeId) {
   if (background === "custom") return true; // always shown under a dark scrim
   const id = background || typeInfo(theme as EventType).backgrounds[0].id;
-  return ["wedding-gold", "party-neon", "general-night", "birthday-sunset", "party-disco", "karaoke-gold", "karaoke-mono", "religious-synagogue"].includes(id);
+  return ["wedding-gold", "party-neon", "general-night", "birthday-sunset", "party-disco", "karaoke-gold", "karaoke-mono", "religious-synagogue", "music-notes"].includes(id);
 }

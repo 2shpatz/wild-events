@@ -11,7 +11,7 @@ and converted to WebP. Portrait pictures suit the vertically scrolling guest pag
 | trip-sky.webp | https://www.rawpixel.com/image/5967602/daytime-moon-sky |
 | trip-hills.webp | https://www.rawpixel.com/image/8544132/image-aesthetic-cloud-art (painting, public domain) |
 | party-disco.webp | https://www.rawpixel.com/image/5921078/photo-image-background-public-domain-sparkle |
-| music-notes.webp | https://www.rawpixel.com/image/5922010/photo-image-paper-public-domain-free |
+| music-notes.webp | https://www.rawpixel.com/image/431809/free-photo-image-piano-music-keys |
 | karaoke-gold.webp | https://www.rawpixel.com/image/5920078/photo-image-public-domain-shape-vintage |
 | karaoke-mono.webp | https://www.rawpixel.com/image/5906108/photo-image-public-domain-shape-sea |
 | wedding-rings.webp | https://www.rawpixel.com/image/6029933/photo-image-background-public-domain-wedding |
