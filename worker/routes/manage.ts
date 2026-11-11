@@ -10,7 +10,7 @@ import { slugTaken } from "./owner";
 import { accountInfo, accountStorage, assertNotMigrating, eventRef, eventToken, MUSIC_FOLDER, musicFolder, setMusicFolder, tokenForRef } from "../lib/accounts";
 import { latestMigration } from "../lib/migration";
 import { isValidSlug } from "../../shared/slug";
-import { MAX_BG_ZOOM, MAX_FEATURED, type EventType, type ManageEvent } from "../../shared/types";
+import { MAX_BG_ZOOM, MAX_FEATURED, MIN_BG_ZOOM, type EventType, type ManageEvent } from "../../shared/types";
 import { MAX_IMAGES, checklistIds, parseDesign, sanitizeDesign, usedImageSlots } from "../../shared/design";
 import { AUDIO_MIME_RE, MAX_TRACK_BYTES, MAX_UPLOADED_TRACKS, parseMusic, sanitizeMusic } from "../../shared/music";
 
@@ -83,7 +83,7 @@ manage.patch("/e/:code/manage", async (c) => {
     const pct = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? Math.round(Math.min(100, Math.max(0, n)) * 10) / 10 : 50);
     const x = pct(p?.x);
     const y = pct(p?.y);
-    const zoom = typeof p?.zoom === "number" && Number.isFinite(p.zoom) ? Math.round(Math.min(MAX_BG_ZOOM, Math.max(1, p.zoom)) * 100) / 100 : 1;
+    const zoom = typeof p?.zoom === "number" && Number.isFinite(p.zoom) ? Math.round(Math.min(MAX_BG_ZOOM, Math.max(MIN_BG_ZOOM, p.zoom)) * 100) / 100 : 1;
     set("bg_pos", x === 50 && y === 50 && zoom === 1 ? null : `${x},${y},${zoom}`);
   }
   if (b.quality === "compressed" || b.quality === "original") set("quality", b.quality);

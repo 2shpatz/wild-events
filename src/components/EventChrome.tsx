@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BgLayer } from "./BgLayer";
 import { Link } from "react-router-dom";
 import { CalendarHeart, SearchX } from "lucide-react";
 import type { PublicEvent } from "../../shared/types";
@@ -14,7 +15,7 @@ export function EventBackdrop({ event, children, className }: { event: PublicEve
   const dark = isDarkBackground(event.background, event.theme);
   return (
     <div className={cx("relative min-h-dvh overflow-hidden", dark ? "text-white" : "text-fg", className)}>
-      <div className={cx("absolute inset-0 -z-10", bg.className)} style={bg.style} aria-hidden />
+      <BgLayer bg={bg} className="absolute inset-0 -z-10" />
       {event.background === "custom" && (
         // Scrim keeps text contrast >= 4.5:1 over any photo.
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black/55 via-black/35 to-black/75" aria-hidden />

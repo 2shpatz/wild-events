@@ -1,6 +1,6 @@
 import { HTTPException } from "hono/http-exception";
 import type { Env } from "../env";
-import type { AlbumDTO, GuestMusic, ManageAlbum, MediaDTO, PlayerTrack, PublicEvent, UploadedTrack } from "../../shared/types";
+import { MAX_BG_ZOOM, MIN_BG_ZOOM, type AlbumDTO, type GuestMusic, type ManageAlbum, type MediaDTO, type PlayerTrack, type PublicEvent, type UploadedTrack } from "../../shared/types";
 import { batchGet, createAlbum } from "./google";
 import { eventRef, eventToken, tokenForRef } from "./accounts";
 import { randomId } from "./crypto";
@@ -114,7 +114,7 @@ export async function eventByCode(env: Env, code: string): Promise<EventRow> {
 export function parseBgPos(v: string | null | undefined): { x: number; y: number; zoom: number } {
   const [x, y, z] = (v || "").split(",").map(Number);
   const ok = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
-  const zoom = Number.isFinite(z) && z >= 1 && z <= 3 ? z : 1;
+  const zoom = Number.isFinite(z) && z >= MIN_BG_ZOOM && z <= MAX_BG_ZOOM ? z : 1;
   return ok(x) && ok(y) ? { x, y, zoom } : { x: 50, y: 50, zoom };
 }
 

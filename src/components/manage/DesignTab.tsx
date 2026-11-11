@@ -62,7 +62,10 @@ function DesignCard({ event, onChanged }: { event: ManageEvent; onChanged: () =>
   // The draft background, as the guest page would draw it (a just-picked photo isn't uploaded yet: use its local copy).
   const draftCustom = background === "custom" ? (filePreview ?? savedCustom) : null;
   const draftBg = backgroundProps({ code: event.code, background, bgVersion: event.bgVersion, theme: info.theme, bgPos });
-  if (draftCustom) draftBg.style = { ...draftBg.style, backgroundImage: `url(${draftCustom})` };
+  if (draftCustom) {
+    draftBg.style = { ...draftBg.style, backgroundImage: `url(${draftCustom})` };
+    if (draftBg.fill) draftBg.fill = { backgroundImage: `url(${draftCustom})` };
+  }
   const canFrame = isPhotoBackground(background, info.theme) && (background !== "custom" || !!draftCustom);
 
   const save = async () => {

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { BgLayer } from "./BgLayer";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import type { PublicEvent } from "../../shared/types";
 import { backgroundProps } from "../lib/themes";
-import { cx } from "./ui";
 import { titleFontVars, useFonts } from "../lib/fonts";
 import { barTextColor, headerObjectPosition, pagesTitleFont } from "../../shared/design";
 
@@ -75,7 +75,7 @@ export function EventHeader({
         {img ? (
           <img src={img} alt="" className="size-full object-cover" style={{ objectPosition: headerObjectPosition(event.design.hero), transform: `scale(${1 + t * 0.06})` }} />
         ) : (
-          <div className={cx("size-full", bg.className)} style={bg.style} />
+          <BgLayer bg={bg} className="absolute inset-0" />
         )}
       </div>
       <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/35 to-black/65" aria-hidden />

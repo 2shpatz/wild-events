@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Camera, Images, ListChecks, Settings } from "lucide-react";
 import { useEvent } from "../lib/session";
 import { EventStatus } from "../components/EventChrome";
+import { BgLayer } from "../components/BgLayer";
 import { useScrollProgress, prefersReducedMotion } from "../components/Reveal";
 import { cx } from "../components/ui";
 import { headerImageUrl } from "../components/EventHeader";
@@ -137,7 +138,7 @@ export default function EventHome() {
         aria-hidden={!topShown}
       >
         <div className="absolute inset-0" aria-hidden>
-          {headerImg ? <img src={headerImg} alt="" className="size-full object-cover opacity-50" style={{ objectPosition: headerObjectPosition(design.hero) }} /> : <div className={cx("size-full opacity-50", bg.className)} style={bg.style} />}
+          {headerImg ? <img src={headerImg} alt="" className="size-full object-cover opacity-50" style={{ objectPosition: headerObjectPosition(design.hero) }} /> : <BgLayer bg={bg} className="absolute inset-0 opacity-50" />}
           <div className="absolute inset-0 bg-zinc-950/45 backdrop-blur-md" />
         </div>
         <div className="relative mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 ps-[max(1rem,var(--music-inset,0px))] pt-[env(safe-area-inset-top)]" style={titleFontVars(barFont)}>
@@ -218,7 +219,7 @@ export default function EventHome() {
 
       {/* Fixed, clipped background layer (parallax = decorative layer only). */}
       <div className="fixed inset-0 -z-10 overflow-hidden" aria-hidden>
-        <div className={cx("absolute inset-x-0 -top-[5%] h-[175%]", bg.className)} style={{ ...bg.style, transform: `translate3d(0, ${parallax}px, 0) ${bg.style.transform ?? ""}` }} />
+        <BgLayer bg={bg} className="absolute inset-x-0 -top-[5%] h-[175%]" style={{ transform: `translate3d(0, ${parallax}px, 0)` }} />
         {event.background === "custom" && <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" style={{ opacity: 1 - reveal }} />}
         <div className="absolute inset-0 bg-black transition-opacity duration-150" style={{ opacity: dark ? scrim : scrim * 0.25 }} />
         {event.bgReveal && event.background === "custom" && reveal > 0 && (

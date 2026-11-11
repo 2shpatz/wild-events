@@ -131,24 +131,35 @@ export const isPhotoBackground = (background: string | null, theme: ThemeId) => 
   return id === "custom" || PHOTO_BACKGROUNDS.has(id);
 };
 
-/** Inline style / class for an event background (preset gradient / photo or uploaded image), at its focal point. */
+/**
+ * Inline style / class for an event background (preset gradient / photo or uploaded image), at its framing.
+ * Zoom scales the layer around the focal point (its container clips it), so the chosen spot stays put. Below 1 the
+ * picture no longer fills the screen: `fill` is then the style of a blurred copy to draw behind it (see BgLayer).
+ */
 export function backgroundProps(ev: { code: string; background: string | null; bgVersion: string | null; theme: ThemeId; bgPos?: BgPos }) {
-  const p = ev.bgPos;
-  // Zoom scales the layer around the focal point (its container clips it), so the chosen spot stays put.
-  const pos: React.CSSProperties = !p
-    ? {}
-    : {
-        ...(p.x !== 50 || p.y !== 50 ? { backgroundPosition: `${p.x}% ${p.y}%` } : {}),
-        ...(p.zoom > 1 ? { transform: `scale(${p.zoom})`, transformOrigin: `${p.x}% ${p.y}%` } : {}),
-      };
-  if (ev.background === "custom") {
-    return {
-      className: "bg-cover bg-center",
-      style: { backgroundImage: `url(/api/e/${ev.code}/asset/bg?v=${encodeURIComponent(ev.bgVersion || "")})`, ...pos } as React.CSSProperties,
-    };
-  }
+  const custom = ev.background === "custom";
   const preset = resolvedBackground(ev.background, ev.theme);
-  return { className: `bg-preset-${preset}`, style: (PHOTO_BACKGROUNDS.has(preset) ? pos : {}) as React.CSSProperties };
+  const image = custom ? { backgroundImage: `url(/api/e/${ev.code}/asset/bg?v=${encodeURIComponent(ev.bgVersion || "")})` } : {};
+  const p = custom || PHOTO_BACKGROUNDS.has(preset) ? ev.bgPos : undefined;
+  const at = p ? `${p.x}% ${p.y}%` : "50% 50%";
+  let style: React.CSSProperties = { ...image, ...(p && (p.x !== 50 || p.y !== 50) ? { backgroundPosition: at } : {}) };
+  if (p && p.zoom > 1) {
+    // Zoom in: enlarge the layer around the focal point.
+    style = { ...style, transform: `scale(${p.zoom})`, transformOrigin: at };
+  } else if (p && p.zoom < 1) {
+    // Zoom out: the layer keeps its size and the picture inside it shrinks (more of it shows). The background is a
+    // tall layer, so "cover" is set by its height: the picture gets zoom x that height. Photo presets have a wash
+    // gradient on top (first layer) that keeps covering everything.
+    const size = `auto ${Math.round(p.zoom * 100)}%`;
+    style = custom
+      ? { ...style, backgroundSize: size, backgroundPosition: at, backgroundRepeat: "no-repeat" }
+      : { ...style, backgroundSize: `100% 100%, ${size}`, backgroundPosition: `center, ${at}`, backgroundRepeat: "no-repeat" };
+  }
+  return {
+    className: custom ? "bg-cover bg-center" : `bg-preset-${preset}`,
+    style,
+    fill: p && p.zoom < 1 ? (image as React.CSSProperties) : null,
+  };
 }
 
 export function isDarkBackground(background: string | null, theme: ThemeId) {

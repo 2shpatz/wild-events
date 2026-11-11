@@ -4,6 +4,7 @@ import type { Block, EventDesign } from "../../../../shared/design";
 import { cx } from "../../ui";
 import { BLOCK_META, blockSummary } from "./blockMeta";
 import { flatBlocks, type DraftAction, type Where } from "./draft";
+import { Switch } from "../Toggle";
 
 /** One row the dragged block can land next to (page coordinates, measured when the drag starts). */
 type Spot = { id: string | null; top: number; bottom: number; mid: number };
@@ -76,6 +77,7 @@ export function StructureList({
       active={selected === b.id}
       dragging={drag?.id === b.id ? drag.dy : null}
       onSelect={() => onSelect(b.id)}
+      onShown={(v) => dispatch({ type: "update", id: b.id, patch: { hidden: !v } })}
       onUp={b.id === first ? undefined : () => dispatch({ type: "move", id: b.id, dir: -1 })}
       onDown={b.id === last ? undefined : () => dispatch({ type: "move", id: b.id, dir: 1 })}
       handle={{
@@ -142,6 +144,7 @@ function BlockRow({
   active,
   dragging,
   onSelect,
+  onShown,
   onUp,
   onDown,
   handle,
@@ -151,13 +154,15 @@ function BlockRow({
   /** vertical offset while this row is being dragged, else null */
   dragging: number | null;
   onSelect: () => void;
+  /** show (true) / hide (false) the element for guests */
+  onShown: (v: boolean) => void;
   onUp?: () => void;
   onDown?: () => void;
   handle: HandleEvents;
 }) {
   const { Icon, label } = BLOCK_META[block.type];
   const summary = blockSummary(block);
-  const arrow = "inline-flex size-11 shrink-0 items-center justify-center rounded-full text-fg transition-colors duration-200 hover:bg-fg/5 disabled:opacity-30 disabled:hover:bg-transparent";
+  const arrow = "inline-flex size-11 max-sm:w-9 shrink-0 items-center justify-center rounded-full text-fg transition-colors duration-200 hover:bg-fg/5 disabled:opacity-30 disabled:hover:bg-transparent";
   return (
     <li
       data-drag-spot={block.id}
@@ -183,14 +188,16 @@ function BlockRow({
         <GripVertical className="size-5" aria-hidden />
       </button>
       <button type="button" onClick={onSelect} aria-pressed={active} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-2xl text-start">
-        <span className={cx("flex size-9 shrink-0 items-center justify-center rounded-lg", active ? "bg-primary text-on-primary" : "bg-muted text-fg")}>
+        {/* Phones: no icon, so the name fits on one line next to the switch and the arrows. */}
+        <span className={cx("flex size-9 shrink-0 items-center justify-center rounded-lg max-sm:hidden", active ? "bg-primary text-on-primary" : "bg-muted text-fg")}>
           <Icon className="size-5" aria-hidden />
         </span>
         <span className={cx("min-w-0 flex-1", block.hidden && "opacity-60")}>
-          <span className="flex items-center gap-1.5 font-semibold">
-            {label}
+          <span className="flex min-w-0 items-center gap-1.5 font-semibold">
+            <span className="truncate">{label}</span>
             {block.hidden && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 text-xs font-semibold text-muted-fg">
+              // Phones: the switch shows it (no room for the tag there).
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 text-xs font-semibold text-muted-fg max-sm:hidden">
                 <EyeOff className="size-3" aria-hidden />
                 מוסתר
               </span>
@@ -199,6 +206,9 @@ function BlockRow({
           {summary && <span className="block truncate text-sm text-muted-fg">{summary}</span>}
         </span>
       </button>
+      <span title={block.hidden ? "מוסתר מהאורחים - הדליקו כדי להציג" : "מוצג לאורחים"}>
+        <Switch checked={!block.hidden} onChange={onShown} label={`${label} מוצג לאורחים`} />
+      </span>
       <button type="button" className={arrow} onClick={onUp} disabled={!onUp} aria-label={`הזזת ${label} למעלה`}>
         <ChevronUp className="size-5" aria-hidden />
       </button>

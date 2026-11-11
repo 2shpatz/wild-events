@@ -56,6 +56,8 @@ export interface PublicEvent {
 
 export type BgPos = { x: number; y: number; zoom: number };
 export const MAX_BG_ZOOM = 3;
+/** Below 1 the picture shrinks inside the screen; a blurred copy of it fills the edges. */
+export const MIN_BG_ZOOM = 0.5;
 
 /** A message on the message board ("לוח ברכות"). */
 export interface BoardMessage {

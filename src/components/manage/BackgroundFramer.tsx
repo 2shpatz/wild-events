@@ -1,10 +1,11 @@
 import { useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { ChevronDown, Crosshair, Eye, Minus, Monitor, Move, Plus, Smartphone } from "lucide-react";
-import { MAX_BG_ZOOM, type BgPos } from "../../../shared/types";
+import { MAX_BG_ZOOM, MIN_BG_ZOOM, type BgPos } from "../../../shared/types";
+import { BgLayer } from "../BgLayer";
 import { Button, IconButton, Segmented, cx } from "../ui";
 
 const clampPct = (n: number) => Math.round(Math.min(100, Math.max(0, n)) * 10) / 10;
-const clampZoom = (n: number) => Math.round(Math.min(MAX_BG_ZOOM, Math.max(1, n)) * 100) / 100;
+const clampZoom = (n: number) => Math.round(Math.min(MAX_BG_ZOOM, Math.max(MIN_BG_ZOOM, n)) * 100) / 100;
 export const CENTERED: BgPos = { x: 50, y: 50, zoom: 1 };
 
 /**
@@ -19,7 +20,7 @@ export function BackgroundFramer({
   onChange,
 }: {
   /** class + style of the background layer, at the current framing */
-  bg: { className: string; style: CSSProperties };
+  bg: { className: string; style: CSSProperties; fill: CSSProperties | null };
   /** an uploaded photo (shown under the same dark scrim as on the guest page) */
   custom: boolean;
   value: BgPos;
@@ -125,7 +126,7 @@ export function BackgroundFramer({
               )}
             >
               {/* Same layer as the guest page: 175% tall (parallax room), starting a bit above the top. */}
-              <div className={cx("pointer-events-none absolute inset-x-0 -top-[5%] h-[175%]", bg.className)} style={bg.style} aria-hidden />
+              <BgLayer bg={bg} className="pointer-events-none absolute inset-x-0 -top-[5%] h-[175%]" />
               {custom && <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" aria-hidden />}
               {!dragging && (
                 <span className="pointer-events-none absolute bottom-3 start-3 inline-flex items-center gap-1 rounded-full bg-zinc-950/65 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm" aria-hidden>
@@ -142,13 +143,13 @@ export function BackgroundFramer({
             </label>
             {/* Zoom reads left to right like the slider itself: - on the left, + on the right. */}
             <div dir="ltr" className="flex min-w-0 flex-1 items-center gap-3">
-              <IconButton label="הקטנת הזום" onClick={() => onChange({ ...value, zoom: clampZoom(value.zoom - 0.1) })} disabled={value.zoom <= 1} className="border border-border bg-card disabled:opacity-40">
+              <IconButton label="הקטנת הזום" onClick={() => onChange({ ...value, zoom: clampZoom(value.zoom - 0.1) })} disabled={value.zoom <= MIN_BG_ZOOM} className="border border-border bg-card disabled:opacity-40">
                 <Minus className="size-5" aria-hidden />
               </IconButton>
               <input
                 id={`${panel}-zoom`}
                 type="range"
-                min={1}
+                min={MIN_BG_ZOOM}
                 max={MAX_BG_ZOOM}
                 step={0.05}
                 value={value.zoom}
@@ -163,6 +164,7 @@ export function BackgroundFramer({
             </div>
           </div>
 
+          {value.zoom < 1 && <p className="text-sm text-muted-fg">בזום החוצה רואים יותר מהתמונה, והשוליים מתמלאים בעותק מטושטש שלה.</p>}
           <Button variant="outline" disabled={!changed} icon={<Crosshair className="size-4" aria-hidden />} onClick={() => onChange(CENTERED)}>
             מרכוז ובלי זום
           </Button>
