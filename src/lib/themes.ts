@@ -50,6 +50,18 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     ],
   },
   {
+    id: "trip",
+    label: "טיול",
+    description: "פסטל רך, נופים ואוויר פתוח",
+    theme: "trip",
+    backgrounds: [
+      { id: "trip-mountains", label: "הרים בפסטל" },
+      { id: "trip-clouds", label: "עננים בשקיעה" },
+      { id: "trip-sky", label: "שמיים תכולים" },
+      { id: "trip-hills", label: "גבעות בצבעי מים" },
+    ],
+  },
+  {
     id: "general",
     label: "אירוע כללי",
     description: "מינימליסטי, התמונות במרכז",
@@ -66,6 +78,7 @@ export const THEME_LABELS: Record<ThemeId, string> = {
   birthday: "יום הולדת",
   family: "משפחתי",
   party: "מסיבה",
+  trip: "טיול",
   general: "כללי",
 };
 

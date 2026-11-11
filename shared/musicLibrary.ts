@@ -52,6 +52,7 @@ export const SUGGESTED_MOODS: Record<EventType, Mood[]> = {
   birthday: ["happy", "kids"],
   family: ["happy", "calm"],
   party: ["party", "happy"],
+  trip: ["happy", "calm"],
   general: ["calm", "happy"],
 };
 

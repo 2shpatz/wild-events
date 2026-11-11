@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Cake, Heart, PartyPopper, Sparkles, Users, Settings, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Cake, Heart, Mountain, PartyPopper, Sparkles, Users, Settings, X } from "lucide-react";
 import { useMe } from "../lib/session";
 import { api, errorMessage } from "../lib/api";
 import { applyTheme, backgroundProps, EVENT_TYPES, isDarkBackground } from "../lib/themes";
@@ -50,6 +50,7 @@ const ICONS: Record<EventType, React.ReactNode> = {
   birthday: <Cake className="size-8" aria-hidden />,
   family: <Users className="size-8" aria-hidden />,
   party: <PartyPopper className="size-8" aria-hidden />,
+  trip: <Mountain className="size-8" aria-hidden />,
   general: <Sparkles className="size-8" aria-hidden />,
 };
 
@@ -202,6 +203,7 @@ export default function CreateEventWizard() {
       uploadsOpen: true,
       mediaCount: 0,
       albumCount: 0,
+      checklistCount: 0,
       canManage: false,
       isOwner: true,
     }),

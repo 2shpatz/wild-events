@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowRight, CloudDownload, Eye, FolderOpen, Images, Music, Palette, QrCode, SlidersHorizontal, Camera } from "lucide-react";
+import { ArrowRight, Eye, FolderOpen, Images, Music, Palette, QrCode, SlidersHorizontal, Camera } from "lucide-react";
 import { api } from "../lib/api";
 import { useFeed } from "../lib/useFeed";
 import { applyTheme } from "../lib/themes";
@@ -17,7 +17,7 @@ import { ImportFromGoogle } from "../components/manage/ImportFromGoogle";
 import { Card, LinkButton, cx } from "../components/ui";
 import { useManagePatch } from "../components/manage/useManagePatch";
 
-type Tab = "share" | "media" | "albums" | "import" | "design" | "music" | "settings";
+type Tab = "share" | "media" | "albums" | "design" | "music" | "settings";
 
 export default function Manage() {
   const { code = "" } = useParams();
@@ -26,7 +26,9 @@ export default function Manage() {
   const [event, setEvent] = useState<ManageEvent | null>(null);
   const [error, setError] = useState<unknown>(null);
   const feed = useFeed(code);
-  const tab = (params.get("tab") as Tab) || "share";
+  // "import" (Google Photos) used to be its own tab; old links and the return from Google land on the merged albums tab.
+  const raw = params.get("tab");
+  const tab = ((raw === "import" ? "albums" : raw) as Tab) || "share";
 
   const load = useCallback(async () => {
     try {
@@ -65,11 +67,10 @@ function ManageView({
 }) {
   const patch = useManagePatch(event, load);
 
-  const tabs: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean }[] = [
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "share", label: "שיתוף ו-QR", icon: <QrCode className="size-4" aria-hidden /> },
     { id: "media", label: "תמונות", icon: <Images className="size-4" aria-hidden /> },
     { id: "albums", label: "אלבומים", icon: <FolderOpen className="size-4" aria-hidden /> },
-    { id: "import", label: "אלבומים מ-Google Photos", icon: <CloudDownload className="size-4" aria-hidden />, ownerOnly: true },
     { id: "design", label: "עיצוב", icon: <Palette className="size-4" aria-hidden /> },
     { id: "music", label: "מוזיקה", icon: <Music className="size-4" aria-hidden /> },
     { id: "settings", label: "הגדרות", icon: <SlidersHorizontal className="size-4" aria-hidden /> },
@@ -106,22 +107,20 @@ function ManageView({
           </div>
         </div>
         <nav className="no-scrollbar mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4" aria-label="ניהול">
-          {tabs
-            .filter((t) => !t.ownerOnly || event.isOwner)
-            .map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setParams({ tab: t.id }, { replace: true })}
-                aria-current={tab === t.id ? "page" : undefined}
-                className={cx(
-                  "inline-flex min-h-12 shrink-0 items-center gap-2 border-b-[3px] px-3 font-semibold transition-colors duration-200",
-                  tab === t.id ? "border-primary text-fg" : "border-transparent text-muted-fg hover:text-fg",
-                )}
-              >
-                {t.icon}
-                {t.label}
-              </button>
-            ))}
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setParams({ tab: t.id }, { replace: true })}
+              aria-current={tab === t.id ? "page" : undefined}
+              className={cx(
+                "inline-flex min-h-12 shrink-0 items-center gap-2 border-b-[3px] px-3 font-semibold transition-colors duration-200",
+                tab === t.id ? "border-primary text-fg" : "border-transparent text-muted-fg hover:text-fg",
+              )}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
         </nav>
       </header>
 
@@ -143,9 +142,14 @@ function ManageView({
           </Card>
         )}
         {tab === "media" && <MediaManager code={code} feed={feed} albums={feed.albums} />}
-        {tab === "albums" && <AlbumsManager event={event} onChanged={() => { load(); feed.reload(); }} />}
-        {tab === "import" && event.isOwner && (
-          <ImportFromGoogle code={code} albums={event.albums} quality={event.quality} eventAccount={event.storageAccount} onImported={() => { load(); feed.reload(); }} />
+        {tab === "albums" && (
+          <>
+            <AlbumsManager event={event} onChanged={() => { load(); feed.reload(); }} />
+            {/* Adding albums / photos from Google Photos (the owner's Google account is needed for it). */}
+            {event.isOwner && (
+              <ImportFromGoogle code={code} albums={event.albums} quality={event.quality} eventAccount={event.storageAccount} onImported={() => { load(); feed.reload(); }} />
+            )}
+          </>
         )}
         {tab === "design" && <DesignTab event={event} onChanged={load} />}
         {tab === "music" && <MusicTab event={event} onChanged={load} />}

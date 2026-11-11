@@ -9,6 +9,7 @@ import { BLOCK_META } from "./blockMeta";
 import type { DraftAction } from "./draft";
 import { DetailsFields, LiveFields } from "./PartsFields";
 import { BlockStyleFields } from "./BlockStyleFields";
+import { ChecklistFields, MessagesFields, WhatsAppFields } from "./BoardFields";
 
 /** Editing one block: its content / style, hide-show and delete. */
 export function BlockInspector({
@@ -42,7 +43,13 @@ export function BlockInspector({
   const meta = BLOCK_META[block.type];
   // Font + color, for the blocks that have texts (collapsed by default).
   const style =
-    block.type === "text" || block.type === "image" || block.type === "details" || block.type === "live" ? (
+    block.type === "text" ||
+    block.type === "image" ||
+    block.type === "details" ||
+    block.type === "live" ||
+    block.type === "whatsapp" ||
+    block.type === "messages" ||
+    block.type === "checklist" ? (
       <BlockStyleFields
         key={block.id}
         font={block.font}
@@ -91,6 +98,9 @@ export function BlockInspector({
           <LiveFields block={block} update={update} />
         </>
       )}
+      {block.type === "whatsapp" && <WhatsAppFields key={block.id} block={block} update={update} />}
+      {block.type === "messages" && <MessagesFields event={event} block={block} update={update} />}
+      {block.type === "checklist" && <ChecklistFields event={event} block={block} update={update} onChanged={onChanged} />}
 
       {style}
 
@@ -112,9 +122,13 @@ export function BlockInspector({
         title={`להסיר את "${meta.label}" מהעמוד?`}
         message={
           <p>
-            {block.type === "text" || block.type === "image"
+            {block.type === "text" || block.type === "image" || block.type === "whatsapp"
               ? "התוכן של הבלוק יימחק כשתשמרו את העיצוב."
-              : "התוכן עצמו לא נמחק - אפשר להחזיר את הבלוק בכל רגע דרך \"הוספת אלמנט\"."}
+              : block.type === "messages"
+                ? "ההודעות עצמן לא נמחקות - אם תחזירו את לוח הברכות דרך \"הוספת אלמנט\" הן יופיעו שוב."
+                : block.type === "checklist"
+                  ? "הפריטים ברשימה לא נמחקים - אם תחזירו את הרשימה דרך \"הוספת אלמנט\" הם יופיעו שוב."
+                  : "התוכן עצמו לא נמחק - אפשר להחזיר את הבלוק בכל רגע דרך \"הוספת אלמנט\"."}
           </p>
         }
         confirmLabel="הסרה"

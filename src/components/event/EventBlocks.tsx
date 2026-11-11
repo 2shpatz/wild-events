@@ -1,7 +1,19 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
 import { Link } from "react-router-dom";
 import { Camera, ImageIcon, Images, Lock, Play, Radio, Wrench, X, ZoomIn } from "lucide-react";
-import { DETAILS_TEXTS, LIVE_TEXTS, partText, type Block, type BlockStyle, type DetailsBlock, type ImageBlock, type LiveBlock, type TextBlock } from "../../../shared/design";
+import {
+  DETAILS_TEXTS,
+  LIVE_TEXTS,
+  WHATSAPP_TEXTS,
+  partText,
+  type Block,
+  type BlockStyle,
+  type DetailsBlock,
+  type ImageBlock,
+  type LiveBlock,
+  type TextBlock,
+  type WhatsAppBlock,
+} from "../../../shared/design";
 import { titleFontVars } from "../../lib/fonts";
 import type { MediaDTO, PublicEvent } from "../../../shared/types";
 import { Reveal } from "../Reveal";
@@ -10,6 +22,8 @@ import { api } from "../../lib/api";
 import { thumbUrl } from "../../lib/media";
 import { EventDetails, detailsCardHasContent } from "../EventDetails";
 import { FeaturedPhotos } from "./FeaturedViews";
+import { MessageBoard } from "./MessageBoard";
+import { Checklist } from "./Checklist";
 
 export const blockImageUrl = (ev: PublicEvent, slot: number) => {
   const img = ev.images.find((i) => i.slot === slot);
@@ -33,6 +47,12 @@ export function blockHasContent(b: Block, ev: PublicEvent): boolean {
       return !!(b.heading || b.body);
     case "image":
       return !!blockImageUrl(ev, b.slot);
+    case "whatsapp":
+      return !!b.url;
+    case "messages":
+      return true;
+    case "checklist":
+      return ev.checklistCount > 0 || b.guestsEdit;
   }
 }
 
@@ -75,6 +95,12 @@ export function EventBlock({ block, ctx }: { block: Block; ctx: BlockCtx }) {
       return <TextSection block={block} dark={dark} />;
     case "image":
       return <ImageSection block={block} src={blockImageUrl(event, block.slot)!} title={event.title} />;
+    case "whatsapp":
+      return <WhatsAppSection block={block} dark={dark} />;
+    case "messages":
+      return <MessageBoard block={block} event={event} dark={dark} preview={preview} />;
+    case "checklist":
+      return <Checklist block={block} event={event} dark={dark} preview={preview} />;
   }
 }
 
@@ -85,6 +111,9 @@ const PLACEHOLDER: Record<Block["type"], string> = {
   live: "כל החלקים של האלבום בזמן אמת מוסתרים - הציגו לפחות חלק אחד",
   text: "בלוק טקסט ריק - כתבו כותרת או טקסט",
   image: "כאן תופיע התמונה - בחרו תמונה",
+  whatsapp: "כאן יופיע הכפתור להצטרפות לקבוצת הוואטסאפ - הדביקו את קישור ההזמנה לקבוצה",
+  messages: "",
+  checklist: "כאן תופיע הרשימה - הוסיפו פריטים, או אפשרו לאורחים להוסיף",
 };
 
 function Placeholder({ block, dark }: { block: Block; dark: boolean }) {
@@ -127,6 +156,42 @@ function TextSection({ block, dark }: { block: TextBlock; dark: boolean }) {
         </div>
       </Reveal>
     </section>
+  );
+}
+
+/** Join the event's WhatsApp group: a card with the hosts' texts and one big button (opens WhatsApp). */
+function WhatsAppSection({ block, dark }: { block: WhatsAppBlock; dark: boolean }) {
+  const t = (k: keyof typeof WHATSAPP_TEXTS) => partText(block.texts, k, WHATSAPP_TEXTS[k]);
+  return (
+    <section className="relative px-5 py-10 sm:py-14" style={blockStyle(block)} aria-label={t("title")}>
+      <Reveal variant="up" className="mx-auto w-full max-w-md">
+        <div className={cx("flex flex-col items-center gap-4 rounded-[2rem] px-6 py-8 text-center backdrop-blur-md", dark ? "bg-white/10" : "bg-card/85 shadow-soft")}>
+          <span className="flex size-16 items-center justify-center rounded-2xl bg-[#25D366] text-white shadow-soft">
+            <WhatsAppIcon className="size-9" />
+          </span>
+          <h2 className="font-title text-3xl [text-wrap:balance] sm:text-4xl">{t("title")}</h2>
+          {t("text") && <p className="text-lg leading-relaxed opacity-90 [text-wrap:balance]">{t("text")}</p>}
+          <a
+            href={block.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-[#25D366] px-6 text-lg font-bold text-[#052e16] shadow-soft transition-[filter,transform] duration-200 hover:brightness-105 active:scale-[0.99]"
+          >
+            <WhatsAppIcon className="size-6" />
+            {t("button")}
+          </a>
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
+/** Official WhatsApp glyph (Simple Icons, CC0). */
+export function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden fill="currentColor">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
+    </svg>
   );
 }
 

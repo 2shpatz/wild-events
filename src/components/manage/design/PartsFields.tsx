@@ -61,7 +61,7 @@ export function PartCard({ label, hint, checked, onChange, children }: { label: 
 }
 
 /** A rewritable text: prefilled with the default; cleared or reset = the default again. */
-function PartText({ id, label, value, fallback, max, onChange }: { id: string; label: string; value: string | null; fallback: string; max: number; onChange: (v: string | null) => void }) {
+export function PartText({ id, label, value, fallback, max, onChange }: { id: string; label: string; value: string | null; fallback: string; max: number; onChange: (v: string | null) => void }) {
   const custom = value !== null && value.trim() !== "" && value.trim() !== fallback;
   return (
     <div className="space-y-1.5">

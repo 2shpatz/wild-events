@@ -1,7 +1,7 @@
 import type { EventDesign } from "./design";
 import type { EventMusic } from "./music";
 
-export type EventType = "wedding" | "birthday" | "family" | "party" | "general";
+export type EventType = "wedding" | "birthday" | "family" | "party" | "trip" | "general";
 export type ThemeId = EventType;
 export type Quality = "compressed" | "original";
 export type ViewOrder = "mixed" | "timeline" | "albums";
@@ -43,11 +43,33 @@ export interface PublicEvent {
   uploadsOpen: boolean;
   mediaCount: number;
   albumCount: number;
+  /** items on the checklist element (an empty one is hidden from guests unless they may add items) */
+  checklistCount: number;
   canManage: boolean;
   isOwner: boolean;
   googleAlbumUrl?: string | null;
   /** The event is moving to another Google account: uploads pause, viewing keeps working. */
   maintenance?: boolean;
+}
+
+/** A message on the message board ("לוח ברכות"). */
+export interface BoardMessage {
+  id: string;
+  name: string;
+  body: string;
+  createdAt: number;
+  /** written from this device (it may delete it) */
+  mine: boolean;
+}
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+  /** who ticked it (null = the hosts, or not done) */
+  doneBy: string | null;
+  /** the guest who added it (null = the hosts) */
+  addedBy: string | null;
 }
 
 export interface PlayerTrack {

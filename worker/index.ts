@@ -14,6 +14,7 @@ import { uploads } from "./routes/uploads";
 import { manage } from "./routes/manage";
 import { imports } from "./routes/import";
 import { admin } from "./routes/admin";
+import { board } from "./routes/board";
 
 const app = new Hono<AppEnv>().basePath("/api");
 
@@ -32,6 +33,7 @@ app.route("/", uploads);
 app.route("/", manage);
 app.route("/", imports);
 app.route("/", migrate);
+app.route("/", board);
 
 app.get("/health", (c) => c.json({ ok: true }));
 

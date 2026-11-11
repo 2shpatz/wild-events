@@ -16,7 +16,7 @@ import { AUDIO_MIME_RE, MAX_TRACK_BYTES, MAX_UPLOADED_TRACKS, parseMusic, saniti
 
 export const manage = new Hono<AppEnv>();
 
-const TYPES = ["wedding", "birthday", "family", "party", "general"];
+const TYPES = ["wedding", "birthday", "family", "party", "trip", "general"];
 const VIEWS = ["masonry", "floating", "carousel", "slideshow", "mosaic"];
 const ORDERS = ["mixed", "timeline", "albums"];
 

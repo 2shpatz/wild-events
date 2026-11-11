@@ -13,6 +13,7 @@ const FOR_TYPE: Record<EventType, string> = {
   birthday: "ליום הולדת",
   family: "לאירוע משפחתי",
   party: "למסיבה",
+  trip: "לטיול",
   general: "לאירוע",
 };
 

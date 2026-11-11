@@ -115,7 +115,8 @@ export function ImportFromGoogle({
     const connected = params.get("connected");
     const self = params.get("account") === "self";
     const err = params.get("account_error");
-    setParams({ tab: "import" }, { replace: true });
+    setParams({ tab: "albums" }, { replace: true });
+    requestAnimationFrame(() => document.getElementById("google-import")?.scrollIntoView({ block: "start" }));
     if (err) toast("לא הצלחנו להתחבר לחשבון. אפשר לנסות שוב.", "error");
     else if (connected) {
       setSource(connected);
@@ -276,7 +277,7 @@ export function ImportFromGoogle({
   }
   const emailOf = (id: string) => accounts?.find((a) => a.id === id)?.email ?? (id === eventAccount.id ? eventAccount.email : null);
   const usable = (id: string) => !accounts?.length || accounts.some((a) => a.id === id && a.connected);
-  const connectNext = `/${code}/manage?tab=import&source=1`;
+  const connectNext = `/${code}/manage?tab=albums&source=1`;
   const linkError = linkTouched && link.trim() && !linkOk ? "הקישור צריך להתחיל ב-https://photos.app.goo.gl/ או ב-https://photos.google.com/" : null;
 
   const pickButton = (
@@ -304,7 +305,7 @@ export function ImportFromGoogle({
   );
 
   return (
-    <div className="space-y-6">
+    <div id="google-import" className="scroll-mt-4 space-y-6">
       <Card className="space-y-5">
         <div className="flex items-start gap-3">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">

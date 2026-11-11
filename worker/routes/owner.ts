@@ -12,7 +12,7 @@ import { isValidSlug, suggestSlug } from "../../shared/slug";
 export const owner = new Hono<AppEnv>();
 owner.use("/*", requireOwner);
 
-const EVENT_TYPES = ["wedding", "birthday", "family", "party", "general"];
+const EVENT_TYPES = ["wedding", "birthday", "family", "party", "trip", "general"];
 
 /** The owner's own login account. */
 export function ownerStorage(env: Env, ownerId: string, fresh = false): Promise<StorageInfo> {

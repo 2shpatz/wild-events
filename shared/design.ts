@@ -38,7 +38,7 @@ export type TextBlock = BlockBase & {
 /** Font + color of a block's texts (headings use the font); null = the theme's defaults. */
 export type BlockStyle = { font: string | null; color: string | null };
 export type ImageBlock = BlockBase & BlockStyle & { type: "image"; slot: number; caption: string; shape: "wide" | "card" | "round" };
-export type SingletonType = "invitation" | "details" | "featured" | "live";
+export type SingletonType = "invitation" | "details" | "featured" | "live" | "messages" | "checklist";
 
 /**
  * Parts of the "details" / "live" blocks that the hosts can show or hide, and the texts they can rewrite.
@@ -69,8 +69,54 @@ export const LIVE_TEXTS = {
 } as const;
 export type LiveText = keyof typeof LIVE_TEXTS;
 
+/** WhatsApp group block: the texts around the join button (null = default). */
+export const WHATSAPP_TEXTS = {
+  title: "הקבוצה של האירוע",
+  text: "עדכונים, תמונות והודעות - הצטרפו לקבוצת הוואטסאפ",
+  button: "הצטרפות לקבוצה",
+} as const;
+export type WhatsAppText = keyof typeof WHATSAPP_TEXTS;
+
+/** Message board ("לוח ברכות"): guests write messages everyone can read. */
+export const MESSAGES_TEXTS = {
+  title: "לוח הברכות",
+  prompt: "כתבו ברכה לבעלי השמחה",
+  button: "שליחה",
+} as const;
+export type MessagesText = keyof typeof MESSAGES_TEXTS;
+
+/** Checklist: things left to do before the event. */
+export const CHECKLIST_TEXTS = { title: "מה נשאר לעשות" } as const;
+export type ChecklistText = keyof typeof CHECKLIST_TEXTS;
+
 /** Max length of each editable heading / card text. */
-export const PART_TEXT_MAX = { title: 80, nav: 60, share: 60, calendar: 60, viewTitle: 60, viewText: 120, uploadTitle: 60, uploadText: 120, emptyTitle: 60, emptyText: 120 } as const;
+export const PART_TEXT_MAX = {
+  title: 80,
+  nav: 60,
+  share: 60,
+  calendar: 60,
+  viewTitle: 60,
+  viewText: 120,
+  uploadTitle: 60,
+  uploadText: 120,
+  emptyTitle: 60,
+  emptyText: 120,
+  text: 160,
+  button: 40,
+  prompt: 120,
+} as const;
+
+/** Lengths of the guest-written content (server-enforced). */
+export const MESSAGE_MAX = 500;
+export const CHECKLIST_ITEM_MAX = 120;
+export const MAX_CHECKLIST_ITEMS = 100;
+
+/** A WhatsApp group invite link, normalized to https://chat.whatsapp.com/<code>; anything else = "". */
+export function whatsappUrl(v: unknown): string {
+  if (typeof v !== "string") return "";
+  const m = /^(?:https?:\/\/)?chat\.whatsapp\.com\/(?:invite\/)?([A-Za-z0-9]{10,40})(?:[/?#].*)?$/.exec(v.trim());
+  return m ? `https://chat.whatsapp.com/${m[1]}` : "";
+}
 
 export type DetailsBlock = BlockBase & BlockStyle & { type: "details"; show: Record<DetailsPart, boolean>; texts: Record<DetailsText, string | null> };
 export type LiveBlock = BlockBase & BlockStyle & { type: "live"; show: Record<LivePart, boolean>; texts: Record<LiveText, string | null> };
@@ -78,9 +124,15 @@ export type LiveBlock = BlockBase & BlockStyle & { type: "live"; show: Record<Li
 export const FEATURED_LAYOUTS = ["grid", "stack", "carousel", "floating"] as const;
 export type FeaturedLayout = (typeof FEATURED_LAYOUTS)[number];
 export type FeaturedBlock = BlockBase & { type: "featured"; layout: FeaturedLayout };
+/** Not a singleton: a page may link several groups (e.g. one per family). */
+export type WhatsAppBlock = BlockBase & BlockStyle & { type: "whatsapp"; url: string; texts: Record<WhatsAppText, string | null> };
+export type MessagesBlock = BlockBase & BlockStyle & { type: "messages"; texts: Record<MessagesText, string | null> };
+/** The items live in the checklist_items table; the hosts choose what guests may do with them. */
+export type ChecklistBlock = BlockBase &
+  BlockStyle & { type: "checklist"; texts: Record<ChecklistText, string | null>; guestsEdit: boolean; guestsTick: boolean };
 
-export type SingletonBlock = (BlockBase & { type: "invitation" }) | FeaturedBlock | DetailsBlock | LiveBlock;
-export type Block = TextBlock | ImageBlock | SingletonBlock;
+export type SingletonBlock = (BlockBase & { type: "invitation" }) | FeaturedBlock | DetailsBlock | LiveBlock | MessagesBlock | ChecklistBlock;
+export type Block = TextBlock | ImageBlock | WhatsAppBlock | SingletonBlock;
 export type BlockType = Block["type"];
 
 /**
@@ -105,7 +157,7 @@ export interface EventDesign {
 
 export const MAX_IMAGES = 10;
 export const MAX_BLOCKS = 20;
-export const SINGLETONS: SingletonType[] = ["invitation", "details", "featured", "live"];
+export const SINGLETONS: SingletonType[] = ["invitation", "details", "featured", "live", "messages", "checklist"];
 export const DATE_STYLES: DateStyle[] = ["invitation", "line", "numeric", "hebrew", "both"];
 
 export const newBlockId = () => Math.random().toString(36).slice(2, 10);
@@ -118,6 +170,8 @@ export function singletonBlock(type: SingletonType, id: string): SingletonBlock 
   if (type === "details") return { id, type, show: allOn(DETAILS_PARTS), texts: allNull(Object.keys(DETAILS_TEXTS) as DetailsText[]), font: null, color: null };
   if (type === "live") return { id, type, show: allOn(LIVE_PARTS), texts: allNull(Object.keys(LIVE_TEXTS) as LiveText[]), font: null, color: null };
   if (type === "featured") return { id, type, layout: "grid" };
+  if (type === "messages") return { id, type, texts: allNull(Object.keys(MESSAGES_TEXTS) as MessagesText[]), font: null, color: null };
+  if (type === "checklist") return { id, type, texts: allNull(Object.keys(CHECKLIST_TEXTS) as ChecklistText[]), guestsEdit: false, guestsTick: false, font: null, color: null };
   return { id, type };
 }
 
@@ -174,6 +228,7 @@ export function newBlock(type: BlockType, slot = 0): Block {
   const id = newBlockId();
   if (type === "text") return { id, type, heading: "", body: "", align: "center", size: "md", color: null, card: true, font: null };
   if (type === "image") return { id, type, slot, caption: "", shape: "card", font: null, color: null };
+  if (type === "whatsapp") return { id, type, url: "", texts: allNull(Object.keys(WHATSAPP_TEXTS) as WhatsAppText[]), font: null, color: null };
   return singletonBlock(type, id);
 }
 
@@ -190,6 +245,11 @@ const text = (v: unknown, max: number, multiline = false) => {
 const percent = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.round(Math.min(100, Math.max(0, v)) * 10) / 10 : 50);
 const font = (v: unknown) => (isKnownFont(v) ? v : null);
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+/** Editable texts of a block: each known key, trimmed to its max length; "" = null (the default). */
+const partTexts = <K extends keyof typeof PART_TEXT_MAX>(v: unknown, keys: readonly K[]) => {
+  const t = obj(v);
+  return Object.fromEntries(keys.map((k) => [k, text(t[k], PART_TEXT_MAX[k]) || null])) as Record<K, string | null>;
+};
 
 function sanitizeHero(input: unknown): HeroDesign {
   const h = obj(input);
@@ -248,6 +308,16 @@ function sanitizeBlock(input: unknown, seen: { ids: Set<string>; singles: Set<st
       color: color(b.color),
       ...hidden,
     };
+  } else if (b.type === "whatsapp") {
+    out = {
+      id,
+      type: "whatsapp",
+      url: whatsappUrl(b.url),
+      texts: partTexts(b.texts, Object.keys(WHATSAPP_TEXTS) as WhatsAppText[]),
+      font: font(b.font),
+      color: color(b.color),
+      ...hidden,
+    };
   } else if (SINGLETONS.includes(b.type as SingletonType)) {
     if (seen.singles.has(b.type as string)) return null;
     seen.singles.add(b.type as string);
@@ -267,6 +337,16 @@ function sanitizeBlock(input: unknown, seen: { ids: Set<string>; singles: Set<st
         color: color(b.color),
       } as DetailsBlock | LiveBlock;
     }
+    if (out.type === "messages") out = { ...out, texts: partTexts(b.texts, Object.keys(MESSAGES_TEXTS) as MessagesText[]), font: font(b.font), color: color(b.color) };
+    if (out.type === "checklist")
+      out = {
+        ...out,
+        texts: partTexts(b.texts, Object.keys(CHECKLIST_TEXTS) as ChecklistText[]),
+        guestsEdit: bool(b.guestsEdit, false),
+        guestsTick: bool(b.guestsTick, false),
+        font: font(b.font),
+        color: color(b.color),
+      };
   }
   if (out) seen.ids.add(id);
   return out;
@@ -329,6 +409,11 @@ export const blockFonts = (d: EventDesign) => [
 /** Image slots referenced by the design (everything else under kind 'i*' is an orphan). */
 export const usedImageSlots = (d: EventDesign) =>
   [...d.before, ...d.after].flatMap((b) => (b.type === "image" ? [b.slot] : []));
+
+/** The visible (not hidden) block of a type, if the page has one - used by the server to check what guests may do. */
+export function visibleBlock<T extends Block["type"]>(d: EventDesign, type: T): Extract<Block, { type: T }> | null {
+  return ([...d.before, ...d.after].find((b) => b.type === type && !b.hidden) as Extract<Block, { type: T }> | undefined) ?? null;
+}
 
 /** Font for the title on the non-home event pages. */
 export const pagesTitleFont = (d: EventDesign) => d.pagesFont ?? d.hero.titleFont;

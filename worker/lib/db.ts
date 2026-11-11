@@ -166,10 +166,11 @@ export async function toPublicEvent(
   const counts = await env.DB.prepare(
     `SELECT (SELECT COUNT(*) FROM media WHERE event_id = ?1 AND hidden = 0) AS m,
             (SELECT COUNT(*) FROM albums a WHERE a.event_id = ?1 AND a.hidden = 0
-               AND EXISTS (SELECT 1 FROM media x WHERE x.album_id = a.id AND x.hidden = 0)) AS a`,
+               AND EXISTS (SELECT 1 FROM media x WHERE x.album_id = a.id AND x.hidden = 0)) AS a,
+            (SELECT COUNT(*) FROM checklist_items WHERE event_id = ?1) AS c`,
   )
     .bind(ev.id)
-    .first<{ m: number; a: number }>();
+    .first<{ m: number; a: number; c: number }>();
   const assets = await eventAssets(env, ev.id);
   const music = parseMusic(ev.music, ev.type as PublicEvent["type"]);
   const uploaded = music.enabled && music.tracks.some((t) => t.src === "up") ? await eventTracks(env, ev.id) : [];
@@ -201,6 +202,7 @@ export async function toPublicEvent(
     uploadsOpen: !!ev.uploads_open,
     mediaCount: counts?.m ?? 0,
     albumCount: counts?.a ?? 0,
+    checklistCount: counts?.c ?? 0,
     canManage: opts.canManage,
     isOwner: opts.isOwner,
     googleAlbumUrl: opts.canManage ? ev.google_album_url : undefined,

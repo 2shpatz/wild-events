@@ -75,6 +75,20 @@
   --ring: #a78bfa;
   --font-display: "Suez One", "Heebo", serif;
 }
+[data-theme="trip"] {
+  --primary: #0369a1;
+  --on-primary: #ffffff;
+  --accent: #c2410c;
+  --on-accent: #ffffff;
+  --bg: #f0f9ff;
+  --fg: #0c4a6e;
+  --card: #ffffff;
+  --muted: #e8f2f8;
+  --muted-fg: #475569;
+  --border: #bae6fd;
+  --ring: #0369a1;
+  --font-display: "Suez One", "Heebo", serif;
+}
 
 @theme inline {
   --color-primary: var(--primary);
@@ -257,6 +271,31 @@ summary {
 }
 .bg-preset-general-night {
   background: linear-gradient(180deg, #18181b, #09090b);
+}
+/* Trip: real CC0 photos (src/assets/backgrounds/CREDITS.md) under a light pastel wash, so the dark theme text stays readable. */
+.bg-preset-trip-mountains {
+  background:
+    linear-gradient(180deg, rgb(255 247 240 / 0.35), rgb(240 249 255 / 0.62)),
+    url("./assets/backgrounds/trip-mountains.webp") center / cover no-repeat,
+    #f3d9c6;
+}
+.bg-preset-trip-clouds {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.5), rgb(255 247 240 / 0.45)),
+    url("./assets/backgrounds/trip-clouds.webp") center / cover no-repeat,
+    #ead7dc;
+}
+.bg-preset-trip-sky {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.35), rgb(255 255 255 / 0.45)),
+    url("./assets/backgrounds/trip-sky.webp") center / cover no-repeat,
+    #cfe8f7;
+}
+.bg-preset-trip-hills {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.3), rgb(255 250 245 / 0.4)),
+    url("./assets/backgrounds/trip-hills.webp") center / cover no-repeat,
+    #ecd8c8;
 }
 
 /* ---------------------------------------------------------------- motion utilities */

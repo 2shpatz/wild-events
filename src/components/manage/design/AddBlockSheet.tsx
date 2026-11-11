@@ -4,7 +4,7 @@ import { Modal, cx } from "../../ui";
 import { BLOCK_META } from "./blockMeta";
 import type { Where } from "./draft";
 
-const ORDER: BlockType[] = ["text", "image", "details", "featured", "invitation", "live"];
+const ORDER: BlockType[] = ["text", "image", "details", "featured", "invitation", "live", "whatsapp", "messages", "checklist"];
 
 /** Choose an element to add before / after the main page. Elements that can appear once are disabled when used. */
 export function AddBlockSheet({
