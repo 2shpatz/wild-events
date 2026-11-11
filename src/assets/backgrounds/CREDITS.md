@@ -2,14 +2,14 @@
 
 All images are CC0 1.0 (public domain: free for commercial use, no attribution required),
 found via Openverse filtered to CC0, downloaded from rawpixel's public domain collection
-and converted to WebP. A light pastel wash is drawn over them in CSS (src/index.css).
+and converted to WebP. Portrait pictures suit the vertically scrolling guest page. A light pastel wash is drawn over them in CSS (src/index.css).
 
 | File | Source |
 |------|--------|
-| trip-mountains.webp | https://www.rawpixel.com/image/5967489/pastel-mountain-sunset |
-| trip-clouds.webp | https://www.rawpixel.com/image/5966590/pastel-cloudscape |
-| trip-sky.webp | https://www.rawpixel.com/image/5967594/pastel-clouds |
-| trip-hills.webp | https://www.rawpixel.com/image/9202005/hills-and-sky (painting, Yale Center for British Art, public domain) |
+| trip-mountains.webp | https://www.rawpixel.com/image/5969082/rising-full-moon |
+| trip-clouds.webp | https://www.rawpixel.com/image/5971662/photo-image-clouds-blue-sky |
+| trip-sky.webp | https://www.rawpixel.com/image/5967602/daytime-moon-sky |
+| trip-hills.webp | https://www.rawpixel.com/image/8544132/image-aesthetic-cloud-art (painting, public domain) |
 | party-disco.webp | https://www.rawpixel.com/image/6035445/photo-image-light-public-domain-technology |
 | music-notes.webp | https://www.rawpixel.com/image/5922010/photo-image-paper-public-domain-free |
 | karaoke-gold.webp | https://www.rawpixel.com/image/5922137/photo-image-background-public-domain-microphone |

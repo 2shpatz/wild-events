@@ -219,7 +219,7 @@ export default function EventHome() {
 
       {/* Fixed, clipped background layer (parallax = decorative layer only). */}
       <div className="fixed inset-0 -z-10 overflow-hidden" aria-hidden>
-        <BgLayer bg={bg} className="absolute inset-x-0 -top-[5%] h-[175%]" style={{ transform: `translate3d(0, ${parallax}px, 0)` }} />
+        <BgLayer bg={bg} className="absolute inset-x-0 -top-[5%] h-[175%]" shift={parallax} />
         {event.background === "custom" && <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" style={{ opacity: 1 - reveal }} />}
         <div className="absolute inset-0 bg-black transition-opacity duration-150" style={{ opacity: dark ? scrim : scrim * 0.25 }} />
         {event.bgReveal && event.background === "custom" && reveal > 0 && (

@@ -64,7 +64,8 @@ function DesignCard({ event, onChanged }: { event: ManageEvent; onChanged: () =>
   const draftBg = backgroundProps({ code: event.code, background, bgVersion: event.bgVersion, theme: info.theme, bgPos });
   if (draftCustom) {
     draftBg.style = { ...draftBg.style, backgroundImage: `url(${draftCustom})` };
-    if (draftBg.fill) draftBg.fill = { backgroundImage: `url(${draftCustom})` };
+    draftBg.fill = { backgroundImage: `url(${draftCustom})` };
+    if (draftBg.photo) draftBg.photo = { ...draftBg.photo, src: draftCustom };
   }
   const canFrame = isPhotoBackground(background, info.theme) && (background !== "custom" || !!draftCustom);
 

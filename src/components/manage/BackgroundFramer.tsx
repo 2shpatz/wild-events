@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import { useId, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { ChevronDown, Crosshair, Eye, Minus, Monitor, Move, Plus, Smartphone } from "lucide-react";
 import { MAX_BG_ZOOM, MIN_BG_ZOOM, type BgPos } from "../../../shared/types";
 import { BgLayer } from "../BgLayer";
@@ -20,7 +20,7 @@ export function BackgroundFramer({
   onChange,
 }: {
   /** class + style of the background layer, at the current framing */
-  bg: { className: string; style: CSSProperties; fill: CSSProperties | null };
+  bg: Parameters<typeof BgLayer>[0]["bg"];
   /** an uploaded photo (shown under the same dark scrim as on the guest page) */
   custom: boolean;
   value: BgPos;

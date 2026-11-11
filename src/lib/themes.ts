@@ -1,4 +1,17 @@
 import type { BgPos, EventType, ThemeId } from "../../shared/types";
+import tripMountains from "../assets/backgrounds/trip-mountains.webp";
+import tripClouds from "../assets/backgrounds/trip-clouds.webp";
+import tripSky from "../assets/backgrounds/trip-sky.webp";
+import tripHills from "../assets/backgrounds/trip-hills.webp";
+import partyDisco from "../assets/backgrounds/party-disco.webp";
+import karaokeGold from "../assets/backgrounds/karaoke-gold.webp";
+import karaokeMono from "../assets/backgrounds/karaoke-mono.webp";
+import musicNotes from "../assets/backgrounds/music-notes.webp";
+import weddingRings from "../assets/backgrounds/wedding-rings.webp";
+import weddingWhite from "../assets/backgrounds/wedding-white.webp";
+import religiousSynagogue from "../assets/backgrounds/religious-synagogue.webp";
+import religiousJerusalem from "../assets/backgrounds/religious-jerusalem.webp";
+
 
 export interface EventTypeInfo {
   id: EventType;
@@ -67,10 +80,10 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     description: "פסטל רך, נופים ואוויר פתוח",
     theme: "trip",
     backgrounds: [
-      { id: "trip-mountains", label: "הרים בפסטל" },
-      { id: "trip-clouds", label: "עננים בשקיעה" },
-      { id: "trip-sky", label: "שמיים תכולים" },
-      { id: "trip-hills", label: "גבעות בצבעי מים" },
+      { id: "trip-mountains", label: "ירח מעל ההרים" },
+      { id: "trip-clouds", label: "מעל העננים" },
+      { id: "trip-sky", label: "שמיים וירח" },
+      { id: "trip-hills", label: "הרים בצבעי מים" },
     ],
   },
   {
@@ -106,21 +119,24 @@ export function applyTheme(theme: ThemeId | null | undefined) {
   if (meta && color) meta.setAttribute("content", color);
 }
 
-/** Presets that are photos (they can be positioned like an uploaded picture); the rest are gradients. */
-export const PHOTO_BACKGROUNDS = new Set([
-  "trip-mountains",
-  "trip-clouds",
-  "trip-sky",
-  "trip-hills",
-  "party-disco",
-  "karaoke-gold",
-  "karaoke-mono",
-  "music-notes",
-  "wedding-rings",
-  "wedding-white",
-  "religious-synagogue",
-  "religious-jerusalem",
-]);
+/**
+ * Presets that are photos (they can be framed like an uploaded picture) → the picture's URL; the rest are gradients.
+ * Their CSS class (index.css) draws a wash gradient over the picture: two background layers.
+ */
+export const PHOTO_BACKGROUNDS: Record<string, string> = {
+  "trip-mountains": tripMountains,
+  "trip-clouds": tripClouds,
+  "trip-sky": tripSky,
+  "trip-hills": tripHills,
+  "party-disco": partyDisco,
+  "karaoke-gold": karaokeGold,
+  "karaoke-mono": karaokeMono,
+  "music-notes": musicNotes,
+  "wedding-rings": weddingRings,
+  "wedding-white": weddingWhite,
+  "religious-synagogue": religiousSynagogue,
+  "religious-jerusalem": religiousJerusalem,
+};
 
 /** The background shown for an event / draft (preset id or "custom"). */
 export const resolvedBackground = (background: string | null, theme: ThemeId) => background || typeInfo(theme as EventType).backgrounds[0].id;
@@ -128,37 +144,33 @@ export const resolvedBackground = (background: string | null, theme: ThemeId) =>
 /** Can this background be positioned (a photo)? */
 export const isPhotoBackground = (background: string | null, theme: ThemeId) => {
   const id = resolvedBackground(background, theme);
-  return id === "custom" || PHOTO_BACKGROUNDS.has(id);
+  return id === "custom" || id in PHOTO_BACKGROUNDS;
 };
 
+/** A photo background and how it's framed: BgLayer sizes and places it from the picture's real proportions. */
+export interface BgPhoto {
+  src: string;
+  pos: BgPos;
+  /** background layers of the class: 1 (an uploaded picture) or 2 (a preset: wash gradient + picture) */
+  layers: 1 | 2;
+}
+
 /**
- * Inline style / class for an event background (preset gradient / photo or uploaded image), at its framing.
- * Zoom scales the layer around the focal point (its container clips it), so the chosen spot stays put. Below 1 the
- * picture no longer fills the screen: `fill` is then the style of a blurred copy to draw behind it (see BgLayer).
+ * Class / style of an event background (preset gradient or photo, or an uploaded image). For photos, `photo` carries
+ * the framing (focal point + zoom); `fill` is the style of the blurred copy drawn behind when the picture doesn't
+ * cover the screen (see BgLayer).
  */
 export function backgroundProps(ev: { code: string; background: string | null; bgVersion: string | null; theme: ThemeId; bgPos?: BgPos }) {
   const custom = ev.background === "custom";
   const preset = resolvedBackground(ev.background, ev.theme);
-  const image = custom ? { backgroundImage: `url(/api/e/${ev.code}/asset/bg?v=${encodeURIComponent(ev.bgVersion || "")})` } : {};
-  const p = custom || PHOTO_BACKGROUNDS.has(preset) ? ev.bgPos : undefined;
-  const at = p ? `${p.x}% ${p.y}%` : "50% 50%";
-  let style: React.CSSProperties = { ...image, ...(p && (p.x !== 50 || p.y !== 50) ? { backgroundPosition: at } : {}) };
-  if (p && p.zoom > 1) {
-    // Zoom in: enlarge the layer around the focal point.
-    style = { ...style, transform: `scale(${p.zoom})`, transformOrigin: at };
-  } else if (p && p.zoom < 1) {
-    // Zoom out: the layer keeps its size and the picture inside it shrinks (more of it shows). The background is a
-    // tall layer, so "cover" is set by its height: the picture gets zoom x that height. Photo presets have a wash
-    // gradient on top (first layer) that keeps covering everything.
-    const size = `auto ${Math.round(p.zoom * 100)}%`;
-    style = custom
-      ? { ...style, backgroundSize: size, backgroundPosition: at, backgroundRepeat: "no-repeat" }
-      : { ...style, backgroundSize: `100% 100%, ${size}`, backgroundPosition: `center, ${at}`, backgroundRepeat: "no-repeat" };
-  }
+  const customSrc = `/api/e/${ev.code}/asset/bg?v=${encodeURIComponent(ev.bgVersion || "")}`;
+  const image: React.CSSProperties = custom ? { backgroundImage: `url(${customSrc})` } : {};
+  const src = custom ? customSrc : PHOTO_BACKGROUNDS[preset];
   return {
     className: custom ? "bg-cover bg-center" : `bg-preset-${preset}`,
-    style,
-    fill: p && p.zoom < 1 ? (image as React.CSSProperties) : null,
+    style: image,
+    fill: src ? image : null,
+    photo: src ? ({ src, pos: ev.bgPos ?? { x: 50, y: 50, zoom: 1 }, layers: custom ? 1 : 2 } as BgPhoto) : null,
   };
 }
 
