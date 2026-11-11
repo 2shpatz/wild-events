@@ -69,7 +69,7 @@ export const EVENT_TYPES: EventTypeInfo[] = [
       { id: "party-neon", label: "ניאון" },
       { id: "party-disco", label: "כדור דיסקו" },
       { id: "karaoke-gold", label: "קריוקי" },
-      { id: "karaoke-mono", label: "מיקרופון" },
+      { id: "karaoke-mono", label: "מיקרופון אולפן" },
       { id: "music-notes", label: "תווים" },
       { id: "general-night", label: "לילה" },
     ],
