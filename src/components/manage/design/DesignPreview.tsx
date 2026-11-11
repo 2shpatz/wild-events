@@ -27,7 +27,7 @@ export function DesignPreview({
   design: EventDesign;
   selected: string | null;
   /** scroll the preview to this element (changes with a counter so the same id can be re-focused) */
-  focus: { id: string; n: number } | null;
+  focus: { id: string; part?: string; n: number } | null;
   device: Device;
   /** fill the container's height (mobile tuning mode) instead of a fixed max height */
   fill?: boolean;
@@ -65,7 +65,7 @@ export function DesignPreview({
   }, [ready, event, design, selected]);
 
   useEffect(() => {
-    if (ready && focus) post({ type: "design:focus", id: focus.id });
+    if (ready && focus) post({ type: "design:focus", id: focus.id, part: focus.part });
   }, [ready, focus]);
 
   const size = SIZES[device];

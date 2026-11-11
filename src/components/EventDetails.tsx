@@ -78,13 +78,13 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
       {((show.when && when) || (show.where && (event.venueName || event.venueAddress))) && (
         <dl className="space-y-4">
           {show.when && when && (
-            <Row icon={<CalendarDays className="size-6" aria-hidden />} label="מתי">
+            <Row part="when" icon={<CalendarDays className="size-6" aria-hidden />} label="מתי">
               <span className="font-semibold">{when}</span>
               {soon && <span className={cx("ms-2 inline-block rounded-full px-2.5 py-0.5 text-sm font-bold", dark ? "bg-white/20" : "bg-accent text-on-accent")}>{soon}</span>}
             </Row>
           )}
           {show.where && (event.venueName || event.venueAddress) && (
-            <Row icon={<MapPin className="size-6" aria-hidden />} label="איפה">
+            <Row part="where" icon={<MapPin className="size-6" aria-hidden />} label="איפה">
               {event.venueName && <span className="block font-semibold">{event.venueName}</span>}
               {event.venueAddress && <span className="block opacity-85">{event.venueAddress}</span>}
             </Row>
@@ -93,7 +93,7 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
       )}
 
       {show.nav && links && (
-        <div className="space-y-3">
+        <div data-part="nav" className="space-y-3">
           <h3 className={h3}>{partText(texts, "nav", DETAILS_TEXTS.nav)}</h3>
           <div className={cx("grid grid-cols-2 gap-3", !isAndroid && "sm:grid-cols-3")}>
             <a
@@ -120,7 +120,7 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
       )}
 
       {show.share && (
-        <div className="space-y-3">
+        <div data-part="share" className="space-y-3">
           <h3 className={h3}>{partText(texts, "share", links ? DETAILS_TEXTS.share : DETAILS_SHARE_NO_ADDRESS)}</h3>
           <div className="grid grid-cols-2 gap-3">
             <a
@@ -141,7 +141,7 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
       )}
 
       {show.calendar && hasCalendar(event) && soon !== null && (
-        <div className="space-y-3">
+        <div data-part="calendar" className="space-y-3">
           <h3 className={h3}>{partText(texts, "calendar", DETAILS_TEXTS.calendar)}</h3>
           <div className="grid grid-cols-2 gap-3">
             {gcal && (
@@ -161,9 +161,9 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
   );
 }
 
-function Row({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
+function Row({ icon, label, part, children }: { icon: ReactNode; label: string; part?: string; children: ReactNode }) {
   return (
-    <div className="flex items-start gap-4">
+    <div data-part={part} className="flex items-start gap-4">
       <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-2xl bg-current/10">{icon}</span>
       <div className="min-w-0 text-lg leading-snug">
         <dt className="sr-only">{label}</dt>

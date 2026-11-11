@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Eye, EyeOff, GalleryHorizontal, ImagePlus, ImageUp, Layers, LayoutGrid, Settings, Trash2, Wind, type LucideIcon } from "lucide-react";
+import { Eye, EyeOff, GalleryHorizontal, ImagePlus, ImageUp, Images, Layers, LayoutGrid, Settings, Trash2, Wind, type LucideIcon } from "lucide-react";
 import type { Block, FeaturedBlock, FeaturedLayout, ImageBlock, TextBlock } from "../../../../shared/design";
 import { MAX_FEATURED, type ManageEvent } from "../../../../shared/types";
 import { Button, ConfirmDialog, Field, Segmented, Spinner, cx, inputClass } from "../../ui";
@@ -10,6 +10,7 @@ import type { DraftAction } from "./draft";
 import { DetailsFields, LiveFields } from "./PartsFields";
 import { BlockStyleFields } from "./BlockStyleFields";
 import { ChecklistFields, MessagesFields, WhatsAppFields } from "./BoardFields";
+import { MediaChooser } from "./MediaChooser";
 
 /** Editing one block: its content / style, hide-show and delete. */
 export function BlockInspector({
@@ -287,10 +288,26 @@ function FeaturedFields({ event, onChanged }: { event: ManageEvent; onChanged: (
   const a = useAssetActions(event, onChanged);
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   const free = MAX_FEATURED - a.featuredSlots.length;
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-fg">עד {MAX_FEATURED} תמונות. השינויים בתמונות נשמרים מיד.</p>
+      {free > 0 && (
+        <Button variant="outline" icon={<Images className="size-4" aria-hidden />} disabled={busy} onClick={() => setChoosing(true)}>
+          בחירה מהתמונות שהועלו לאירוע
+        </Button>
+      )}
+      <MediaChooser
+        open={choosing}
+        max={free}
+        onClose={() => setChoosing(false)}
+        onChoose={async (ids) => {
+          setBusy(true);
+          await a.addFeaturedFromMedia(ids);
+          setBusy(false);
+        }}
+      />
       <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {a.featuredSlots.map((f) => (
           <li key={f.slot} className="relative">

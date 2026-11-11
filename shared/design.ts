@@ -174,6 +174,9 @@ export interface EventDesign {
   pagesFont: string | null;
   /** Font of the elements' text (paragraphs, buttons, lists) unless an element has its own; null = the body font. */
   textFont: string | null;
+  /** #rrggbb of the elements' headings / their text unless an element has its own color; null = the theme's. */
+  headingsColor: string | null;
+  bodyColor: string | null;
 }
 
 export const MAX_IMAGES = 10;
@@ -242,6 +245,8 @@ export function defaultDesign(): EventDesign {
     after: [singletonBlock("invitation", "invitation"), singletonBlock("details", "details"), singletonBlock("featured", "featured"), singletonBlock("live", "live")],
     pagesFont: null,
     textFont: null,
+    headingsColor: null,
+    bodyColor: null,
   };
 }
 
@@ -405,7 +410,7 @@ export function sanitizeDesign(input: unknown): EventDesign {
       if (b) dst.push(b);
     }
   }
-  return { v: 1, hero: sanitizeHero(d.hero), bars: sanitizeBars(d.bars, obj(obj(d.hero).show).bar), before, after, pagesFont: font(d.pagesFont), textFont: font(d.textFont) };
+  return { v: 1, hero: sanitizeHero(d.hero), bars: sanitizeBars(d.bars, obj(obj(d.hero).show).bar), before, after, pagesFont: font(d.pagesFont), textFont: font(d.textFont), headingsColor: color(d.headingsColor), bodyColor: color(d.bodyColor) };
 }
 
 /** `legacyTopShow`: the top banner switch used to live at hero.show.bar. */

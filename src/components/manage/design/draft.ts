@@ -9,6 +9,7 @@ export type DraftAction =
   | { type: "show"; patch: Partial<HeroDesign["show"]> }
   | { type: "pagesFont"; font: string | null }
   | { type: "textFont"; font: string | null }
+  | { type: "pageColors"; patch: Partial<Pick<EventDesign, "headingsColor" | "bodyColor">> }
   | { type: "bars"; which: keyof BarsDesign; patch: Partial<BarsDesign["top"] & BarsDesign["bottom"]> }
   | { type: "add"; block: Block; where: Where }
   | { type: "update"; id: string; patch: Partial<Block> }
@@ -40,6 +41,8 @@ export function draftReducer(d: EventDesign, a: DraftAction): EventDesign {
       return { ...d, pagesFont: a.font };
     case "textFont":
       return { ...d, textFont: a.font };
+    case "pageColors":
+      return { ...d, ...a.patch };
     case "bars":
       return { ...d, bars: { ...d.bars, [a.which]: { ...d.bars[a.which], ...a.patch } } };
     case "add":

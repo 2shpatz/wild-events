@@ -1,4 +1,4 @@
-import type { EventType, ThemeId } from "../../shared/types";
+import type { BgPos, EventType, ThemeId } from "../../shared/types";
 
 export interface EventTypeInfo {
   id: EventType;
@@ -106,16 +106,49 @@ export function applyTheme(theme: ThemeId | null | undefined) {
   if (meta && color) meta.setAttribute("content", color);
 }
 
-/** Inline style / class for an event background (preset gradient or uploaded image). */
-export function backgroundProps(ev: { code: string; background: string | null; bgVersion: string | null; theme: ThemeId }) {
+/** Presets that are photos (they can be positioned like an uploaded picture); the rest are gradients. */
+export const PHOTO_BACKGROUNDS = new Set([
+  "trip-mountains",
+  "trip-clouds",
+  "trip-sky",
+  "trip-hills",
+  "party-disco",
+  "karaoke-gold",
+  "karaoke-mono",
+  "music-notes",
+  "wedding-rings",
+  "wedding-white",
+  "religious-synagogue",
+  "religious-jerusalem",
+]);
+
+/** The background shown for an event / draft (preset id or "custom"). */
+export const resolvedBackground = (background: string | null, theme: ThemeId) => background || typeInfo(theme as EventType).backgrounds[0].id;
+
+/** Can this background be positioned (a photo)? */
+export const isPhotoBackground = (background: string | null, theme: ThemeId) => {
+  const id = resolvedBackground(background, theme);
+  return id === "custom" || PHOTO_BACKGROUNDS.has(id);
+};
+
+/** Inline style / class for an event background (preset gradient / photo or uploaded image), at its focal point. */
+export function backgroundProps(ev: { code: string; background: string | null; bgVersion: string | null; theme: ThemeId; bgPos?: BgPos }) {
+  const p = ev.bgPos;
+  // Zoom scales the layer around the focal point (its container clips it), so the chosen spot stays put.
+  const pos: React.CSSProperties = !p
+    ? {}
+    : {
+        ...(p.x !== 50 || p.y !== 50 ? { backgroundPosition: `${p.x}% ${p.y}%` } : {}),
+        ...(p.zoom > 1 ? { transform: `scale(${p.zoom})`, transformOrigin: `${p.x}% ${p.y}%` } : {}),
+      };
   if (ev.background === "custom") {
     return {
       className: "bg-cover bg-center",
-      style: { backgroundImage: `url(/api/e/${ev.code}/asset/bg?v=${encodeURIComponent(ev.bgVersion || "")})` },
+      style: { backgroundImage: `url(/api/e/${ev.code}/asset/bg?v=${encodeURIComponent(ev.bgVersion || "")})`, ...pos } as React.CSSProperties,
     };
   }
-  const preset = ev.background || typeInfo(ev.theme as EventType).backgrounds[0].id;
-  return { className: `bg-preset-${preset}`, style: {} as React.CSSProperties };
+  const preset = resolvedBackground(ev.background, ev.theme);
+  return { className: `bg-preset-${preset}`, style: (PHOTO_BACKGROUNDS.has(preset) ? pos : {}) as React.CSSProperties };
 }
 
 export function isDarkBackground(background: string | null, theme: ThemeId) {

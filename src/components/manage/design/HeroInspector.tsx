@@ -77,7 +77,7 @@ export function HeroInspector({
 
       <fieldset className="space-y-2">
         <legend className="mb-2 font-semibold">מה מופיע בעמוד הראשי</legend>
-        <PartCard
+        <PartCard part="header"
           label="תמונת הכותרת"
           hint={event.headerVersion ? "לחצו על העיפרון כדי להחליף את התמונה או לכוון אותה" : "עדיין אין תמונה - לחצו על העיפרון כדי להעלות"}
           checked={hero.show.header}
@@ -85,12 +85,12 @@ export function HeroInspector({
         >
           <HeaderImageFields event={event} onChanged={onChanged} pos={hero.headerPos} onPos={(p) => set({ headerPos: p })} />
         </PartCard>
-        <PartCard label="שורת משנה" hint={texts.subtitle.trim() ? preview(texts.subtitle) : "עדיין ריקה - לחצו על העיפרון כדי לכתוב"} checked={hero.show.subtitle} onChange={(v) => show({ subtitle: v })}>
+        <PartCard part="subtitle" label="שורת משנה" hint={texts.subtitle.trim() ? preview(texts.subtitle) : "עדיין ריקה - לחצו על העיפרון כדי לכתוב"} checked={hero.show.subtitle} onChange={(v) => show({ subtitle: v })}>
           <Field label="טקסט שורת המשנה" htmlFor="hero-subtitle" hint="מופיעה מתחת לשם האירוע">
             <input id="hero-subtitle" className={inputClass} value={texts.subtitle} onChange={(e) => onTexts({ subtitle: e.target.value })} placeholder="למשל: מתחתנים!" maxLength={120} />
           </Field>
         </PartCard>
-        <PartCard
+        <PartCard part="date"
           label="תאריך"
           hint={`${event.date ? "" : `${noSettings("תאריך")} · `}תצוגה: ${DATE_STYLE_LABELS[hero.dateStyle]}`}
           checked={hero.show.date}
@@ -98,15 +98,15 @@ export function HeroInspector({
         >
           <DateStyleStepper value={hero.dateStyle} onChange={(dateStyle) => set({ dateStyle })} sample={sampleDate} noDate={!event.date} />
         </PartCard>
-        <PartCard label="שעה" hint={event.time ? `בשעה ${event.time}` : noSettings("שעה")} checked={hero.show.time} onChange={(v) => show({ time: v })} />
-        <PartCard label="ספירה לאחור" hint={'למשל "בעוד 11 ימים" - מופיעה עד יום האירוע'} checked={hero.show.countdown} onChange={(v) => show({ countdown: v })} />
-        <PartCard
+        <PartCard part="time" label="שעה" hint={event.time ? `בשעה ${event.time}` : noSettings("שעה")} checked={hero.show.time} onChange={(v) => show({ time: v })} />
+        <PartCard part="countdown" label="ספירה לאחור" hint={'למשל "בעוד 11 ימים" - מופיעה עד יום האירוע'} checked={hero.show.countdown} onChange={(v) => show({ countdown: v })} />
+        <PartCard part="venue"
           label="מקום"
           hint={event.venueName || event.venueAddress ? `${event.venueName || event.venueAddress} - בלחיצה נפתחים פרטי הניווט` : noSettings("מקום")}
           checked={hero.show.venue}
           onChange={(v) => show({ venue: v })}
         />
-        <PartCard label="הברכה שלכם" hint={texts.welcome.trim() ? preview(texts.welcome) : "עדיין ריקה - לחצו על העיפרון כדי לכתוב"} checked={hero.show.welcome} onChange={(v) => show({ welcome: v })}>
+        <PartCard part="welcome" label="הברכה שלכם" hint={texts.welcome.trim() ? preview(texts.welcome) : "עדיין ריקה - לחצו על העיפרון כדי לכתוב"} checked={hero.show.welcome} onChange={(v) => show({ welcome: v })}>
           <Field label="טקסט הברכה" htmlFor="hero-welcome" hint={`${texts.welcome.length}/600 · מופיעה בכרטיס מתחת לפרטים`}>
             <textarea
               id="hero-welcome"

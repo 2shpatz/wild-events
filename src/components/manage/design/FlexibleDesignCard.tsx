@@ -16,6 +16,7 @@ import { designKey, draftReducer, findBlock, type Where } from "./draft";
 import { FontStepper } from "./FontPicker";
 import { HeroInspector, type HeroTexts } from "./HeroInspector";
 import { StructureList } from "./StructureList";
+import { PartFocusContext } from "./PartsFields";
 import { PageFontsPanel } from "./PageFontsPanel";
 
 /** Unsaved drafts survive switching manage tabs (same page session). */
@@ -55,7 +56,7 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
   const [textBase, setTextBase] = useState<HeroTexts>(() => savedTexts(event));
   const [texts, setTexts] = useState<HeroTexts>(() => textDrafts.get(event.code) ?? savedTexts(event));
   const [selected, setSelected] = useState<string>("hero");
-  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
+  const [focus, setFocus] = useState<{ id: string; part?: string; n: number } | null>(null);
   const [device, setDevice] = useState<Device>("phone");
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [tuning, setTuning] = useState<{ start: string | null } | null>(null);
@@ -205,6 +206,11 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
   };
 
   const hit = selected === "hero" ? null : findBlock(draft, selected);
+  // Tapping a part's name in the editing panel points it out in the preview (on phones the preview is its own tab).
+  const focusPart = (part: string) => {
+    setFocus((f) => ({ id: hit?.block.id ?? "hero", part, n: (f?.n ?? 0) + 1 }));
+    if (window.matchMedia("(max-width: 1023.98px)").matches) setMobileView("preview");
+  };
   const goSettings = () => setParams({ tab: "settings" }, { replace: true });
   const imageSrc = (slot: number) => {
     const img = previewEvent.images.find((i) => i.slot === slot);
@@ -245,13 +251,14 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
         </div>
       </div>
 
-      <PageFontsPanel design={draft} dispatch={dispatch} hebrewOnly={hebrewOnly} onHebrewOnly={setHebrewOnly} />
+      <PageFontsPanel design={draft} dispatch={dispatch} hebrewOnly={hebrewOnly} onHebrewOnly={setHebrewOnly} against={against} />
 
       <div className={cx("grid gap-6", device === "phone" && "lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]")}>
         {/* Editing panel */}
         <div className={cx("min-w-0 space-y-6", mobileView === "preview" && "max-lg:hidden")}>
           <StructureList design={draft} selected={selected} onSelect={(id) => select(id, "list")} dispatch={dispatch} onAdd={setAddWhere} />
 
+          <PartFocusContext.Provider value={focusPart}>
           <div ref={inspector} className="scroll-mt-4 space-y-4 rounded-2xl border border-border bg-bg/60 p-4 sm:p-5">
             <h3 className="text-lg font-bold">{hit ? `עריכה: ${BLOCK_META[hit.block.type].label}` : "עריכת העמוד הראשי"}</h3>
             {hit ? (
@@ -291,6 +298,7 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
               />
             )}
           </div>
+          </PartFocusContext.Provider>
         </div>
 
         {/* Live preview (on mobile: a tab, or the full-screen font tuning mode) */}

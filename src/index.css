@@ -133,6 +133,11 @@ body {
   font-weight: var(--title-weight, 400);
 }
 
+/* The page's headings color (EventDesign.headingsColor) on the elements' headings; an element's own color re-sets it. */
+[data-headings-color] .font-title {
+  color: var(--title-color);
+}
+
 /* Flexible-design editor preview (iframe): hover / selected outlines on the page's blocks. */
 [data-preview] [data-block-id] {
   cursor: pointer;
@@ -145,6 +150,18 @@ body {
 [data-preview] [data-block-id][data-selected] {
   outline: 3px solid #38bdf8;
   outline-offset: -3px;
+}
+
+/* Editor preview: a part of an element pointed out from the editing panel (tapping its name) flashes briefly. */
+[data-preview] .preview-flash {
+  outline: 3px solid #f59e0b;
+  outline-offset: 4px;
+  border-radius: 12px;
+  animation: preview-flash 1.6s ease-out;
+}
+@keyframes preview-flash {
+  0%, 40% { box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.35), 0 0 0 6px rgb(245 158 11 / 0.6); }
+  100% { box-shadow: 0 0 0 9999px rgb(0 0 0 / 0), 0 0 0 6px rgb(245 158 11 / 0); }
 }
 
 /* Visible focus for keyboard users (MASTER: "Invisible focus states" forbidden). */

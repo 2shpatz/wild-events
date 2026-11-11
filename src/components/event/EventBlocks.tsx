@@ -58,7 +58,8 @@ export function blockHasContent(b: Block, ev: PublicEvent): boolean {
 
 /** A block's own font (for its `.font-title` headings) and text color; nothing set = the theme's. */
 export const blockStyle = (b: Partial<BlockStyle>): CSSProperties | undefined => {
-  const st = { ...titleFontVars(b.font), ...textFontStyle(b.textFont), ...(b.color ? { color: b.color } : {}) };
+  // An element's own color also wins over the page's headings color (the --title-color variable).
+  const st = { ...titleFontVars(b.font), ...textFontStyle(b.textFont), ...(b.color ? { color: b.color, ["--title-color" as string]: b.color } : {}) };
   return Object.keys(st).length ? st : undefined;
 };
 
@@ -149,7 +150,7 @@ function TextSection({ block, dark }: { block: TextBlock; dark: boolean }) {
             block.card && "rounded-[2rem] px-6 py-7 backdrop-blur-md sm:px-8",
             block.card && (dark ? "bg-white/10" : "bg-card/85 shadow-soft"),
           )}
-          style={block.color ? { color: block.color } : undefined}
+          style={block.color ? ({ color: block.color, ["--title-color" as string]: block.color } as CSSProperties) : undefined}
         >
           {block.heading && <h2 className={cx("font-title leading-tight [text-wrap:balance]", s.h, block.body && "mb-3")}>{block.heading}</h2>}
           {block.body && <p className={cx("whitespace-pre-line leading-relaxed", s.p)}>{block.body}</p>}
@@ -231,7 +232,7 @@ function DetailsSection({ block, event, dark }: { block: DetailsBlock; event: Pu
     >
       {block.show.title && (
         <Reveal variant="up">
-          <h2 id="details-title" className="mb-8 text-center font-title text-4xl [text-wrap:balance] sm:text-5xl">
+          <h2 id="details-title" data-part="title" className="mb-8 text-center font-title text-4xl [text-wrap:balance] sm:text-5xl">
             {title}
           </h2>
         </Reveal>
@@ -268,6 +269,7 @@ function LiveSection({ block, event, dark, choiceRef }: { block: LiveBlock; even
             <Reveal variant="start" delay={100}>
               <Link
                 to={`/${event.code}/gallery`}
+                data-part="view"
                 className={cx(
                   "flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] border-2 px-6 py-8 text-center backdrop-blur-md transition-[background-color,transform] duration-200 active:scale-[0.99]",
                   dark ? "border-white/45 bg-white/10 hover:bg-white/20" : "border-primary bg-card/85 hover:bg-card",
@@ -284,7 +286,7 @@ function LiveSection({ block, event, dark, choiceRef }: { block: LiveBlock; even
           {show.upload && (
             <Reveal variant="end" delay={200}>
               {event.uploadsOpen && event.maintenance ? (
-                <div role="status" className={cx("flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 py-8 text-center", dark ? "bg-white/10" : "bg-card/80")}>
+                <div role="status" data-part="upload" className={cx("flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 py-8 text-center", dark ? "bg-white/10" : "bg-card/80")}>
                   <Wrench className="size-8" aria-hidden />
                   <span className="text-lg font-semibold">האתר בתחזוקה קצרה</span>
                   <span className="text-base opacity-85">נסו להעלות שוב בעוד כמה דקות</span>
@@ -292,6 +294,7 @@ function LiveSection({ block, event, dark, choiceRef }: { block: LiveBlock; even
               ) : event.uploadsOpen ? (
                 <Link
                   to={`/${event.code}/upload`}
+                  data-part="upload"
                   className={cx(
                     // Same glass card and icon tile as "view"; the accent border keeps it recognizable as the main action.
                     "flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] border-2 border-accent px-6 py-8 text-center backdrop-blur-md transition-[background-color,transform] duration-200 active:scale-[0.99]",
@@ -305,7 +308,7 @@ function LiveSection({ block, event, dark, choiceRef }: { block: LiveBlock; even
                   <span className="text-base opacity-85 [text-wrap:balance]">{t("uploadText")}</span>
                 </Link>
               ) : (
-                <div className={cx("flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 py-8 text-center", dark ? "bg-white/10" : "bg-card/80")}>
+                <div data-part="upload" className={cx("flex h-full min-h-44 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 py-8 text-center", dark ? "bg-white/10" : "bg-card/80")}>
                   <Lock className="size-8" aria-hidden />
                   <span className="text-lg font-semibold">ההעלאות לאירוע הזה סגורות</span>
                 </div>
@@ -344,12 +347,12 @@ function LiveStrip({ event, dark, block }: { event: PublicEvent; dark: boolean; 
       {(show.title || show.count) && (
         <Reveal variant="up" className={cx(show.strip && "mb-8")}>
           {show.title && (
-            <h2 id="live-title" className={cx("flex items-center justify-center gap-2 text-center font-title text-4xl [text-wrap:balance] sm:text-5xl", show.count && "mb-2")}>
+            <h2 id="live-title" data-part="title" className={cx("flex items-center justify-center gap-2 text-center font-title text-4xl [text-wrap:balance] sm:text-5xl", show.count && "mb-2")}>
               {t("title")}
             </h2>
           )}
           {show.count && (
-            <p className="flex items-center justify-center gap-2 text-base opacity-85" aria-live="polite">
+            <p data-part="count" className="flex items-center justify-center gap-2 text-base opacity-85" aria-live="polite">
               <Radio className="size-4 animate-pulse text-red-500" aria-hidden />
               {event.mediaCount > 0
                 ? `${event.mediaCount.toLocaleString("he-IL")} תמונות וסרטונים עד עכשיו`
@@ -359,14 +362,14 @@ function LiveStrip({ event, dark, block }: { event: PublicEvent; dark: boolean; 
         </Reveal>
       )}
       {!show.strip ? null : items === null ? (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-6" aria-hidden>
+        <div data-part="strip" className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-6" aria-hidden>
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="skeleton aspect-square rounded-xl" />
           ))}
         </div>
       ) : shown.length ? (
         <Reveal variant="up" delay={100}>
-          <Link to={`/${event.code}/gallery`} aria-label="פתיחת אלבום האירוע" className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-6">
+          <Link to={`/${event.code}/gallery`} data-part="strip" aria-label="פתיחת אלבום האירוע" className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-6">
             {shown.map((m, i) => (
               <span key={m.id} className={cx("relative block overflow-hidden rounded-xl bg-black/20 shadow-soft", i >= 6 && "max-sm:hidden", i >= 8 && "max-md:hidden")}>
                 <img src={thumbUrl(m, 240)!} alt="" loading="lazy" decoding="async" className="aspect-square w-full object-cover transition-transform duration-500 hover:scale-105" />
@@ -383,7 +386,7 @@ function LiveStrip({ event, dark, block }: { event: PublicEvent; dark: boolean; 
         </Reveal>
       ) : (
         <Reveal variant="up" delay={100}>
-          <div className={cx("mx-auto max-w-md rounded-[2rem] px-6 py-10 text-center backdrop-blur-md", dark ? "bg-white/10" : "bg-card/85 shadow-soft")}>
+          <div data-part="strip" className={cx("mx-auto max-w-md rounded-[2rem] px-6 py-10 text-center backdrop-blur-md", dark ? "bg-white/10" : "bg-card/85 shadow-soft")}>
             <Camera className="mx-auto mb-3 size-10 opacity-80" aria-hidden />
             <p className={cx("text-xl [text-wrap:balance]", block.font ? "font-title" : "font-bold")}>{t("emptyTitle")}</p>
             <p className="mt-1 opacity-85 [text-wrap:balance]">{t("emptyText")}</p>

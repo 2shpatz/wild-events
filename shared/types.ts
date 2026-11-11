@@ -24,6 +24,8 @@ export interface PublicEvent {
   bgVersion: string | null;
   /** extra scroll at the end of the guest page that shows the whole background image (off by default) */
   bgReveal: boolean;
+  /** framing of the background picture: focal point in % (CSS background-position; 50/50 = centered) + zoom (1-3) */
+  bgPos: BgPos;
   /** header image that accompanies guests across the event pages */
   headerVersion: string | null;
   /** the invitation card image uploaded by the host, shown above the event details */
@@ -51,6 +53,9 @@ export interface PublicEvent {
   /** The event is moving to another Google account: uploads pause, viewing keeps working. */
   maintenance?: boolean;
 }
+
+export type BgPos = { x: number; y: number; zoom: number };
+export const MAX_BG_ZOOM = 3;
 
 /** A message on the message board ("לוח ברכות"). */
 export interface BoardMessage {

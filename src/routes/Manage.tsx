@@ -16,6 +16,7 @@ import { MusicTab } from "../components/manage/MusicTab";
 import { ImportFromGoogle } from "../components/manage/ImportFromGoogle";
 import { Card, LinkButton, cx } from "../components/ui";
 import { useManagePatch } from "../components/manage/useManagePatch";
+import { ManageFeedContext } from "../components/manage/feedContext";
 
 type Tab = "share" | "media" | "albums" | "design" | "music" | "settings";
 
@@ -47,7 +48,11 @@ export default function Manage() {
   }, [load, feed.eventVersion]);
 
   if (!event) return <EventStatus error={error} loading />;
-  return <ManageView event={event} code={code} tab={tab} feed={feed} load={load} setParams={setParams} />;
+  return (
+    <ManageFeedContext.Provider value={feed}>
+      <ManageView event={event} code={code} tab={tab} feed={feed} load={load} setParams={setParams} />
+    </ManageFeedContext.Provider>
+  );
 }
 
 function ManageView({

@@ -1,16 +1,16 @@
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../env";
-import { changeStmt, cleanName, cleanTime, createEventAlbum, eventByCode, eventTracks, listAlbums, normName, toPublicEvent, type AlbumRow, type EventRow, type TrackRow } from "../lib/db";
+import { changeStmt, cleanName, cleanTime, createEventAlbum, ensureUrls, eventByCode, eventTracks, listAlbums, normName, toPublicEvent, type AlbumRow, type EventRow, type MediaRow, type TrackRow } from "../lib/db";
 import { canManage, rateLimit } from "../lib/session";
 import { hashPassword, sha256 } from "../lib/crypto";
 import { hideMedia } from "../lib/media";
-import { driveDelete, driveEnsureFolder, driveUpload, GoogleError, renameAlbum } from "../lib/google";
+import { driveDelete, driveEnsureFolder, driveUpload, GoogleError, mediaDownload, renameAlbum } from "../lib/google";
 import { slugTaken } from "./owner";
 import { accountInfo, accountStorage, assertNotMigrating, eventRef, eventToken, MUSIC_FOLDER, musicFolder, setMusicFolder, tokenForRef } from "../lib/accounts";
 import { latestMigration } from "../lib/migration";
 import { isValidSlug } from "../../shared/slug";
-import { MAX_FEATURED, type EventType, type ManageEvent } from "../../shared/types";
+import { MAX_BG_ZOOM, MAX_FEATURED, type EventType, type ManageEvent } from "../../shared/types";
 import { MAX_IMAGES, checklistIds, parseDesign, sanitizeDesign, usedImageSlots } from "../../shared/design";
 import { AUDIO_MIME_RE, MAX_TRACK_BYTES, MAX_UPLOADED_TRACKS, parseMusic, sanitizeMusic } from "../../shared/music";
 
@@ -78,6 +78,14 @@ manage.patch("/e/:code/manage", async (c) => {
   if (typeof b.shareText === "string" || b.shareText === null)
     set("share_text", (b.shareText ?? "").normalize("NFKC").replace(/\r\n?/g, "\n").trim().slice(0, 500) || null);
   if (typeof b.bgReveal === "boolean") set("bg_reveal", b.bgReveal ? 1 : 0);
+  if (b.bgPos !== undefined) {
+    const p = b.bgPos as { x?: unknown; y?: unknown; zoom?: unknown } | null;
+    const pct = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? Math.round(Math.min(100, Math.max(0, n)) * 10) / 10 : 50);
+    const x = pct(p?.x);
+    const y = pct(p?.y);
+    const zoom = typeof p?.zoom === "number" && Number.isFinite(p.zoom) ? Math.round(Math.min(MAX_BG_ZOOM, Math.max(1, p.zoom)) * 100) / 100 : 1;
+    set("bg_pos", x === 50 && y === 50 && zoom === 1 ? null : `${x},${y},${zoom}`);
+  }
   if (b.quality === "compressed" || b.quality === "original") set("quality", b.quality);
   if (typeof b.keepGps === "boolean") set("keep_gps", b.keepGps ? 1 : 0);
   if (VIEWS.includes(b.defaultView)) set("default_view", b.defaultView);
@@ -179,6 +187,41 @@ manage.put("/e/:code/manage/featured/:slot", async (c) => {
     changeStmt(c.env, ev.id, "event", null),
   ]);
   return c.json({ ok: true, v: img.etag });
+});
+
+/**
+ * A featured photo copied from the event's own album (a photo a guest or the hosts uploaded): a resized copy is
+ * downloaded from Google and kept like an uploaded one, so it stays even if the item is later hidden from the album.
+ */
+manage.post("/e/:code/manage/featured/:slot/from-media", async (c) => {
+  const ev = await managedEvent(c);
+  const slot = Number(c.req.param("slot"));
+  if (!Number.isInteger(slot) || slot < 0 || slot >= MAX_FEATURED) throw new HTTPException(400, { message: "bad_slot" });
+  const { mediaId } = await c.req.json<{ mediaId?: string }>();
+  const row = await c.env.DB.prepare("SELECT * FROM media WHERE id = ? AND event_id = ? AND hidden = 0 AND processing = 0 AND kind = 'photo'")
+    .bind(String(mediaId || ""), ev.id)
+    .first<MediaRow>();
+  if (!row) throw new HTTPException(404, { message: "not_found" });
+  const [fresh] = await ensureUrls(c.env, ev, [row]);
+  if (!fresh?.base_url) throw new HTTPException(404, { message: "not_found" });
+  const token = await tokenForRef(c.env, ev.owner_id, fresh.account_ref || eventRef(ev));
+  // Same size as the featured photos uploaded from a phone (1600px); smaller if Google's copy is still too big for D1.
+  let img: { mime: string; data: ArrayBuffer } | null = null;
+  for (const edge of [1600, 1200, 900]) {
+    const res = await mediaDownload(token, fresh.base_url, `=w${edge}-h${edge}`);
+    const data = await res.arrayBuffer();
+    if (data.byteLength <= 900 * 1024) {
+      img = { mime: res.headers.get("Content-Type")?.split(";")[0] || "image/jpeg", data };
+      break;
+    }
+  }
+  if (!img) throw new HTTPException(413, { message: "too_large" });
+  const etag = `"${await sha256(img.data)}"`;
+  await c.env.DB.batch([
+    c.env.DB.prepare("INSERT OR REPLACE INTO event_assets (event_id, kind, mime, data, etag) VALUES (?, ?, ?, ?, ?)").bind(ev.id, `f${slot}`, img.mime, img.data, etag),
+    changeStmt(c.env, ev.id, "event", null),
+  ]);
+  return c.json({ ok: true, v: etag });
 });
 
 manage.delete("/e/:code/manage/featured/:slot", async (c) => {

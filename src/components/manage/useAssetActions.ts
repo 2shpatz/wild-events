@@ -45,6 +45,20 @@ export function useAssetActions(event: ManageEvent, onChanged: () => void) {
         }
         onChanged();
       },
+      /** Copies photos from the event's album into the free featured slots (the server downloads them from Google). */
+      addFeaturedFromMedia: async (ids: string[]) => {
+        const used = new Set(event.featured.map((f) => f.slot));
+        const free = Array.from({ length: MAX_FEATURED }, (_, i) => i).filter((i) => !used.has(i));
+        try {
+          for (let i = 0; i < ids.length && i < free.length; i++) {
+            await api(`/e/${event.code}/manage/featured/${free[i]}/from-media`, { method: "POST", json: { mediaId: ids[i] } });
+          }
+          toast("התמונות המייצגות נוספו");
+        } catch (e) {
+          toast(errorMessage(e), "error");
+        }
+        onChanged();
+      },
       removeFeatured: (slot: number) => del(`featured/${slot}`),
     };
   }, [event.code, event.headerVersion, event.invitationVersion, event.featured, onChanged, toast]);

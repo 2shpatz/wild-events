@@ -54,7 +54,7 @@ export const EventHero = forwardRef<
       {headerImg && (
         <Reveal variant="scale" delay={0} className="mb-6 w-full max-w-5xl [@media(max-height:640px)]:mb-4">
           {/* Wide frame with rounded corners; the image is cropped around the hosts' chosen focal point (hero.headerPos). */}
-          <div className="relative aspect-[3/2] w-full overflow-hidden rounded-3xl shadow-[0_24px_60px_rgb(0_0_0/0.4)] ring-1 ring-white/30 sm:aspect-[16/9] lg:aspect-[21/9] lg:max-h-[48dvh] [@media(max-height:640px)]:aspect-[21/9]">
+          <div data-part="header" className="relative aspect-[3/2] w-full overflow-hidden rounded-3xl shadow-[0_24px_60px_rgb(0_0_0/0.4)] ring-1 ring-white/30 sm:aspect-[16/9] lg:aspect-[21/9] lg:max-h-[48dvh] [@media(max-height:640px)]:aspect-[21/9]">
             <img
               src={headerImg}
               alt={`תמונת הכותרת של ${event.title}`}
@@ -76,28 +76,30 @@ export const EventHero = forwardRef<
       </Reveal>
       {hero.show.subtitle && event.subtitle && (
         <Reveal variant="up" delay={300}>
-          <p className="mt-3 max-w-xl text-xl opacity-90 [text-wrap:balance]" style={text}>
+          <p data-part="subtitle" className="mt-3 max-w-xl text-xl opacity-90 [text-wrap:balance]" style={text}>
             {event.subtitle}
           </p>
         </Reveal>
       )}
       {hero.show.date && event.date && (
         <Reveal variant="up" delay={420}>
-          <EventDate iso={event.date} style={hero.dateStyle} color={hero.textColor} />
+          <div data-part="date">
+            <EventDate iso={event.date} style={hero.dateStyle} color={hero.textColor} />
+          </div>
         </Reveal>
       )}
       {showInfo && (
         <Reveal variant="fade" delay={520}>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-lg" style={text}>
             {showTime && (
-              <span className="inline-flex items-center gap-1.5 font-semibold">
+              <span data-part="time" className="inline-flex items-center gap-1.5 font-semibold">
                 <Clock className="size-5" aria-hidden />
                 בשעה {event.time}
               </span>
             )}
-            {showCountdown && <span className={cx("rounded-full px-3 py-0.5 text-base font-bold", dark ? "bg-white/20" : "bg-accent text-on-accent")}>{soon}</span>}
+            {showCountdown && <span data-part="countdown" className={cx("rounded-full px-3 py-0.5 text-base font-bold", dark ? "bg-white/20" : "bg-accent text-on-accent")}>{soon}</span>}
             {showVenue && (
-              <button type="button" onClick={onVenue} className="inline-flex min-h-11 items-center gap-1.5 font-semibold underline decoration-current/40 underline-offset-4 hover:decoration-current">
+              <button type="button" data-part="venue" onClick={onVenue} className="inline-flex min-h-11 items-center gap-1.5 font-semibold underline decoration-current/40 underline-offset-4 hover:decoration-current">
                 <MapPin className="size-5" aria-hidden />
                 {event.venueName || event.venueAddress}
               </button>
@@ -108,7 +110,7 @@ export const EventHero = forwardRef<
 
       {hero.show.welcome && event.welcome && (
         <Reveal variant="up" delay={620} className="mt-7 w-full max-w-xl">
-          <blockquote className={cx("relative rounded-[2rem] px-6 pb-6 pt-8 text-center backdrop-blur-md sm:px-8", dark ? "bg-white/10" : "bg-card/80 shadow-soft")} style={text}>
+          <blockquote data-part="welcome" className={cx("relative rounded-[2rem] px-6 pb-6 pt-8 text-center backdrop-blur-md sm:px-8", dark ? "bg-white/10" : "bg-card/80 shadow-soft")} style={text}>
             <Quote className="absolute -top-4 left-1/2 size-8 -translate-x-1/2 rounded-full bg-accent p-1.5 text-on-accent" aria-hidden />
             <p className="whitespace-pre-line font-display text-xl leading-relaxed sm:text-2xl">{event.welcome}</p>
           </blockquote>

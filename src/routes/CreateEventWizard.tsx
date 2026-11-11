@@ -190,6 +190,7 @@ export default function CreateEventWizard() {
       background: background === "custom" ? null : background,
       bgVersion: null,
       bgReveal: false,
+      bgPos: { x: 50, y: 50, zoom: 1 },
       headerVersion: null,
       invitationVersion: null,
       featured: [],

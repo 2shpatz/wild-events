@@ -25,6 +25,7 @@ export interface EventRow {
   background: string | null;
   /** 1 = extra scroll at the end of the guest page that reveals the whole background image */
   bg_reveal: number;
+  bg_pos: string | null;
   quality: string;
   keep_gps: number;
   admin_password_hash: string | null;
@@ -107,6 +108,14 @@ export async function eventByCode(env: Env, code: string): Promise<EventRow> {
   if (ev.owner_archived) throw new HTTPException(410, { message: "event_unavailable" });
   delete (ev as { owner_archived?: unknown }).owner_archived;
   return ev;
+}
+
+/** "x,y,zoom" (stored) → focal point in % + zoom; anything else = centered, no zoom. */
+export function parseBgPos(v: string | null | undefined): { x: number; y: number; zoom: number } {
+  const [x, y, z] = (v || "").split(",").map(Number);
+  const ok = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
+  const zoom = Number.isFinite(z) && z >= 1 && z <= 3 ? z : 1;
+  return ok(x) && ok(y) ? { x, y, zoom } : { x: 50, y: 50, zoom };
 }
 
 export function normName(name: string) {
@@ -199,6 +208,7 @@ export async function toPublicEvent(
     background: ev.background,
     bgVersion: ev.background === "custom" ? assets.bg : null,
     bgReveal: !!ev.bg_reveal,
+    bgPos: parseBgPos(ev.bg_pos),
     headerVersion: assets.header,
     invitationVersion: assets.invitation,
     featured: assets.featured,

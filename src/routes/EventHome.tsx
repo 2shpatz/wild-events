@@ -87,9 +87,15 @@ export default function EventHome() {
   const after = visible(design.after);
   const ctx: BlockCtx = { event, dark, preview: preview.active, choiceRef: choice };
   // The page's fonts for the elements' other headings and their text (an element's own choice wins - it is set deeper).
-  const pageFonts = { display: "contents", ...titleFontVars(design.pagesFont), ...textFontStyle(design.textFont) };
+  const pageFonts = {
+    display: "contents",
+    ...titleFontVars(design.pagesFont),
+    ...textFontStyle(design.textFont),
+    ...(design.bodyColor ? { color: design.bodyColor } : {}),
+    ...(design.headingsColor ? { ["--title-color" as string]: design.headingsColor } : {}),
+  } as React.CSSProperties;
   const renderBlocks = (list: Block[]) => (
-    <div style={pageFonts}>
+    <div style={pageFonts} data-headings-color={design.headingsColor ? "" : undefined}>
       {list.map((b) => (
         <div key={b.id} data-block-id={b.id} data-selected={selected === b.id || undefined}>
           <EventBlock block={b} ctx={ctx} />
@@ -212,7 +218,7 @@ export default function EventHome() {
 
       {/* Fixed, clipped background layer (parallax = decorative layer only). */}
       <div className="fixed inset-0 -z-10 overflow-hidden" aria-hidden>
-        <div className={cx("absolute inset-x-0 -top-[5%] h-[175%]", bg.className)} style={{ ...bg.style, transform: `translate3d(0, ${parallax}px, 0)` }} />
+        <div className={cx("absolute inset-x-0 -top-[5%] h-[175%]", bg.className)} style={{ ...bg.style, transform: `translate3d(0, ${parallax}px, 0) ${bg.style.transform ?? ""}` }} />
         {event.background === "custom" && <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" style={{ opacity: 1 - reveal }} />}
         <div className="absolute inset-0 bg-black transition-opacity duration-150" style={{ opacity: dark ? scrim : scrim * 0.25 }} />
         {event.bgReveal && event.background === "custom" && reveal > 0 && (
