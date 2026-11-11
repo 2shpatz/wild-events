@@ -33,6 +33,7 @@ export default function EventHome() {
   const choice = useRef<HTMLDivElement>(null);
   const hero = useRef<HTMLElement>(null);
   const revealZone = useRef<HTMLDivElement>(null);
+  const bottomBar = useRef<HTMLElement>(null);
   const choiceVisible = useInView(choice);
   const event = preview.draft?.event ?? fetched;
   const design = preview.draft?.design ?? event?.design;
@@ -169,6 +170,7 @@ export default function EventHome() {
       {/* Mobile: sticky primary actions in the thumb zone (hidden while the big Upload / View cards are on screen).
           Both buttons share one glass style; upload is marked by a frame in the banner's text color. */}
       <nav
+        ref={bottomBar}
         aria-label="פעולות מהירות"
         className={cx(
           "fixed inset-x-0 bottom-0 z-30 border-t border-white/15 bg-zinc-950/70 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md transition-[transform,opacity] duration-300 sm:hidden",
@@ -216,6 +218,8 @@ export default function EventHome() {
           )}
         </div>
       </nav>
+      {/* With the bottom banner on, the page can scroll past it - the end of the page (and the site footer) stays reachable. */}
+      <ReserveBottomSpace target={bottomBar} enabled={bottom.show && (bottomUpload || bottom.view || jumps.length > 0)} />
 
       {/* Fixed, clipped background layer (parallax = decorative layer only). */}
       <div className="fixed inset-0 -z-10 overflow-hidden" aria-hidden>
@@ -290,4 +294,27 @@ function useInView(ref: RefObject<HTMLElement | null>) {
     return () => io.disconnect();
   }, [el]);
   return v;
+}
+
+/**
+ * While the phone bottom banner is enabled, pads the end of the document by its height, so scrolling can go past it
+ * and nothing at the bottom of the page (the site footer included) stays hidden under it. 0 where the banner isn't
+ * displayed (larger screens: it is display:none).
+ */
+function ReserveBottomSpace({ target, enabled }: { target: RefObject<HTMLElement | null>; enabled: boolean }) {
+  useEffect(() => {
+    const el = target.current;
+    if (!enabled || !el) return;
+    const apply = () => {
+      document.body.style.paddingBottom = el.offsetHeight ? `${el.offsetHeight}px` : "";
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.body.style.paddingBottom = "";
+    };
+  }, [target, enabled]);
+  return null;
 }
