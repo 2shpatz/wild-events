@@ -8,6 +8,7 @@ import { timeAgo } from "../../lib/format";
 import { Button, ConfirmDialog, IconButton, Modal, cx, inputClass } from "../ui";
 import { Reveal } from "../Reveal";
 import { blockStyle } from "./EventBlocks";
+import { useScrollAfter } from "../../lib/useScrollAfter";
 
 type Page = { messages: BoardMessage[]; more: boolean };
 
@@ -68,6 +69,7 @@ export function MessageBoard({ block, event, dark, preview }: { block: MessagesB
 
   const card = dark ? "bg-white/10" : "bg-card/85 shadow-soft";
   const colors = useMemo(() => guestColors(list ?? []), [list]);
+  const scroll = useScrollAfter<HTMLUListElement>(block.visible, [list, more]);
   // Just a "+" (its text is the accessible name and the writing window's title).
   const addButton = (
     <button
@@ -115,8 +117,10 @@ export function MessageBoard({ block, event, dark, preview }: { block: MessagesB
             </div>
             {/* Scrolls inside its own box so a long board doesn't push the rest of the page far away. */}
             <ul
-              className="max-h-[34rem] space-y-3 overflow-y-auto overscroll-contain rounded-3xl p-1 [scrollbar-width:thin]"
-              tabIndex={0}
+              ref={scroll.ref}
+              style={scroll.style}
+              className={cx("space-y-3 rounded-3xl p-1", scroll.scrolls && "overflow-y-auto overscroll-contain [scrollbar-width:thin]")}
+              tabIndex={scroll.scrolls ? 0 : undefined}
               aria-label={`ההודעות ב${t("title")}`}
               data-preview-interactive
             >
@@ -124,7 +128,7 @@ export function MessageBoard({ block, event, dark, preview }: { block: MessagesB
                 const c = colors.get(m.by || m.name) ?? GUEST_COLORS[0];
                 return (
                   // Each guest's messages share a color; a light card with dark text stays readable over any background.
-                  <li key={m.id} className="rounded-3xl border-s-[6px] px-5 py-4 shadow-soft" style={{ backgroundColor: c.bg, borderColor: c.accent, color: "#1f2937" }}>
+                  <li key={m.id} data-list-item className="rounded-3xl border-s-[6px] px-5 py-4 shadow-soft" style={{ backgroundColor: c.bg, borderColor: c.accent, color: "#1f2937" }}>
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="flex flex-wrap items-baseline gap-x-2">

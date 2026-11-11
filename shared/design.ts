@@ -134,7 +134,9 @@ export type FeaturedLayout = (typeof FEATURED_LAYOUTS)[number];
 export type FeaturedBlock = BlockBase & { type: "featured"; layout: FeaturedLayout };
 /** Not a singleton: a page may link several groups (e.g. one per family). */
 export type WhatsAppBlock = BlockBase & BlockStyle & { type: "whatsapp"; url: string; texts: Record<WhatsAppText, string | null> };
-export type MessagesBlock = BlockBase & BlockStyle & { type: "messages"; texts: Record<MessagesText, string | null> };
+/** How many items a list shows before it scrolls inside its box (message board / checklist). */
+export const VISIBLE_ITEMS = { min: 1, max: 20, default: 5 } as const;
+export type MessagesBlock = BlockBase & BlockStyle & { type: "messages"; texts: Record<MessagesText, string | null>; visible: number };
 /**
  * Not a singleton: a page may hold several lists. The items live in the checklist_items table (list_id = the block id);
  * the hosts choose separately whether guests may tick, add and delete items.
@@ -148,6 +150,8 @@ export type ChecklistBlock = BlockBase &
     guestsDelete: boolean;
     /** a quick-jump button to the list in the bottom banner (phones) */
     inBar: boolean;
+    /** items shown before the list scrolls */
+    visible: number;
   };
 
 export type SingletonBlock = (BlockBase & { type: "invitation" }) | FeaturedBlock | DetailsBlock | LiveBlock | MessagesBlock;
@@ -197,7 +201,7 @@ export function singletonBlock(type: SingletonType, id: string): SingletonBlock 
   if (type === "details") return { id, type, show: allOn(DETAILS_PARTS), texts: allNull(Object.keys(DETAILS_TEXTS) as DetailsText[]), font: null, textFont: null, color: null };
   if (type === "live") return { id, type, show: allOn(LIVE_PARTS), texts: allNull(Object.keys(LIVE_TEXTS) as LiveText[]), font: null, textFont: null, color: null };
   if (type === "featured") return { id, type, layout: "grid" };
-  if (type === "messages") return { id, type, texts: allNull(Object.keys(MESSAGES_TEXTS) as MessagesText[]), font: null, textFont: null, color: null };
+  if (type === "messages") return { id, type, texts: allNull(Object.keys(MESSAGES_TEXTS) as MessagesText[]), visible: VISIBLE_ITEMS.default, font: null, textFont: null, color: null };
   return { id, type };
 }
 
@@ -259,7 +263,7 @@ export function newBlock(type: BlockType, slot = 0): Block {
   if (type === "image") return { id, type, slot, caption: "", shape: "card", font: null, textFont: null, color: null };
   if (type === "whatsapp") return { id, type, url: "", texts: allNull(Object.keys(WHATSAPP_TEXTS) as WhatsAppText[]), font: null, textFont: null, color: null };
   if (type === "checklist")
-    return { id, type, texts: allNull(Object.keys(CHECKLIST_TEXTS) as ChecklistText[]), guestsTick: false, guestsAdd: false, guestsDelete: false, inBar: false, font: null, textFont: null, color: null };
+    return { id, type, texts: allNull(Object.keys(CHECKLIST_TEXTS) as ChecklistText[]), guestsTick: false, guestsAdd: false, guestsDelete: false, inBar: false, visible: VISIBLE_ITEMS.default, font: null, textFont: null, color: null };
   return singletonBlock(type, id);
 }
 
@@ -275,6 +279,8 @@ const text = (v: unknown, max: number, multiline = false) => {
 };
 const percent = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.round(Math.min(100, Math.max(0, v)) * 10) / 10 : 50);
 const font = (v: unknown) => (isKnownFont(v) ? v : null);
+const visibleItems = (v: unknown) =>
+  typeof v === "number" && Number.isFinite(v) ? Math.round(Math.min(VISIBLE_ITEMS.max, Math.max(VISIBLE_ITEMS.min, v))) : VISIBLE_ITEMS.default;
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 /** Editable texts of a block: each known key, trimmed to its max length; "" = null (the default). */
 const partTexts = <K extends keyof typeof PART_TEXT_MAX>(v: unknown, keys: readonly K[]) => {
@@ -363,6 +369,7 @@ function sanitizeBlock(input: unknown, seen: { ids: Set<string>; singles: Set<st
       guestsAdd: bool(b.guestsAdd, edit),
       guestsDelete: bool(b.guestsDelete, edit),
       inBar: bool(b.inBar, false),
+      visible: visibleItems(b.visible),
       font: font(b.font),
       textFont: font(b.textFont),
       color: color(b.color),
@@ -388,7 +395,8 @@ function sanitizeBlock(input: unknown, seen: { ids: Set<string>; singles: Set<st
         color: color(b.color),
       } as DetailsBlock | LiveBlock;
     }
-    if (out.type === "messages") out = { ...out, texts: partTexts(b.texts, Object.keys(MESSAGES_TEXTS) as MessagesText[]), font: font(b.font), textFont: font(b.textFont), color: color(b.color) };
+    if (out.type === "messages")
+      out = { ...out, texts: partTexts(b.texts, Object.keys(MESSAGES_TEXTS) as MessagesText[]), visible: visibleItems(b.visible), font: font(b.font), textFont: font(b.textFont), color: color(b.color) };
 
   }
   if (out) seen.ids.add(id);

@@ -133,17 +133,40 @@ async function listSetup(c: Context<AppEnv>) {
   return { ev, manager, block, listId, legacy };
 }
 
-type ItemRow = { id: string; text: string; done: number; done_by: string | null; added_by: string | null };
+type ItemRow = { id: string; text: string; done: number; done_by: string | null; added_by: string | null; device_id: string | null };
 type ListCtx = { ev: EventRow; listId: string; legacy: number };
 /** This list's items: list_id matches, or (first list only) the old items without a list. */
-const IN_LIST = "event_id = ? AND (list_id = ? OR (list_id IS NULL AND ? = 1))";
+const IN_LIST = "event_id = ? AND (list_id = ? OR (list_id IS NULL AND ? = 1)) AND deleted_at IS NULL";
+/** How long a deleted item can still be brought back. */
+const UNDO_MS = 10 * 60_000;
 const listArgs = (l: ListCtx) => [l.ev.id, l.listId, l.legacy];
 
 async function listItems(c: Context<AppEnv>, l: ListCtx): Promise<ChecklistItem[]> {
-  const res = await c.env.DB.prepare(`SELECT id, text, done, done_by, added_by FROM checklist_items WHERE ${IN_LIST} ORDER BY position, created_at`)
+  const res = await c.env.DB.prepare(`SELECT id, text, done, done_by, added_by, device_id FROM checklist_items WHERE ${IN_LIST} ORDER BY position, created_at`)
     .bind(...listArgs(l))
     .all<ItemRow>();
-  return res.results.map((r) => ({ id: r.id, text: r.text, done: !!r.done, doneBy: r.done ? r.done_by : null, addedBy: r.added_by }));
+  const device = deviceOf(c);
+  return res.results.map((r) => ({
+    id: r.id,
+    text: r.text,
+    done: !!r.done,
+    doneBy: r.done ? r.done_by : null,
+    addedBy: r.added_by,
+    mine: !!device && r.device_id === device,
+  }));
+}
+
+/**
+ * May this visitor delete (or undo deleting) the item? Hosts, guests when the list allows deleting - and anyone
+ * may always remove an item they added themselves (from the same device).
+ */
+async function mayDelete(c: Context<AppEnv>, l: ListCtx & { manager: boolean; block: ChecklistBlock | null }, itemId: string) {
+  if (l.manager || l.block?.guestsDelete) return true;
+  if (!l.block) return false;
+  const device = deviceOf(c);
+  if (!device) return false;
+  const row = await c.env.DB.prepare("SELECT device_id FROM checklist_items WHERE id = ? AND event_id = ?").bind(itemId, l.ev.id).first<{ device_id: string | null }>();
+  return !!row && row.device_id === device;
 }
 
 const guestName = (v: unknown) => cleanName(typeof v === "string" ? v : "", 40) || null;
@@ -198,10 +221,25 @@ board.patch("/e/:code/checklist/:list/:id", async (c) => {
 
 board.delete("/e/:code/checklist/:list/:id", async (c) => {
   const l = await listSetup(c);
-  const { ev, manager, block } = l;
-  if (!manager && !block?.guestsDelete) throw new HTTPException(403, { message: "not_allowed" });
+  const { ev, manager } = l;
+  if (!(await mayDelete(c, l, c.req.param("id")!))) throw new HTTPException(403, { message: "not_allowed" });
   if (!manager) await guestLimits(c, ev, "todo", requireDevice(c), 30, 600);
-  await c.env.DB.prepare(`DELETE FROM checklist_items WHERE id = ? AND ${IN_LIST}`).bind(c.req.param("id"), ...listArgs(l)).run();
+  // Only marked (the undo below brings it back); the daily cleanup removes it for good.
+  await c.env.DB.prepare(`UPDATE checklist_items SET deleted_at = ? WHERE id = ? AND ${IN_LIST}`).bind(Date.now(), c.req.param("id"), ...listArgs(l)).run();
+  return c.json({ items: await listItems(c, l) });
+});
+
+/** Undo a delete (whoever may delete may undo), for a few minutes after it. */
+board.post("/e/:code/checklist/:list/:id/restore", async (c) => {
+  const l = await listSetup(c);
+  const { ev, manager } = l;
+  if (!(await mayDelete(c, l, c.req.param("id")!))) throw new HTTPException(403, { message: "not_allowed" });
+  if (!manager) await guestLimits(c, ev, "todo", requireDevice(c), 30, 600);
+  await c.env.DB.prepare(
+    "UPDATE checklist_items SET deleted_at = NULL WHERE id = ? AND event_id = ? AND (list_id = ? OR (list_id IS NULL AND ? = 1)) AND deleted_at > ?",
+  )
+    .bind(c.req.param("id"), ev.id, l.listId, l.legacy, Date.now() - UNDO_MS)
+    .run();
   return c.json({ items: await listItems(c, l) });
 });
 

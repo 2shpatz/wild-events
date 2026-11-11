@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Minus, Plus, Trash2, Undo2 } from "lucide-react";
 import {
   CHECKLIST_ITEM_MAX,
   CHECKLIST_TEXTS,
+  VISIBLE_ITEMS,
   MESSAGES_TEXTS,
   PART_TEXT_MAX,
   WHATSAPP_TEXTS,
@@ -14,9 +15,36 @@ import {
 import type { BoardMessage, ChecklistItem, ManageEvent } from "../../../../shared/types";
 import { api, errorMessage } from "../../../lib/api";
 import { timeAgo } from "../../../lib/format";
+import { useLastDeleted } from "../../../lib/useLastDeleted";
 import { Button, ConfirmDialog, Field, IconButton, Spinner, cx, inputClass } from "../../ui";
 import { Toggle } from "../Toggle";
 import { PartText } from "./PartsFields";
+
+// ------------------------------------------------------------------ list length
+
+/** "כמה פריטים לפני גלילה": the list shows this many items, then scrolls inside its box. */
+function VisibleItemsField({ id, value, onChange, noun }: { id: string; value: number; onChange: (n: number) => void; noun: string }) {
+  const set = (n: number) => onChange(Math.min(VISIBLE_ITEMS.max, Math.max(VISIBLE_ITEMS.min, n)));
+  return (
+    <div className="space-y-2">
+      <p id={id} className="font-semibold">
+        כמה {noun} יוצגו לפני גלילה
+      </p>
+      <div role="group" aria-labelledby={id} className="flex items-center gap-3">
+        <IconButton label={`פחות ${noun}`} onClick={() => set(value - 1)} disabled={value <= VISIBLE_ITEMS.min} className="border border-border bg-card disabled:opacity-40">
+          <Minus className="size-5" aria-hidden />
+        </IconButton>
+        <span className="min-w-8 text-center text-xl font-bold tabular-nums" aria-live="polite">
+          {value}
+        </span>
+        <IconButton label={`יותר ${noun}`} onClick={() => set(value + 1)} disabled={value >= VISIBLE_ITEMS.max} className="border border-border bg-card disabled:opacity-40">
+          <Plus className="size-5" aria-hidden />
+        </IconButton>
+      </div>
+      <p className="text-sm text-muted-fg">מעבר לזה הרשימה נגללת בתוך המסגרת שלה, כדי שלא תדחוף את שאר העמוד רחוק למטה.</p>
+    </div>
+  );
+}
 
 // ------------------------------------------------------------------ WhatsApp group
 
@@ -73,6 +101,7 @@ export function MessagesFields({ event, block, update }: { event: ManageEvent; b
       <PartText id={`${block.id}-add`} label="כותרת חלון הכתיבה (הכפתור עצמו הוא פלוס)" value={block.texts.add} fallback={MESSAGES_TEXTS.add} max={PART_TEXT_MAX.add} onChange={text("add")} />
       <PartText id={`${block.id}-prompt`} label="ההזמנה לכתוב (מעל תיבת הטקסט)" value={block.texts.prompt} fallback={MESSAGES_TEXTS.prompt} max={PART_TEXT_MAX.prompt} onChange={text("prompt")} />
       <PartText id={`${block.id}-button`} label="הטקסט על כפתור השליחה" value={block.texts.button} fallback={MESSAGES_TEXTS.button} max={PART_TEXT_MAX.button} onChange={text("button")} />
+      <VisibleItemsField id={`${block.id}-visible`} value={block.visible} onChange={(visible) => update({ visible })} noun="הודעות" />
       <Moderation code={event.code} />
     </>
   );
@@ -193,11 +222,12 @@ export function ChecklistFields({
         <legend className="px-1 font-semibold">מה האורחים יכולים לעשות</legend>
         <Toggle checked={block.guestsTick} onChange={(v) => update({ guestsTick: v })} label="לסמן שבוצע" hint={'ליד כל פריט שסומן יופיע "בוצע ע"י" והשם'} />
         <Toggle checked={block.guestsAdd} onChange={(v) => update({ guestsAdd: v })} label="להוסיף פריטים" hint={'ליד פריט שאורח הוסיף יופיע "נוסף ע"י" והשם'} />
-        <Toggle checked={block.guestsDelete} onChange={(v) => update({ guestsDelete: v })} label="למחוק פריטים" hint="כל אורח יוכל למחוק כל פריט ברשימה" />
+        <Toggle checked={block.guestsDelete} onChange={(v) => update({ guestsDelete: v })} label="למחוק פריטים" hint="כל אורח יוכל למחוק כל פריט ברשימה. גם כשזה כבוי, אורח תמיד יכול למחוק פריט שהוא עצמו הוסיף" />
         <p className="text-sm text-muted-fg">
           {block.guestsTick || block.guestsAdd || block.guestsDelete ? "ההרשאות נכנסות לתוקף כשתשמרו את העיצוב." : "כרגע האורחים רק רואים את הרשימה. אתם יכולים לסמן ולערוך כאן."}
         </p>
       </fieldset>
+      <VisibleItemsField id={`${block.id}-visible`} value={block.visible} onChange={(visible) => update({ visible })} noun="פריטים" />
       <Toggle
         checked={block.inBar}
         onChange={(v) => update({ inBar: v })}
@@ -233,6 +263,16 @@ function ItemsEditor({ code, listId, onChanged }: { code: string; listId: string
       return false;
     }
   };
+  const [lastDeleted, setLastDeleted] = useLastDeleted<ChecklistItem>();
+  const remove = async (it: ChecklistItem) => {
+    if (await call(`/${it.id}`, { method: "DELETE" }, true)) setLastDeleted(it);
+  };
+  const undo = async () => {
+    const it = lastDeleted;
+    if (!it) return;
+    setLastDeleted(null);
+    await call(`/${it.id}/restore`, { method: "POST" }, true);
+  };
   const move = (i: number, dir: -1 | 1) => {
     const ids = (items ?? []).map((x) => x.id);
     [ids[i], ids[i + dir]] = [ids[i + dir], ids[i]];
@@ -242,9 +282,16 @@ function ItemsEditor({ code, listId, onChanged }: { code: string; listId: string
 
   return (
     <section className="space-y-3 border-t border-border pt-5" aria-labelledby={`todo-items-${listId}`}>
-      <h4 id={`todo-items-${listId}`} className="font-semibold">
-        הפריטים ברשימה
-      </h4>
+      <div className="flex items-center justify-between gap-2">
+        <h4 id={`todo-items-${listId}`} className="font-semibold">
+          הפריטים ברשימה
+        </h4>
+        {lastDeleted && (
+          <IconButton label={`ביטול המחיקה של "${lastDeleted.text}"`} onClick={undo} className="border border-border bg-card hover:bg-fg/5">
+            <Undo2 className="size-5" aria-hidden />
+          </IconButton>
+        )}
+      </div>
       <p className="text-sm text-muted-fg">השינויים ברשימה נשמרים מיד.</p>
       {error && (
         <p className="text-sm font-medium text-destructive" role="alert">
@@ -284,7 +331,7 @@ function ItemsEditor({ code, listId, onChanged }: { code: string; listId: string
               <IconButton label={`הזזת "${it.text}" למטה`} disabled={i === items.length - 1} onClick={() => move(i, 1)} className="shrink-0 hover:bg-fg/5 disabled:opacity-30">
                 <ChevronDown className="size-5" aria-hidden />
               </IconButton>
-              <IconButton label={`מחיקת "${it.text}"`} onClick={() => call(`/${it.id}`, { method: "DELETE" }, true)} className="shrink-0 text-destructive hover:bg-destructive/10">
+              <IconButton label={`מחיקת "${it.text}"`} onClick={() => remove(it)} className="shrink-0 text-destructive hover:bg-destructive/10">
                 <Trash2 className="size-5" aria-hidden />
               </IconButton>
             </li>

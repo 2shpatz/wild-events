@@ -180,7 +180,7 @@ export async function toPublicEvent(
     .bind(ev.id)
     .first<{ m: number; a: number }>();
   const design = parseDesign(ev.design);
-  const lists = await env.DB.prepare("SELECT list_id, COUNT(*) AS n FROM checklist_items WHERE event_id = ? GROUP BY list_id")
+  const lists = await env.DB.prepare("SELECT list_id, COUNT(*) AS n FROM checklist_items WHERE event_id = ? AND deleted_at IS NULL GROUP BY list_id")
     .bind(ev.id)
     .all<{ list_id: string | null; n: number }>();
   // Items from before several lists existed (list_id NULL) belong to the first list.

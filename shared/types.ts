@@ -79,6 +79,8 @@ export interface ChecklistItem {
   doneBy: string | null;
   /** the guest who added it (null = the hosts) */
   addedBy: string | null;
+  /** added from this device - its guest may always remove it */
+  mine: boolean;
 }
 
 export interface PlayerTrack {

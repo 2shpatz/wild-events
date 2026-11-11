@@ -402,8 +402,45 @@ function MySongsCard({
   const [confirm, setConfirm] = useState<UploadedTrack | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const left = MAX_UPLOADED_TRACKS - event.uploadedTracks.length;
+  // Computer: songs can be dragged from the file manager onto this card (counted, so inner elements don't flicker it).
+  const [dragDepth, setDragDepth] = useState(0);
+  const hasFiles = (e: React.DragEvent) => [...e.dataTransfer.types].includes("Files");
+  const dropProps = {
+    onDragEnter: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      setDragDepth((d) => d + 1);
+    },
+    onDragOver: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = left > 0 && !pending ? "copy" : "none";
+    },
+    onDragLeave: (e: React.DragEvent) => hasFiles(e) && setDragDepth((d) => Math.max(0, d - 1)),
+    onDrop: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      setDragDepth(0);
+      if (pending) return toast("רגע, עוד מעלים את השירים הקודמים", "info");
+      if (left <= 0) return toast(errorMessage(new ApiError(409, "too_many_tracks")), "error");
+      pick(e.dataTransfer.files);
+    },
+  };
 
-  const pick = async (files: FileList | null) => {
+  // A song dropped next to the card must not make the browser open the file (and leave the unsaved playlist).
+  useEffect(() => {
+    const block = (e: DragEvent) => {
+      if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) e.preventDefault();
+    };
+    window.addEventListener("dragover", block);
+    window.addEventListener("drop", block);
+    return () => {
+      window.removeEventListener("dragover", block);
+      window.removeEventListener("drop", block);
+    };
+  }, []);
+
+  const pick = async (files: FileList | File[] | null) => {
     const list = [...(files ?? [])].slice(0, Math.max(0, left));
     if (input.current) input.current.value = "";
     let added = 0;
@@ -463,6 +500,7 @@ function MySongsCard({
   };
 
   return (
+    <div {...dropProps} className="relative">
     <Card className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -503,8 +541,21 @@ function MySongsCard({
         </div>
       )}
 
+      {/* Mouse devices: a visible drop zone (the whole card accepts dropped songs). */}
+      {left > 0 && (
+        <button
+          type="button"
+          onClick={() => input.current?.click()}
+          disabled={!!pending}
+          className="hidden w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border px-4 py-5 text-center text-muted-fg transition-colors duration-200 hover:border-accent hover:text-fg [@media(pointer:fine)]:flex"
+        >
+          <Upload className="size-5 shrink-0" aria-hidden />
+          גררו לכאן שירים מהמחשב, או לחצו לבחירה
+        </button>
+      )}
+
       {event.uploadedTracks.length === 0 && !pending ? (
-        <p className="rounded-xl border-2 border-dashed border-border p-5 text-center text-muted-fg">עוד לא העליתם שירים.</p>
+        <p className="rounded-xl border-2 border-dashed border-border p-5 text-center text-muted-fg [@media(pointer:fine)]:hidden">עוד לא העליתם שירים.</p>
       ) : (
         <ul className="space-y-2">
           {event.uploadedTracks.map((t) => {
@@ -588,5 +639,13 @@ function MySongsCard({
         onClose={() => setConfirm(null)}
       />
     </Card>
+      {dragDepth > 0 && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl border-4 border-dashed border-accent bg-card/90 text-center backdrop-blur-sm" aria-hidden>
+          <Upload className="size-10 text-accent" />
+          <p className="text-lg font-bold">{left > 0 ? "שחררו כאן כדי להעלות" : `הגעתם ל-${MAX_UPLOADED_TRACKS} שירים`}</p>
+          {left > 0 && <p className="text-sm text-muted-fg">MP3 או M4A, עד {formatBytes(MAX_TRACK_BYTES)} לשיר</p>}
+        </div>
+      )}
+    </div>
   );
 }

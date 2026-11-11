@@ -93,6 +93,8 @@ async function scheduled(_: ScheduledController, env: Env) {
     env.DB.prepare("DELETE FROM rate_limits WHERE window_end < ?").bind(Date.now()),
     env.DB.prepare("DELETE FROM uploads WHERE created_at < ? AND status != 'started'").bind(Date.now() - 2 * 86_400_000),
     env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(Date.now() - 7 * 86_400_000),
+    // Checklist items deleted more than a day ago (the undo window is minutes).
+    env.DB.prepare("DELETE FROM checklist_items WHERE deleted_at < ?").bind(Date.now() - 86_400_000),
   ]);
 }
 

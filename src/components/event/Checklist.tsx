@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, Plus, Trash2, Undo2 } from "lucide-react";
 import { CHECKLIST_ITEM_MAX, CHECKLIST_TEXTS, partText, type ChecklistBlock } from "../../../shared/design";
 import type { ChecklistItem, PublicEvent } from "../../../shared/types";
 import { errorMessage } from "../../lib/api";
@@ -7,6 +7,8 @@ import { boardApi, guestName, setGuestName } from "../../lib/guestName";
 import { Button, IconButton, Modal, cx, inputClass } from "../ui";
 import { Reveal } from "../Reveal";
 import { blockStyle } from "./EventBlocks";
+import { useScrollAfter } from "../../lib/useScrollAfter";
+import { useLastDeleted } from "../../lib/useLastDeleted";
 
 type Items = { items: ChecklistItem[] };
 
@@ -71,7 +73,17 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
         l.map((x) => (x.id === it.id ? { ...x, done: !it.done, doneBy: !it.done && !host ? name || null : null } : x)),
       ),
     );
-  const remove = (it: ChecklistItem) => call(`${base}/${it.id}`, { method: "DELETE" }, (l) => l.filter((x) => x.id !== it.id));
+  const [lastDeleted, setLastDeleted] = useLastDeleted<ChecklistItem>();
+  const remove = async (it: ChecklistItem) => {
+    if (await call(`${base}/${it.id}`, { method: "DELETE" }, (l) => l.filter((x) => x.id !== it.id))) setLastDeleted(it);
+  };
+  // Only the latest delete can be undone (and only for a few seconds - the icon then goes away).
+  const undo = async () => {
+    const it = lastDeleted;
+    if (!it) return;
+    setLastDeleted(null);
+    await call(`${base}/${it.id}/restore`, { method: "POST" });
+  };
   const add = () =>
     withName(async (name) => {
       if (!text.trim()) return;
@@ -81,6 +93,7 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
     });
 
   const list = items ?? [];
+  const scroll = useScrollAfter<HTMLUListElement>(block.visible, [items]);
   const done = list.filter((i) => i.done).length;
   const pct = list.length ? Math.round((done / list.length) * 100) : 0;
   const card = dark ? "bg-white/10" : "bg-card/85 shadow-soft";
@@ -126,9 +139,28 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                   </div>
                 )}
 
+                {lastDeleted && (
+                  <div className="-mt-2 mb-2 flex justify-end">
+                    <IconButton
+                      label={`ביטול המחיקה של "${lastDeleted.text}"`}
+                      onClick={undo}
+                      className={cx("border", dark ? "border-white/30 bg-white/10 hover:bg-white/20" : "border-border bg-card hover:bg-fg/5")}
+                    >
+                      <Undo2 className="size-5" aria-hidden />
+                    </IconButton>
+                  </div>
+                )}
+
                 {list.length === 0 && <p className="py-4 text-center text-lg opacity-85">{canAdd || block.guestsAdd ? "הרשימה עוד ריקה - אפשר להוסיף את הדבר הראשון" : "הרשימה עוד ריקה"}</p>}
 
-                <ul className="space-y-2">
+                <ul
+                  ref={scroll.ref}
+                  style={scroll.style}
+                  className={cx("space-y-2", scroll.scrolls && "-mx-1 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]")}
+                  tabIndex={scroll.scrolls ? 0 : undefined}
+                  aria-label={scroll.scrolls ? `הפריטים ב${title}` : undefined}
+                  data-preview-interactive
+                >
                   {list.map((it) => {
                     const mark = (
                       <span
@@ -152,7 +184,7 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                       </span>
                     );
                     return (
-                      <li key={it.id} className={cx("flex items-center gap-1 rounded-2xl", dark ? "bg-white/5" : "bg-fg/[0.03]")}>
+                      <li key={it.id} data-list-item className={cx("flex items-center gap-1 rounded-2xl", dark ? "bg-white/5" : "bg-fg/[0.03]")}>
                         {canTick ? (
                           <button
                             type="button"
@@ -171,7 +203,7 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                             {label}
                           </div>
                         )}
-                        {canDelete && (
+                        {(canDelete || (it.mine && !preview)) && (
                           <IconButton label={`מחיקת "${it.text}"`} onClick={() => remove(it)} className={cx("me-1 shrink-0", dark ? "hover:bg-white/15" : "hover:bg-fg/5")}>
                             <Trash2 className="size-5" aria-hidden />
                           </IconButton>
