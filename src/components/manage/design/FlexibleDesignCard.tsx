@@ -16,6 +16,7 @@ import { designKey, draftReducer, findBlock, type Where } from "./draft";
 import { FontStepper } from "./FontPicker";
 import { HeroInspector, type HeroTexts } from "./HeroInspector";
 import { StructureList } from "./StructureList";
+import { PageFontsPanel } from "./PageFontsPanel";
 
 /** Unsaved drafts survive switching manage tabs (same page session). */
 const drafts = new Map<string, EventDesign>();
@@ -243,6 +244,8 @@ export function FlexibleDesignCard({ event, onChanged }: { event: ManageEvent; o
           />
         </div>
       </div>
+
+      <PageFontsPanel design={draft} dispatch={dispatch} hebrewOnly={hebrewOnly} onHebrewOnly={setHebrewOnly} />
 
       <div className={cx("grid gap-6", device === "phone" && "lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]")}>
         {/* Editing panel */}

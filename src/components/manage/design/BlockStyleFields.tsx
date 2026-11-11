@@ -14,6 +14,8 @@ export function BlockStyleFields({
   color,
   onFont,
   onColor,
+  textFont,
+  onTextFont,
   fontLabel,
   colorLabel,
   sample,
@@ -26,6 +28,9 @@ export function BlockStyleFields({
   color: string | null;
   onFont: (f: string | null) => void;
   onColor: (c: string | null) => void;
+  /** the font of the element's other text (omit for elements without body text) */
+  textFont?: string | null;
+  onTextFont?: (f: string | null) => void;
   fontLabel: string;
   colorLabel: string;
   /** text to preview the fonts with (the block's heading) */
@@ -39,7 +44,8 @@ export function BlockStyleFields({
 }) {
   const [open, setOpen] = useState(false);
   const panel = useId();
-  const fontName = font ? (fontByFamily(font)?.family ?? font) : defaultFontName;
+  const name = (f: string | null | undefined, fallback: string) => (f ? (fontByFamily(f)?.family ?? f) : fallback);
+  const fontName = onTextFont && textFont ? `${name(font, defaultFontName)} + ${name(textFont, "")}` : name(font, defaultFontName);
   return (
     <div className="rounded-xl border border-border bg-card">
       <button
@@ -72,6 +78,9 @@ export function BlockStyleFields({
       {open && (
         <div id={panel} className="space-y-6 border-t border-border px-3 pb-4 pt-4 sm:px-4">
           <FontPicker label={fontLabel} value={font} onChange={onFont} hebrewOnly={hebrewOnly} onHebrewOnly={onHebrewOnly} sample={sample} />
+          {onTextFont && (
+            <FontPicker label="גופן הטקסט" value={textFont ?? null} onChange={onTextFont} hebrewOnly={hebrewOnly} onHebrewOnly={onHebrewOnly} sample="טקסט לדוגמה, כמו בפסקה" />
+          )}
           <ColorField label={colorLabel} value={color} onChange={onColor} against={against} />
         </div>
       )}

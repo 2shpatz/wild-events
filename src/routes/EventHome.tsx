@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Camera, Images, Settings } from "lucide-react";
+import { Camera, Images, ListChecks, Settings } from "lucide-react";
 import { useEvent } from "../lib/session";
 import { EventStatus } from "../components/EventChrome";
 import { useScrollProgress, prefersReducedMotion } from "../components/Reveal";
@@ -10,8 +10,8 @@ import { backgroundProps, isDarkBackground } from "../lib/themes";
 import { EventHero } from "../components/event/EventHero";
 import { EventBlock, blockHasContent, type BlockCtx } from "../components/event/EventBlocks";
 import { postToParent, usePreviewDraft } from "../lib/designPreview";
-import { loadFont, titleFontVars } from "../lib/fonts";
-import { barTextColor, blockFonts, headerObjectPosition, pagesTitleFont, type Block } from "../../shared/design";
+import { loadFont, loadTextFont, textFontStyle, titleFontVars } from "../lib/fonts";
+import { CHECKLIST_TEXTS, barTextColor, blockFonts, textFonts, headerObjectPosition, pagesTitleFont, partText, type Block } from "../../shared/design";
 
 /** Glyphs fetched while browsing fonts in the editor preview (title + date digits + Hebrew letters). */
 const PREVIEW_GLYPHS = "0123456789.|אבגדהוזחטיכךלמםנןסעפףצץקרשת׳״";
@@ -44,9 +44,11 @@ export default function EventHome() {
   }, [titleFont, barFont, event, preview.active]);
   // Fonts chosen for blocks (their headings say anything, so the full family is loaded).
   const blockFontsKey = design ? blockFonts(design).join("|") : "";
+  const textFontsKey = design ? textFonts(design).join("|") : "";
   useEffect(() => {
     for (const f of blockFontsKey.split("|")) if (f) loadFont(f);
-  }, [blockFontsKey]);
+    for (const f of textFontsKey.split("|")) if (f) loadTextFont(f);
+  }, [blockFontsKey, textFontsKey]);
 
   if (!event || !design) return <EventStatus error={error} loading />;
 
@@ -69,7 +71,11 @@ export default function EventHome() {
   const { top, bottom } = design.bars;
   const topShown = barShown && top.show;
   const bottomUpload = bottom.upload && event.uploadsOpen;
-  const bottomShown = barShown && !choiceVisible && bottom.show && (bottomUpload || bottom.view);
+  // Elements the hosts put in the bottom banner as quick jumps (checklists), in page order.
+  const jumps = [...design.before, ...design.after].filter(
+    (b): b is Extract<Block, { type: "checklist" }> => b.type === "checklist" && b.inBar && !b.hidden && (preview.active || blockHasContent(b, event)),
+  );
+  const bottomShown = barShown && !choiceVisible && bottom.show && (bottomUpload || bottom.view || jumps.length > 0);
   const topColor = barTextColor(design, "top") ?? undefined;
   const bottomColor = barTextColor(design, "bottom");
   const scrollTo = (el: Element | null) => el?.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
@@ -80,12 +86,17 @@ export default function EventHome() {
   const before = visible(design.before);
   const after = visible(design.after);
   const ctx: BlockCtx = { event, dark, preview: preview.active, choiceRef: choice };
-  const renderBlocks = (list: Block[]) =>
-    list.map((b) => (
-      <div key={b.id} data-block-id={b.id} data-selected={selected === b.id || undefined}>
-        <EventBlock block={b} ctx={ctx} />
-      </div>
-    ));
+  // The page's fonts for the elements' other headings and their text (an element's own choice wins - it is set deeper).
+  const pageFonts = { display: "contents", ...titleFontVars(design.pagesFont), ...textFontStyle(design.textFont) };
+  const renderBlocks = (list: Block[]) => (
+    <div style={pageFonts}>
+      {list.map((b) => (
+        <div key={b.id} data-block-id={b.id} data-selected={selected === b.id || undefined}>
+          <EventBlock block={b} ctx={ctx} />
+        </div>
+      ))}
+    </div>
+  );
 
   // Editor preview: every click selects the block under it instead of navigating / opening things -
   // except inside [data-preview-interactive] (e.g. the featured photos' carousel arrows), which also keeps working.
@@ -159,7 +170,23 @@ export default function EventHome() {
         style={{ ...titleFontVars(bottom.font), color: bottomColor ?? "#ffffff" }}
         aria-hidden={!bottomShown}
       >
-        <div className={cx("grid gap-3", bottomUpload && bottom.view ? "grid-cols-2" : "grid-cols-1")}>
+        {jumps.length > 0 && (
+          <div className={cx("no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4", (bottomUpload || bottom.view) && "mb-2.5")}>
+            {jumps.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                tabIndex={bottomShown ? 0 : -1}
+                onClick={() => scrollTo(document.querySelector(`[data-block-id="${b.id}"]`))}
+                className="inline-flex min-h-11 max-w-[70%] shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-4 text-sm font-semibold transition-colors duration-200 hover:bg-white/25"
+              >
+                <ListChecks className="size-4 shrink-0" aria-hidden />
+                <span className="truncate">{partText(b.texts, "title", CHECKLIST_TEXTS.title)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className={cx("grid gap-3", bottomUpload && bottom.view ? "grid-cols-2" : "grid-cols-1", !bottomUpload && !bottom.view && "hidden")}>
           {bottomUpload && (
             <Link
               to={`/${event.code}/upload`}

@@ -17,6 +17,10 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     backgrounds: [
       { id: "wedding-blush", label: "ורוד עדין" },
       { id: "wedding-gold", label: "בורדו וזהב" },
+      { id: "wedding-rings", label: "טבעות זהב" },
+      { id: "wedding-white", label: "טבעות על לבן" },
+      { id: "religious-synagogue", label: "בית כנסת" },
+      { id: "religious-jerusalem", label: "ירושלים" },
     ],
   },
   {
@@ -27,6 +31,8 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     backgrounds: [
       { id: "birthday-confetti", label: "קונפטי" },
       { id: "birthday-sunset", label: "שקיעה" },
+      { id: "party-disco", label: "כדור דיסקו" },
+      { id: "karaoke-gold", label: "קריוקי" },
     ],
   },
   {
@@ -36,6 +42,8 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     theme: "family",
     backgrounds: [
       { id: "family-lavender", label: "לבנדר" },
+      { id: "religious-synagogue", label: "בית כנסת" },
+      { id: "religious-jerusalem", label: "ירושלים" },
       { id: "general-mono", label: "בהיר נקי" },
     ],
   },
@@ -46,6 +54,10 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     theme: "party",
     backgrounds: [
       { id: "party-neon", label: "ניאון" },
+      { id: "party-disco", label: "כדור דיסקו" },
+      { id: "karaoke-gold", label: "קריוקי" },
+      { id: "karaoke-mono", label: "מיקרופון" },
+      { id: "music-notes", label: "תווים" },
       { id: "general-night", label: "לילה" },
     ],
   },
@@ -69,6 +81,7 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     backgrounds: [
       { id: "general-mono", label: "בהיר נקי" },
       { id: "general-night", label: "לילה" },
+      { id: "music-notes", label: "תווים" },
     ],
   },
 ];
@@ -108,5 +121,5 @@ export function backgroundProps(ev: { code: string; background: string | null; b
 export function isDarkBackground(background: string | null, theme: ThemeId) {
   if (background === "custom") return true; // always shown under a dark scrim
   const id = background || typeInfo(theme as EventType).backgrounds[0].id;
-  return ["wedding-gold", "party-neon", "general-night", "birthday-sunset"].includes(id);
+  return ["wedding-gold", "party-neon", "general-night", "birthday-sunset", "party-disco", "karaoke-gold", "karaoke-mono", "religious-synagogue"].includes(id);
 }

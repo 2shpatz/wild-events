@@ -4,7 +4,7 @@ import type { AlbumDTO, GuestMusic, ManageAlbum, MediaDTO, PlayerTrack, PublicEv
 import { batchGet, createAlbum } from "./google";
 import { eventRef, eventToken, tokenForRef } from "./accounts";
 import { randomId } from "./crypto";
-import { parseDesign } from "../../shared/design";
+import { checklistIds, parseDesign } from "../../shared/design";
 import { parseMusic, type EventMusic } from "../../shared/music";
 import { libraryTrack, libraryUrl } from "../../shared/musicLibrary";
 import { deviceTag } from "../../shared/deviceTag";
@@ -166,11 +166,21 @@ export async function toPublicEvent(
   const counts = await env.DB.prepare(
     `SELECT (SELECT COUNT(*) FROM media WHERE event_id = ?1 AND hidden = 0) AS m,
             (SELECT COUNT(*) FROM albums a WHERE a.event_id = ?1 AND a.hidden = 0
-               AND EXISTS (SELECT 1 FROM media x WHERE x.album_id = a.id AND x.hidden = 0)) AS a,
-            (SELECT COUNT(*) FROM checklist_items WHERE event_id = ?1) AS c`,
+               AND EXISTS (SELECT 1 FROM media x WHERE x.album_id = a.id AND x.hidden = 0)) AS a`,
   )
     .bind(ev.id)
-    .first<{ m: number; a: number; c: number }>();
+    .first<{ m: number; a: number }>();
+  const design = parseDesign(ev.design);
+  const lists = await env.DB.prepare("SELECT list_id, COUNT(*) AS n FROM checklist_items WHERE event_id = ? GROUP BY list_id")
+    .bind(ev.id)
+    .all<{ list_id: string | null; n: number }>();
+  // Items from before several lists existed (list_id NULL) belong to the first list.
+  const firstList = checklistIds(design)[0];
+  const checklistCounts: Record<string, number> = {};
+  for (const r of lists.results) {
+    const id = r.list_id ?? firstList;
+    if (id) checklistCounts[id] = (checklistCounts[id] ?? 0) + r.n;
+  }
   const assets = await eventAssets(env, ev.id);
   const music = parseMusic(ev.music, ev.type as PublicEvent["type"]);
   const uploaded = music.enabled && music.tracks.some((t) => t.src === "up") ? await eventTracks(env, ev.id) : [];
@@ -193,7 +203,7 @@ export async function toPublicEvent(
     invitationVersion: assets.invitation,
     featured: assets.featured,
     images: assets.images,
-    design: parseDesign(ev.design),
+    design,
     music: guestMusic(ev.code, music, uploaded),
     quality: ev.quality as PublicEvent["quality"],
     keepGps: !!ev.keep_gps,
@@ -202,7 +212,7 @@ export async function toPublicEvent(
     uploadsOpen: !!ev.uploads_open,
     mediaCount: counts?.m ?? 0,
     albumCount: counts?.a ?? 0,
-    checklistCount: counts?.c ?? 0,
+    checklistCounts,
     canManage: opts.canManage,
     isOwner: opts.isOwner,
     googleAlbumUrl: opts.canManage ? ev.google_album_url : undefined,

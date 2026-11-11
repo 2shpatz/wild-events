@@ -9,7 +9,7 @@ import type { AppEnv } from "../env";
 import { cleanName, eventByCode, type EventRow } from "../lib/db";
 import { canManage, rateLimit } from "../lib/session";
 import { randomId } from "../lib/crypto";
-import { CHECKLIST_ITEM_MAX, MAX_CHECKLIST_ITEMS, MESSAGE_MAX, parseDesign, visibleBlock } from "../../shared/design";
+import { CHECKLIST_ITEM_MAX, MAX_CHECKLIST_ITEMS, MESSAGE_MAX, checklistIds, parseDesign, visibleBlock, type ChecklistBlock } from "../../shared/design";
 import type { BoardMessage, ChecklistItem } from "../../shared/types";
 
 export const board = new Hono<AppEnv>();
@@ -43,7 +43,7 @@ const json = async (c: Context<AppEnv>) => (await c.req.json().catch(() => ({}))
 const cleanBody = (v: unknown) =>
   (typeof v === "string" ? v : "").normalize("NFKC").replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 
-async function setup<T extends "messages" | "checklist">(c: Context<AppEnv>, type: T) {
+async function setup(c: Context<AppEnv>, type: "messages") {
   const ev = await eventByCode(c.env, c.req.param("code")!);
   const manager = await canManage(c, ev.id);
   const block = visibleBlock(parseDesign(ev.design), type);
@@ -112,84 +112,106 @@ board.delete("/e/:code/messages/:id", async (c) => {
 });
 
 // ------------------------------------------------------------------ checklist
+// A page may hold several checklists; items belong to one by list_id (= the checklist block id).
+// Items from before lists existed have list_id NULL and belong to the page's first checklist.
+
+const LIST_RE = /^[a-z0-9]{1,16}$/;
+
+async function listSetup(c: Context<AppEnv>) {
+  const ev = await eventByCode(c.env, c.req.param("code")!);
+  const listId = c.req.param("list") ?? "";
+  if (!LIST_RE.test(listId)) throw new HTTPException(404, { message: "not_found" });
+  const manager = await canManage(c, ev.id);
+  const design = parseDesign(ev.design);
+  const block = [...design.before, ...design.after].find((b): b is ChecklistBlock => b.type === "checklist" && b.id === listId && !b.hidden) ?? null;
+  // Guests only reach a list that is on the page; hosts also reach lists of an unsaved draft.
+  if (!block && !manager) throw new HTTPException(403, { message: "board_closed" });
+  const legacy = checklistIds(design)[0] === listId ? 1 : 0;
+  return { ev, manager, block, listId, legacy };
+}
 
 type ItemRow = { id: string; text: string; done: number; done_by: string | null; added_by: string | null };
+type ListCtx = { ev: EventRow; listId: string; legacy: number };
+/** This list's items: list_id matches, or (first list only) the old items without a list. */
+const IN_LIST = "event_id = ? AND (list_id = ? OR (list_id IS NULL AND ? = 1))";
+const listArgs = (l: ListCtx) => [l.ev.id, l.listId, l.legacy];
 
-async function listItems(c: Context<AppEnv>, eventId: string): Promise<ChecklistItem[]> {
-  const res = await c.env.DB.prepare(
-    "SELECT id, text, done, done_by, added_by FROM checklist_items WHERE event_id = ? ORDER BY position, created_at",
-  )
-    .bind(eventId)
+async function listItems(c: Context<AppEnv>, l: ListCtx): Promise<ChecklistItem[]> {
+  const res = await c.env.DB.prepare(`SELECT id, text, done, done_by, added_by FROM checklist_items WHERE ${IN_LIST} ORDER BY position, created_at`)
+    .bind(...listArgs(l))
     .all<ItemRow>();
   return res.results.map((r) => ({ id: r.id, text: r.text, done: !!r.done, doneBy: r.done ? r.done_by : null, addedBy: r.added_by }));
 }
 
 const guestName = (v: unknown) => cleanName(typeof v === "string" ? v : "", 40) || null;
 
-board.get("/e/:code/checklist", async (c) => {
-  const { ev } = await setup(c, "checklist");
-  return c.json({ items: await listItems(c, ev.id) });
+board.get("/e/:code/checklist/:list", async (c) => {
+  const l = await listSetup(c);
+  return c.json({ items: await listItems(c, l) });
 });
 
-board.post("/e/:code/checklist", async (c) => {
-  const { ev, manager, block } = await setup(c, "checklist");
-  if (!manager && !block?.guestsEdit) throw new HTTPException(403, { message: "not_allowed" });
+board.post("/e/:code/checklist/:list", async (c) => {
+  const l = await listSetup(c);
+  const { ev, manager, block } = l;
+  if (!manager && !block?.guestsAdd) throw new HTTPException(403, { message: "not_allowed" });
   const b = await json(c);
   const text = cleanName(typeof b.text === "string" ? b.text : "", CHECKLIST_ITEM_MAX);
   if (!text) throw new HTTPException(400, { message: "item_empty" });
   const device = manager ? deviceOf(c) : requireDevice(c);
   if (!manager) await guestLimits(c, ev, "todo", device!, 30, 600);
-  const stats = await c.env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(MAX(position), 0) AS p FROM checklist_items WHERE event_id = ?")
-    .bind(ev.id)
+  const stats = await c.env.DB.prepare(`SELECT COUNT(*) AS n, COALESCE(MAX(position), 0) AS p FROM checklist_items WHERE ${IN_LIST}`)
+    .bind(...listArgs(l))
     .first<{ n: number; p: number }>();
   if ((stats?.n ?? 0) >= MAX_CHECKLIST_ITEMS) throw new HTTPException(409, { message: "too_many_items" });
   await c.env.DB.prepare(
-    "INSERT INTO checklist_items (id, event_id, text, position, added_by, device_id, created_at) VALUES (?,?,?,?,?,?,?)",
+    "INSERT INTO checklist_items (id, event_id, list_id, text, position, added_by, device_id, created_at) VALUES (?,?,?,?,?,?,?,?)",
   )
-    .bind(randomId(9), ev.id, text, (stats?.p ?? 0) + 1, manager ? null : guestName(b.name), device, Date.now())
+    .bind(randomId(9), ev.id, l.listId, text, (stats?.p ?? 0) + 1, manager ? null : guestName(b.name), device, Date.now())
     .run();
-  return c.json({ items: await listItems(c, ev.id) });
+  return c.json({ items: await listItems(c, l) });
 });
 
 /** Tick / untick (hosts, or guests when allowed); rename (hosts). */
-board.patch("/e/:code/checklist/:id", async (c) => {
-  const { ev, manager, block } = await setup(c, "checklist");
+board.patch("/e/:code/checklist/:list/:id", async (c) => {
+  const l = await listSetup(c);
+  const { ev, manager, block } = l;
   const b = await json(c);
   const id = c.req.param("id");
   if (typeof b.text === "string") {
     if (!manager) throw new HTTPException(403, { message: "not_allowed" });
     const text = cleanName(b.text, CHECKLIST_ITEM_MAX);
     if (!text) throw new HTTPException(400, { message: "item_empty" });
-    await c.env.DB.prepare("UPDATE checklist_items SET text = ? WHERE id = ? AND event_id = ?").bind(text, id, ev.id).run();
+    await c.env.DB.prepare(`UPDATE checklist_items SET text = ? WHERE id = ? AND ${IN_LIST}`).bind(text, id, ...listArgs(l)).run();
   }
   if (typeof b.done === "boolean") {
     if (!manager && !block?.guestsTick) throw new HTTPException(403, { message: "not_allowed" });
     if (!manager) await guestLimits(c, ev, "tick", requireDevice(c), 120, 1200);
-    await c.env.DB.prepare("UPDATE checklist_items SET done = ?, done_by = ?, done_at = ? WHERE id = ? AND event_id = ?")
-      .bind(b.done ? 1 : 0, b.done && !manager ? guestName(b.name) : null, b.done ? Date.now() : null, id, ev.id)
+    await c.env.DB.prepare(`UPDATE checklist_items SET done = ?, done_by = ?, done_at = ? WHERE id = ? AND ${IN_LIST}`)
+      .bind(b.done ? 1 : 0, b.done && !manager ? guestName(b.name) : null, b.done ? Date.now() : null, id, ...listArgs(l))
       .run();
   }
-  return c.json({ items: await listItems(c, ev.id) });
+  return c.json({ items: await listItems(c, l) });
 });
 
-board.delete("/e/:code/checklist/:id", async (c) => {
-  const { ev, manager, block } = await setup(c, "checklist");
-  if (!manager && !block?.guestsEdit) throw new HTTPException(403, { message: "not_allowed" });
+board.delete("/e/:code/checklist/:list/:id", async (c) => {
+  const l = await listSetup(c);
+  const { ev, manager, block } = l;
+  if (!manager && !block?.guestsDelete) throw new HTTPException(403, { message: "not_allowed" });
   if (!manager) await guestLimits(c, ev, "todo", requireDevice(c), 30, 600);
-  await c.env.DB.prepare("DELETE FROM checklist_items WHERE id = ? AND event_id = ?").bind(c.req.param("id"), ev.id).run();
-  return c.json({ items: await listItems(c, ev.id) });
+  await c.env.DB.prepare(`DELETE FROM checklist_items WHERE id = ? AND ${IN_LIST}`).bind(c.req.param("id"), ...listArgs(l)).run();
+  return c.json({ items: await listItems(c, l) });
 });
 
-/** New order of all the items (hosts only). */
-board.put("/e/:code/checklist/order", async (c) => {
-  const { ev, manager } = await setup(c, "checklist");
-  if (!manager) throw new HTTPException(403, { message: "not_allowed" });
+/** New order of the list's items (hosts only). */
+board.put("/e/:code/checklist/:list/order", async (c) => {
+  const l = await listSetup(c);
+  if (!l.manager) throw new HTTPException(403, { message: "not_allowed" });
   const b = await json(c);
   const ids = (Array.isArray(b.ids) ? b.ids : []).filter((x): x is string => typeof x === "string").slice(0, MAX_CHECKLIST_ITEMS);
   if (ids.length) {
     await c.env.DB.batch(
-      ids.map((id, i) => c.env.DB.prepare("UPDATE checklist_items SET position = ? WHERE id = ? AND event_id = ?").bind(i + 1, id, ev.id)),
+      ids.map((id, i) => c.env.DB.prepare(`UPDATE checklist_items SET position = ? WHERE id = ? AND ${IN_LIST}`).bind(i + 1, id, ...listArgs(l))),
     );
   }
-  return c.json({ items: await listItems(c, ev.id) });
+  return c.json({ items: await listItems(c, l) });
 });

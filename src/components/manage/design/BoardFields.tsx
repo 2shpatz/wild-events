@@ -191,31 +191,40 @@ export function ChecklistFields({
       <fieldset className="space-y-2 rounded-xl border border-border px-4 py-3">
         <legend className="px-1 font-semibold">מה האורחים יכולים לעשות</legend>
         <Toggle checked={block.guestsTick} onChange={(v) => update({ guestsTick: v })} label="לסמן שבוצע" hint={'ליד כל פריט שסומן יופיע "בוצע ע"י" והשם'} />
-        <Toggle checked={block.guestsEdit} onChange={(v) => update({ guestsEdit: v })} label="להוסיף ולמחוק פריטים" hint="כל אורח יוכל לשנות את הרשימה" />
-        <p className="text-sm text-muted-fg">{block.guestsTick || block.guestsEdit ? "ההרשאות נכנסות לתוקף כשתשמרו את העיצוב." : "כרגע האורחים רק רואים את הרשימה. אתם יכולים לסמן ולערוך כאן."}</p>
+        <Toggle checked={block.guestsAdd} onChange={(v) => update({ guestsAdd: v })} label="להוסיף פריטים" hint={'ליד פריט שאורח הוסיף יופיע "נוסף ע"י" והשם'} />
+        <Toggle checked={block.guestsDelete} onChange={(v) => update({ guestsDelete: v })} label="למחוק פריטים" hint="כל אורח יוכל למחוק כל פריט ברשימה" />
+        <p className="text-sm text-muted-fg">
+          {block.guestsTick || block.guestsAdd || block.guestsDelete ? "ההרשאות נכנסות לתוקף כשתשמרו את העיצוב." : "כרגע האורחים רק רואים את הרשימה. אתם יכולים לסמן ולערוך כאן."}
+        </p>
       </fieldset>
-      <ItemsEditor code={event.code} onChanged={onChanged} />
+      <Toggle
+        checked={block.inBar}
+        onChange={(v) => update({ inBar: v })}
+        label="כפתור קפיצה בבאנר התחתון"
+        hint="בטלפון, בבאנר שמופיע בזמן הגלילה: כפתור עם שם הרשימה שמקפיץ אליה מיד"
+      />
+      <ItemsEditor key={block.id} code={event.code} listId={block.id} onChanged={onChanged} />
     </>
   );
 }
 
 /** The hosts' editor for the items: add, tick, rename, delete, reorder - each change is saved immediately. */
-function ItemsEditor({ code, onChanged }: { code: string; onChanged: () => void }) {
+function ItemsEditor({ code, listId, onChanged }: { code: string; listId: string; onChanged: () => void }) {
   const [items, setItems] = useState<ChecklistItem[] | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api<{ items: ChecklistItem[] }>(`/e/${code}/checklist`)
+    api<{ items: ChecklistItem[] }>(`/e/${code}/checklist/${listId}`)
       .then((r) => setItems(r.items))
       .catch((e) => (setError(errorMessage(e)), setItems([])));
-  }, [code]);
+  }, [code, listId]);
 
   const call = async (path: string, init: Parameters<typeof api>[1], countChanges = false) => {
     setError(null);
     try {
-      setItems((await api<{ items: ChecklistItem[] }>(`/e/${code}/checklist${path}`, init)).items);
+      setItems((await api<{ items: ChecklistItem[] }>(`/e/${code}/checklist/${listId}${path}`, init)).items);
       if (countChanges) onChanged();
       return true;
     } catch (e) {
@@ -231,8 +240,8 @@ function ItemsEditor({ code, onChanged }: { code: string; onChanged: () => void 
   };
 
   return (
-    <section className="space-y-3 border-t border-border pt-5" aria-labelledby="todo-items-title">
-      <h4 id="todo-items-title" className="font-semibold">
+    <section className="space-y-3 border-t border-border pt-5" aria-labelledby={`todo-items-${listId}`}>
+      <h4 id={`todo-items-${listId}`} className="font-semibold">
         הפריטים ברשימה
       </h4>
       <p className="text-sm text-muted-fg">השינויים ברשימה נשמרים מיד.</p>
@@ -291,11 +300,11 @@ function ItemsEditor({ code, onChanged }: { code: string; onChanged: () => void 
           setBusy(false);
         }}
       >
-        <label htmlFor="todo-new-item" className="sr-only">
+        <label htmlFor={`todo-new-${listId}`} className="sr-only">
           פריט חדש
         </label>
         <input
-          id="todo-new-item"
+          id={`todo-new-${listId}`}
           className={cx(inputClass, "flex-1")}
           value={text}
           maxLength={CHECKLIST_ITEM_MAX}

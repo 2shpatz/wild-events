@@ -8,10 +8,13 @@ export type DraftAction =
   | { type: "hero"; patch: Partial<HeroDesign> }
   | { type: "show"; patch: Partial<HeroDesign["show"]> }
   | { type: "pagesFont"; font: string | null }
+  | { type: "textFont"; font: string | null }
   | { type: "bars"; which: keyof BarsDesign; patch: Partial<BarsDesign["top"] & BarsDesign["bottom"]> }
   | { type: "add"; block: Block; where: Where }
   | { type: "update"; id: string; patch: Partial<Block> }
   | { type: "move"; id: string; dir: -1 | 1 }
+  /** drag and drop: put the block at `index` of `where` (index counted without the block itself) */
+  | { type: "place"; id: string; where: Where; index: number }
   | { type: "remove"; id: string };
 
 /** Blocks in page order with their section ("before" the main page / "after" it). */
@@ -35,6 +38,8 @@ export function draftReducer(d: EventDesign, a: DraftAction): EventDesign {
       return { ...d, hero: { ...d.hero, show: { ...d.hero.show, ...a.patch } } };
     case "pagesFont":
       return { ...d, pagesFont: a.font };
+    case "textFont":
+      return { ...d, textFont: a.font };
     case "bars":
       return { ...d, bars: { ...d.bars, [a.which]: { ...d.bars[a.which], ...a.patch } } };
     case "add":
@@ -43,6 +48,15 @@ export function draftReducer(d: EventDesign, a: DraftAction): EventDesign {
       return mapBoth(d, (list) => list.map((b) => (b.id === a.id ? ({ ...b, ...a.patch } as Block) : b)));
     case "remove":
       return mapBoth(d, (list) => list.filter((b) => b.id !== a.id));
+    case "place": {
+      const hit = findBlock(d, a.id);
+      if (!hit) return d;
+      const before = d.before.filter((b) => b.id !== a.id);
+      const after = d.after.filter((b) => b.id !== a.id);
+      const list = a.where === "before" ? before : after;
+      list.splice(Math.max(0, Math.min(a.index, list.length)), 0, hit.block);
+      return { ...d, before, after };
+    }
     case "move": {
       const hit = findBlock(d, a.id);
       if (!hit) return d;

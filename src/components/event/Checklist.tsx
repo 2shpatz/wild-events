@@ -18,7 +18,9 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
   const title = partText(block.texts, "title", CHECKLIST_TEXTS.title);
   const host = event.canManage && !preview;
   const canTick = !preview && (block.guestsTick || host);
-  const canEdit = !preview && (block.guestsEdit || host);
+  const canAdd = !preview && (block.guestsAdd || host);
+  const canDelete = !preview && (block.guestsDelete || host);
+  const base = `/e/${event.code}/checklist/${block.id}`;
   const [items, setItems] = useState<ChecklistItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -28,12 +30,13 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
 
   const load = useCallback(async () => {
     try {
-      setItems((await boardApi<Items>(`/e/${event.code}/checklist`)).items);
+      setItems((await boardApi<Items>(base)).items);
     } catch (e) {
       setError(errorMessage(e));
       setItems((cur) => cur ?? []);
     }
-  }, [event.code, event.checklistCount]); // the editor adding / removing items reloads the preview's copy
+    // the editor adding / removing items changes the count, which reloads the preview's copy
+  }, [base, event.checklistCounts[block.id]]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     load();
@@ -64,16 +67,16 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
 
   const toggle = (it: ChecklistItem) =>
     withName((name) =>
-      call(`/e/${event.code}/checklist/${it.id}`, { method: "PATCH", json: { done: !it.done, name } }, (l) =>
+      call(`${base}/${it.id}`, { method: "PATCH", json: { done: !it.done, name } }, (l) =>
         l.map((x) => (x.id === it.id ? { ...x, done: !it.done, doneBy: !it.done && !host ? name || null : null } : x)),
       ),
     );
-  const remove = (it: ChecklistItem) => call(`/e/${event.code}/checklist/${it.id}`, { method: "DELETE" }, (l) => l.filter((x) => x.id !== it.id));
+  const remove = (it: ChecklistItem) => call(`${base}/${it.id}`, { method: "DELETE" }, (l) => l.filter((x) => x.id !== it.id));
   const add = () =>
     withName(async (name) => {
       if (!text.trim()) return;
       setBusy(true);
-      if (await call(`/e/${event.code}/checklist`, { method: "POST", json: { text, name } })) setText("");
+      if (await call(base, { method: "POST", json: { text, name } })) setText("");
       setBusy(false);
     });
 
@@ -83,7 +86,7 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
   const card = dark ? "bg-white/10" : "bg-card/85 shadow-soft";
 
   return (
-    <section className="relative px-5 py-14 sm:py-20" style={blockStyle(block)} aria-labelledby={`todo-title-${block.id}`}>
+    <section className="relative scroll-mt-10 px-5 py-14 sm:py-20" style={blockStyle(block)} aria-labelledby={`todo-title-${block.id}`}>
       <div className="mx-auto w-full max-w-2xl">
         <Reveal variant="up">
           <h2 id={`todo-title-${block.id}`} className="mb-8 text-center font-title text-4xl [text-wrap:balance] sm:text-5xl">
@@ -123,7 +126,7 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                   </div>
                 )}
 
-                {list.length === 0 && <p className="py-4 text-center text-lg opacity-85">הרשימה עוד ריקה - אפשר להוסיף את הדבר הראשון</p>}
+                {list.length === 0 && <p className="py-4 text-center text-lg opacity-85">{canAdd || block.guestsAdd ? "הרשימה עוד ריקה - אפשר להוסיף את הדבר הראשון" : "הרשימה עוד ריקה"}</p>}
 
                 <ul className="space-y-2">
                   {list.map((it) => {
@@ -168,7 +171,7 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                             {label}
                           </div>
                         )}
-                        {canEdit && (
+                        {canDelete && (
                           <IconButton label={`מחיקת "${it.text}"`} onClick={() => remove(it)} className={cx("me-1 shrink-0", dark ? "hover:bg-white/15" : "hover:bg-fg/5")}>
                             <Trash2 className="size-5" aria-hidden />
                           </IconButton>
@@ -178,7 +181,7 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                   })}
                 </ul>
 
-                {(canEdit || (preview && block.guestsEdit)) && (
+                {(canAdd || (preview && block.guestsAdd)) && (
                   <form
                     className="mt-4 flex gap-2"
                     onSubmit={(e) => {
@@ -194,7 +197,6 @@ export function Checklist({ block, event, dark, preview }: { block: ChecklistBlo
                       className={cx(inputClass, "flex-1")}
                       value={text}
                       onChange={(e) => setText(e.target.value)}
-                      placeholder="מה עוד צריך לעשות?"
                       maxLength={CHECKLIST_ITEM_MAX}
                       disabled={preview}
                       enterKeyHint="done"

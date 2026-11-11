@@ -11,7 +11,7 @@ import { accountInfo, accountStorage, assertNotMigrating, eventRef, eventToken, 
 import { latestMigration } from "../lib/migration";
 import { isValidSlug } from "../../shared/slug";
 import { MAX_FEATURED, type EventType, type ManageEvent } from "../../shared/types";
-import { MAX_IMAGES, sanitizeDesign, usedImageSlots } from "../../shared/design";
+import { MAX_IMAGES, checklistIds, parseDesign, sanitizeDesign, usedImageSlots } from "../../shared/design";
 import { AUDIO_MIME_RE, MAX_TRACK_BYTES, MAX_UPLOADED_TRACKS, parseMusic, sanitizeMusic } from "../../shared/music";
 
 export const manage = new Hono<AppEnv>();
@@ -105,6 +105,16 @@ manage.patch("/e/:code/manage", async (c) => {
       c.env.DB.prepare(
         `DELETE FROM event_assets WHERE event_id = ? AND kind GLOB 'i[0-9]'${keep.length ? ` AND kind NOT IN (${keep.join(",")})` : ""}`,
       ).bind(ev.id),
+    );
+    // Checklists: the old items without a list go to the list they were shown in (the first one), then the items
+    // of lists removed from the page are deleted with them (like the pictures of image blocks).
+    const oldFirst = checklistIds(parseDesign(ev.design))[0];
+    if (oldFirst) extra.push(c.env.DB.prepare("UPDATE checklist_items SET list_id = ? WHERE event_id = ? AND list_id IS NULL").bind(oldFirst, ev.id));
+    const lists = checklistIds(design);
+    extra.push(
+      c.env.DB.prepare(
+        `DELETE FROM checklist_items WHERE event_id = ? AND (list_id IS NULL OR list_id NOT IN (${lists.map(() => "?").join(",") || "''"}))`,
+      ).bind(ev.id, ...lists),
     );
   }
   if (b.music !== undefined) {

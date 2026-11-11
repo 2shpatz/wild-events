@@ -43,8 +43,8 @@ export interface PublicEvent {
   uploadsOpen: boolean;
   mediaCount: number;
   albumCount: number;
-  /** items on the checklist element (an empty one is hidden from guests unless they may add items) */
-  checklistCount: number;
+  /** items on each checklist element, by block id (an empty list is hidden from guests unless they may add items) */
+  checklistCounts: Record<string, number>;
   canManage: boolean;
   isOwner: boolean;
   googleAlbumUrl?: string | null;

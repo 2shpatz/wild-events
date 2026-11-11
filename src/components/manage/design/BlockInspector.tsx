@@ -56,6 +56,7 @@ export function BlockInspector({
         color={block.color}
         onFont={(font) => update({ font })}
         onColor={(color) => update({ color })}
+        {...(block.type === "image" ? {} : { textFont: block.textFont, onTextFont: (textFont: string | null) => update({ textFont }) })}
         fontLabel={block.type === "image" ? "גופן הכיתוב" : "גופן הכותרות"}
         colorLabel={block.type === "image" ? "צבע הכיתוב" : "צבע הטקסט"}
         sample={
@@ -122,12 +123,12 @@ export function BlockInspector({
         title={`להסיר את "${meta.label}" מהעמוד?`}
         message={
           <p>
-            {block.type === "text" || block.type === "image" || block.type === "whatsapp"
-              ? "התוכן של הבלוק יימחק כשתשמרו את העיצוב."
-              : block.type === "messages"
-                ? "ההודעות עצמן לא נמחקות - אם תחזירו את לוח הברכות דרך \"הוספת אלמנט\" הן יופיעו שוב."
-                : block.type === "checklist"
-                  ? "הפריטים ברשימה לא נמחקים - אם תחזירו את הרשימה דרך \"הוספת אלמנט\" הם יופיעו שוב."
+            {block.type === "checklist"
+              ? "הרשימה וכל הפריטים בה יימחקו כשתשמרו את העיצוב."
+              : block.type === "text" || block.type === "image" || block.type === "whatsapp"
+                ? "התוכן של הבלוק יימחק כשתשמרו את העיצוב."
+                : block.type === "messages"
+                  ? "ההודעות עצמן לא נמחקות - אם תחזירו את לוח הברכות דרך \"הוספת אלמנט\" הן יופיעו שוב."
                   : "התוכן עצמו לא נמחק - אפשר להחזיר את הבלוק בכל רגע דרך \"הוספת אלמנט\"."}
           </p>
         }

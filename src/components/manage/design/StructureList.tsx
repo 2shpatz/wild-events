@@ -1,12 +1,17 @@
-import { ChevronDown, ChevronUp, EyeOff, LayoutTemplate, Plus } from "lucide-react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { ChevronDown, ChevronUp, EyeOff, GripVertical, LayoutTemplate, Plus } from "lucide-react";
 import type { Block, EventDesign } from "../../../../shared/design";
 import { cx } from "../../ui";
 import { BLOCK_META, blockSummary } from "./blockMeta";
 import { flatBlocks, type DraftAction, type Where } from "./draft";
 
+/** One row the dragged block can land next to (page coordinates, measured when the drag starts). */
+type Spot = { id: string | null; top: number; bottom: number; mid: number };
+type Drag = { id: string; startY: number; startScroll: number; dy: number; slot: number; spots: Spot[]; boxTop: number };
+
 /**
  * The page's structure: blocks before the main page, the main page itself (fixed), blocks after it.
- * Reordering uses Move up / Move down buttons (no drag-only interaction).
+ * Reorder by dragging the handle (mouse or finger), or with the Move up / Move down buttons (no drag-only interaction).
  */
 export function StructureList({
   design,
@@ -21,27 +26,75 @@ export function StructureList({
   dispatch: (a: DraftAction) => void;
   onAdd: (where: Where) => void;
 }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
   const flat = flatBlocks(design);
   const first = flat[0]?.block.id;
   const last = flat[flat.length - 1]?.block.id;
+
+  /** Where the block would land: the number of rows (the main page included) above the pointer. */
+  const slotAt = (spots: Spot[], pageY: number) => spots.filter((s) => s.mid < pageY).length;
+
+  const start = (id: string, e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0 || !box.current) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const spots = [...box.current.querySelectorAll<HTMLElement>("[data-drag-spot]")]
+      .filter((el) => el.dataset.dragSpot !== id)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return { id: el.dataset.dragSpot === "hero" ? null : el.dataset.dragSpot!, top: r.top + scrollY, bottom: r.bottom + scrollY, mid: r.top + scrollY + r.height / 2 };
+      });
+    setDrag({ id, startY: e.clientY, startScroll: scrollY, dy: 0, slot: slotAt(spots, e.clientY + scrollY), spots, boxTop: box.current.getBoundingClientRect().top + scrollY });
+  };
+
+  const move = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!drag) return;
+    // Near the screen edges the page scrolls along, so long lists can be crossed on a phone.
+    if (e.clientY < 80) scrollBy(0, -14);
+    else if (e.clientY > innerHeight - 80) scrollBy(0, 14);
+    setDrag({ ...drag, dy: e.clientY - drag.startY + (scrollY - drag.startScroll), slot: slotAt(drag.spots, e.clientY + scrollY) });
+  };
+
+  const end = () => {
+    if (!drag) return;
+    const hero = drag.spots.findIndex((s) => s.id === null);
+    const where: Where = drag.slot <= hero ? "before" : "after";
+    dispatch({ type: "place", id: drag.id, where, index: where === "before" ? drag.slot : drag.slot - hero - 1 });
+    setDrag(null);
+  };
+
+  // The drop line: under the row above the landing spot (or above the first row).
+  const line = drag
+    ? (drag.slot === 0 ? drag.spots[0].top - 6 : drag.spots[drag.slot - 1].bottom + 3) - drag.boxTop
+    : null;
+
   const row = (b: Block) => (
     <BlockRow
       key={b.id}
       block={b}
       active={selected === b.id}
+      dragging={drag?.id === b.id ? drag.dy : null}
       onSelect={() => onSelect(b.id)}
       onUp={b.id === first ? undefined : () => dispatch({ type: "move", id: b.id, dir: -1 })}
       onDown={b.id === last ? undefined : () => dispatch({ type: "move", id: b.id, dir: 1 })}
+      handle={{
+        onPointerDown: (e) => start(b.id, e),
+        onPointerMove: move,
+        onPointerUp: end,
+        onPointerCancel: () => setDrag(null),
+      }}
     />
   );
   return (
-    <div className="space-y-2">
+    <div ref={box} className={cx("relative space-y-2", drag && "select-none")}>
       <Section title="לפני העמוד הראשי" empty={!design.before.length} onAdd={() => onAdd("before")}>
         {design.before.map(row)}
       </Section>
 
       <button
         type="button"
+        data-drag-spot="hero"
         onClick={() => onSelect("hero")}
         aria-pressed={selected === "hero"}
         className={cx(
@@ -61,6 +114,8 @@ export function StructureList({
       <Section title="אחרי העמוד הראשי" empty={!design.after.length} onAdd={() => onAdd("after")}>
         {design.after.map(row)}
       </Section>
+
+      {line !== null && <div className="pointer-events-none absolute inset-x-2 z-20 h-1 rounded-full bg-primary shadow-[0_0_0_3px_rgb(255_255_255/0.8)]" style={{ top: line }} aria-hidden />}
     </div>
   );
 }
@@ -80,13 +135,54 @@ function Section({ title, empty, onAdd, children }: { title: string; empty: bool
   );
 }
 
-function BlockRow({ block, active, onSelect, onUp, onDown }: { block: Block; active: boolean; onSelect: () => void; onUp?: () => void; onDown?: () => void }) {
+type HandleEvents = Pick<React.ButtonHTMLAttributes<HTMLButtonElement>, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel">;
+
+function BlockRow({
+  block,
+  active,
+  dragging,
+  onSelect,
+  onUp,
+  onDown,
+  handle,
+}: {
+  block: Block;
+  active: boolean;
+  /** vertical offset while this row is being dragged, else null */
+  dragging: number | null;
+  onSelect: () => void;
+  onUp?: () => void;
+  onDown?: () => void;
+  handle: HandleEvents;
+}) {
   const { Icon, label } = BLOCK_META[block.type];
   const summary = blockSummary(block);
   const arrow = "inline-flex size-11 shrink-0 items-center justify-center rounded-full text-fg transition-colors duration-200 hover:bg-fg/5 disabled:opacity-30 disabled:hover:bg-transparent";
   return (
-    <li className={cx("flex items-center gap-1 rounded-2xl border-2 bg-card pe-1 transition-colors duration-200", active ? "border-primary" : "border-border")}>
-      <button type="button" onClick={onSelect} aria-pressed={active} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-2xl ps-3 text-start">
+    <li
+      data-drag-spot={block.id}
+      className={cx(
+        "relative flex items-center gap-1 rounded-2xl border-2 bg-card pe-1 transition-[border-color,box-shadow] duration-200",
+        active ? "border-primary" : "border-border",
+        dragging !== null && "z-10 shadow-lift",
+      )}
+      style={dragging !== null ? { transform: `translateY(${dragging}px)` } : undefined}
+    >
+      <button
+        type="button"
+        aria-label={`גרירה לשינוי המיקום של ${label}`}
+        title="גרירה לשינוי הסדר"
+        className={cx("inline-flex h-14 w-9 shrink-0 touch-none items-center justify-center rounded-s-2xl text-muted-fg hover:text-fg", dragging !== null ? "cursor-grabbing" : "cursor-grab")}
+        onKeyDown={(e) => {
+          // Keyboard users move with the arrow keys on the handle (same as the Move up / down buttons).
+          if (e.key === "ArrowUp" && onUp) (e.preventDefault(), onUp());
+          if (e.key === "ArrowDown" && onDown) (e.preventDefault(), onDown());
+        }}
+        {...handle}
+      >
+        <GripVertical className="size-5" aria-hidden />
+      </button>
+      <button type="button" onClick={onSelect} aria-pressed={active} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-2xl text-start">
         <span className={cx("flex size-9 shrink-0 items-center justify-center rounded-lg", active ? "bg-primary text-on-primary" : "bg-muted text-fg")}>
           <Icon className="size-5" aria-hidden />
         </span>

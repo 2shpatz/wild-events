@@ -135,30 +135,6 @@ export function HeroInspector({
 
       <ColorField label="צבע הכותרת" value={hero.titleColor} onChange={(c) => set({ titleColor: c })} against={against} large />
       <ColorField label="צבע הטקסטים (שורת משנה, תאריך, ברכה)" value={hero.textColor} onChange={(c) => set({ textColor: c })} against={against} />
-
-
-      <fieldset className="space-y-3">
-        <legend className="mb-1 font-semibold">הכותרת בשאר העמודים (העלאה, אלבום)</legend>
-        <Segmented
-          label="הכותרת בשאר העמודים"
-          value={design.pagesFont === null ? "same" : "other"}
-          onChange={(v) => dispatch({ type: "pagesFont", font: v === "same" ? null : hero.titleFont ?? "Bellefair" })}
-          options={[
-            { value: "same", label: "כמו בעמוד הראשי" },
-            { value: "other", label: "גופן אחר" },
-          ]}
-        />
-        {design.pagesFont !== null && (
-          <FontPicker
-            label="גופן לשאר העמודים"
-            value={design.pagesFont}
-            onChange={(f) => dispatch({ type: "pagesFont", font: f ?? null })}
-            hebrewOnly={hebrewOnly}
-            onHebrewOnly={onHebrewOnly}
-            sample={event.title}
-          />
-        )}
-      </fieldset>
     </div>
   );
 }

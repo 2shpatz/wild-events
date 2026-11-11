@@ -14,7 +14,7 @@ import {
   type TextBlock,
   type WhatsAppBlock,
 } from "../../../shared/design";
-import { titleFontVars } from "../../lib/fonts";
+import { textFontStyle, titleFontVars } from "../../lib/fonts";
 import type { MediaDTO, PublicEvent } from "../../../shared/types";
 import { Reveal } from "../Reveal";
 import { cx } from "../ui";
@@ -52,13 +52,13 @@ export function blockHasContent(b: Block, ev: PublicEvent): boolean {
     case "messages":
       return true;
     case "checklist":
-      return ev.checklistCount > 0 || b.guestsEdit;
+      return (ev.checklistCounts[b.id] ?? 0) > 0 || b.guestsAdd;
   }
 }
 
 /** A block's own font (for its `.font-title` headings) and text color; nothing set = the theme's. */
 export const blockStyle = (b: Partial<BlockStyle>): CSSProperties | undefined => {
-  const st = { ...titleFontVars(b.font), ...(b.color ? { color: b.color } : {}) };
+  const st = { ...titleFontVars(b.font), ...textFontStyle(b.textFont), ...(b.color ? { color: b.color } : {}) };
   return Object.keys(st).length ? st : undefined;
 };
 
@@ -141,7 +141,7 @@ const TEXT_SIZES: Record<TextBlock["size"], { h: string; p: string }> = {
 function TextSection({ block, dark }: { block: TextBlock; dark: boolean }) {
   const s = TEXT_SIZES[block.size];
   return (
-    <section className="relative px-5 py-10 sm:py-14" style={titleFontVars(block.font)}>
+    <section className="relative px-5 py-10 sm:py-14" style={{ ...titleFontVars(block.font), ...textFontStyle(block.textFont) }}>
       <Reveal variant="up" className="mx-auto w-full max-w-2xl">
         <div
           className={cx(

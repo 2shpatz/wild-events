@@ -28,12 +28,33 @@ export function loadFont(family: string | null | undefined, text?: string) {
   document.head.appendChild(link);
 }
 
+/**
+ * A font used for ordinary text: besides the weight the list picks for headings, also fetch the regular weight
+ * (a family without one just keeps the heading weight - Google answers that request with an error, which is harmless).
+ */
+export function loadTextFont(family: string | null | undefined) {
+  loadFont(family);
+  const f = fontByFamily(family);
+  if (!f || f.w === 400 || typeof document === "undefined" || loaded.has(`${f.family}|400`)) return;
+  loaded.add(`${f.family}|400`);
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f.family).replace(/%20/g, "+")}:wght@400&display=swap`;
+  document.head.appendChild(link);
+}
+
 /** Loads the given families (full) while the component is mounted. */
 export function useFonts(...families: (string | null | undefined)[]) {
   const key = families.filter(Boolean).join("|");
   useEffect(() => {
     for (const f of key.split("|")) if (f) loadFont(f);
   }, [key]);
+}
+
+/** Font for ordinary text (paragraphs, lists, buttons) - inherited by everything inside; null = the body font. */
+export function textFontStyle(family: string | null | undefined): React.CSSProperties | undefined {
+  const f = fontByFamily(family);
+  return f ? { fontFamily: `"${f.family}", "Heebo", system-ui, sans-serif` } : undefined;
 }
 
 /** Weight the title should use with this font (fonts are loaded in that weight only). */

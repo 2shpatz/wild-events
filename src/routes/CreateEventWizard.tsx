@@ -203,7 +203,7 @@ export default function CreateEventWizard() {
       uploadsOpen: true,
       mediaCount: 0,
       albumCount: 0,
-      checklistCount: 0,
+      checklistCounts: {},
       canManage: false,
       isOwner: true,
     }),
