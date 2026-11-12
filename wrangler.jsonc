@@ -17,6 +17,8 @@
   // The workers.dev address always stays on. With your own domain, CANONICAL_ORIGIN (set by `npm run deploy`, or
   // as a variable in the Cloudflare dashboard) makes workers.dev pages redirect to it.
   "workers_dev": true,
+  // No separate address per version: an old version must never run against a database that was already updated.
+  "preview_urls": false,
   // Keep variables set in the Cloudflare dashboard (e.g. CANONICAL_ORIGIN) when a new version is deployed.
   "keep_vars": true,
   "d1_databases": [
