@@ -4,7 +4,8 @@ import type { AppEnv, Env } from "./env";
 import { loadSession } from "./lib/session";
 import { GoogleError } from "./lib/google";
 import { setup } from "./routes/setup";
-import { getSetting } from "./lib/site";
+import { getSetting, putSetting } from "./lib/site";
+import { checkFeed, maybeAutoUpdate } from "./lib/updates";
 import { auth } from "./routes/auth";
 import { owner, ownerStorage } from "./routes/owner";
 import { migrate } from "./routes/migrate";
@@ -58,8 +59,30 @@ app.onError((err, c) => {
   return c.json({ error: "server_error" }, 500);
 });
 
-async function scheduled(_: ScheduledController, env: Env) {
-  // Daily: refresh storage usage for owners with recent events (feeds the 80% banner).
+/**
+ * Cron, every 15 minutes. Once a day (from 06:00 UTC): storage check + housekeeping. The other runs: look for a new
+ * version and, for sites installed from GitHub, rebuild when allowed (lib/updates.ts). Never both in one run, to
+ * stay within the outgoing-request limit of one run.
+ */
+async function scheduled(controller: ScheduledController, env: Env) {
+  const schema = await ensureSchema(env);
+  if (schema === "pending") return; // spent this run on the database update; the next run continues
+  const now = controller.scheduledTime;
+  const lastDaily = Number(await getSetting({ env }, "last_daily_run")) || 0;
+  if (now - lastDaily >= 20 * 3_600_000 && new Date(now).getUTCHours() >= 6) {
+    await putSetting({ env }, "last_daily_run", String(now));
+    await runDaily(env);
+    return;
+  }
+  try {
+    await maybeAutoUpdate(env, await checkFeed(env), now);
+  } catch (e) {
+    console.warn("update check failed", e);
+  }
+}
+
+async function runDaily(env: Env) {
+  // Refresh storage usage for owners with recent events (feeds the 80% banner).
   const owners = await env.DB.prepare(
     `SELECT DISTINCT o.id FROM owners o JOIN events e ON e.owner_id = o.id
       WHERE o.refresh_token_enc IS NOT NULL AND e.deleted = 0 AND e.created_at > ?

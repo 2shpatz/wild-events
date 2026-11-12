@@ -14,6 +14,8 @@ import {
   HardDrive,
   ArrowLeftRight,
   Link2,
+  Sparkles,
+  Download,
 } from "lucide-react";
 import { useMe } from "../lib/session";
 import { api } from "../lib/api";
@@ -72,11 +74,17 @@ export default function Dashboard() {
               <LinkButton href="/admin" variant="outline" size="sm" className="relative" icon={<ShieldCheck className="size-4" aria-hidden />}>
                 <span className="hidden sm:inline">ניהול האתר</span>
                 <span className="sm:hidden">ניהול</span>
-                {me.siteAdmin.pending > 0 && (
+                {me.siteAdmin.pending > 0 ? (
                   <span className="absolute -end-2 -top-2 min-w-6 rounded-full bg-amber-500 px-1.5 text-center text-xs leading-6 text-white">
                     <span aria-hidden>{me.siteAdmin.pending}</span>
                     <span className="sr-only">({me.siteAdmin.pending} ממתינים לאישור)</span>
                   </span>
+                ) : (
+                  me.siteAdmin.update && (
+                    <span className="absolute -end-1 -top-1 size-3 rounded-full bg-sky-500 ring-2 ring-card">
+                      <span className="sr-only">({me.siteAdmin.update === "updated" ? "האתר עודכן לגרסה חדשה" : "יש גרסה חדשה"})</span>
+                    </span>
+                  )
                 )}
               </LinkButton>
             )}
@@ -109,6 +117,23 @@ export default function Dashboard() {
             <div className="max-w-sm">
               <GoogleButton href="/api/auth/login?next=/dashboard" label="התחברות מחדש עם Google" />
             </div>
+          </Card>
+        )}
+
+        {me.siteAdmin?.update && (
+          <Card
+            className={cx(
+              "flex flex-wrap items-center justify-between gap-3",
+              me.siteAdmin.update === "updated" ? "border-emerald-300 bg-emerald-50 text-emerald-950" : "border-sky-300 bg-sky-50 text-sky-950",
+            )}
+          >
+            <p className="flex items-center gap-2 text-lg font-bold" role="status">
+              {me.siteAdmin.update === "updated" ? <Sparkles className="size-5 shrink-0" aria-hidden /> : <Download className="size-5 shrink-0" aria-hidden />}
+              {me.siteAdmin.update === "updated" ? "האתר עודכן לגרסה חדשה" : "יצאה גרסה חדשה של האתר"}
+            </p>
+            <LinkButton href="/admin?tab=updates" variant="outline">
+              מה חדש
+            </LinkButton>
           </Card>
         )}
 

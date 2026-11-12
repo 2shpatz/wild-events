@@ -17,7 +17,7 @@ try {
   else
     console.log(`
 ${bold("Setup link:")} this folder doesn't know your site's setup code (it was created elsewhere).
-  - Site admin? Open your site, log in, then: Site management (ניהול האתר) -> Updates (עדכונים) -> Open the setup wizard.
+  - Site admin? Open your site, log in, then: Site management -> Settings -> Open the setup wizard.
   - Or run ${bold("npm run setup")} with the same site name to create a new setup link.
 `);
 } catch (e) {

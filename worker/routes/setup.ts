@@ -6,6 +6,8 @@ import { clearClientCache, getOAuthClient, GMAIL_SEND, SCOPES } from "../lib/goo
 import { createSession, hasSetupSession, rateLimit } from "../lib/session";
 import { cleanName } from "../lib/db";
 import { EMAIL_RE, getSetting, getSiteAdmin, putSetting } from "../lib/site";
+import { APP } from "../lib/appInfo";
+import { cleanHookUrl, saveHook } from "../lib/updates";
 
 export const setup = new Hono<AppEnv>();
 
@@ -36,6 +38,8 @@ setup.get("/status", async (c) => {
     test: JSON.parse((await getSetting(c, "setup_test")) || "null"),
     operator: { name: (await getSetting(c, "operator_name")) || "", email: (await getSetting(c, "operator_email")) || "" },
     admin: await adminInfo(c.env),
+    // Sites installed from GitHub can update themselves; the last step offers to connect a Deploy Hook.
+    install: { source: APP.source, autoCapable: APP.autoCapable, hookSet: !!(await getSetting(c, "update_hook_enc")) },
   });
 });
 
@@ -66,6 +70,13 @@ setup.post("/progress", async (c) => {
   const body = await c.req.json<Record<string, unknown>>();
   await putSetting(c, "setup_progress", JSON.stringify(body).slice(0, 4000));
   return c.json({ ok: true });
+});
+
+/** Last step (sites installed from GitHub): the Deploy Hook that lets the site rebuild itself on a new version. */
+setup.put("/update-hook", async (c) => {
+  const { hookUrl } = await c.req.json<{ hookUrl?: string | null }>();
+  await saveHook(c.env, hookUrl ? cleanHookUrl(hookUrl, new URL(c.req.url).origin) : null);
+  return c.json({ ok: true, hookSet: !!hookUrl });
 });
 
 setup.post("/operator", async (c) => {

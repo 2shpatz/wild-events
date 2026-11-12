@@ -5,7 +5,7 @@ import { cx } from "./ui";
 export const DEVELOPER_URL = "https://ohad-shpindel.shpatzappz.link";
 
 /** First path segments that are app pages, not event codes. */
-const APP_PAGES = new Set(["login", "setup", "dashboard", "share", "privacy", "terms", "e"]);
+const APP_PAGES = new Set(["login", "setup", "dashboard", "admin", "share", "privacy", "terms", "e"]);
 
 type Tone = "light" | "dark";
 

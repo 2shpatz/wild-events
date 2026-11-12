@@ -15,8 +15,10 @@ import {
   MailWarning,
   Search,
   Send,
+  RefreshCw,
   Settings,
   ShieldCheck,
+  Wand2,
   Trash2,
   UserPlus,
   Users,
@@ -29,10 +31,11 @@ import { applyTheme } from "../lib/themes";
 import { formatDate } from "../lib/format";
 import { Button, Card, ConfirmDialog, Field, LinkButton, Modal, Spinner, cx, inputClass, useToast } from "../components/ui";
 import { Toggle } from "../components/manage/Toggle";
-import type { AdminOverview, MailOutcome, MemberDTO, MemberEventDTO } from "../../shared/types";
+import { UpdateBanner, UpdatesTab } from "../components/admin/Updates";
+import type { AdminOverview, MailOutcome, MemberDTO, MemberEventDTO, UpdatesInfo } from "../../shared/types";
 
-type Tab = "users" | "waitlist" | "archive" | "settings";
-const TABS: Tab[] = ["users", "waitlist", "archive", "settings"];
+type Tab = "users" | "waitlist" | "archive" | "updates" | "settings";
+const TABS: Tab[] = ["users", "waitlist", "archive", "updates", "settings"];
 
 const dateFmt = new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "short", year: "numeric" });
 const fmt = (ms: number | null | undefined) => (ms ? dateFmt.format(ms) : "");
@@ -65,7 +68,8 @@ export default function SiteAdmin() {
   const [params, setParams] = useSearchParams();
   const tab: Tab = TABS.includes(params.get("tab") as Tab) ? (params.get("tab") as Tab) : "users";
   const [overview, setOverview] = useState<AdminOverview | null>(null);
-  const [version, setVersion] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [updates, setUpdates] = useState<UpdatesInfo | null>(null);
 
   useEffect(() => applyTheme("general"), []);
   useEffect(() => {
@@ -82,7 +86,10 @@ export default function SiteAdmin() {
   }, [toast]);
   useEffect(() => {
     if (me?.siteAdmin) loadOverview();
-  }, [me?.siteAdmin, loadOverview, version]);
+  }, [me?.siteAdmin, loadOverview, reloadKey]);
+  useEffect(() => {
+    if (me?.siteAdmin) api<UpdatesInfo>("/admin/updates").then(setUpdates).catch(() => {});
+  }, [me?.siteAdmin]);
 
   // Back from Google after "connect email sending".
   useEffect(() => {
@@ -103,9 +110,20 @@ export default function SiteAdmin() {
 
   /** After any change: reload counts, the open list and the dashboard badge. */
   const changed = useCallback(() => {
-    setVersion((v) => v + 1);
+    setReloadKey((v) => v + 1);
     refresh();
   }, [refresh]);
+
+  /** The admin read the "the site was updated" notice. */
+  const updateSeen = useCallback(async () => {
+    try {
+      await api("/admin/updates/seen", { method: "POST" });
+      setUpdates(await api<UpdatesInfo>("/admin/updates"));
+      refresh();
+    } catch (e) {
+      toast(errorMessage(e), "error");
+    }
+  }, [refresh, toast]);
 
   if (!me?.siteAdmin) return <Spinner className="min-h-dvh" />;
 
@@ -115,10 +133,17 @@ export default function SiteAdmin() {
     setParams(next);
   };
   const counts = overview?.counts;
-  const tabs: { id: Tab; label: string; icon: ReactNode; count?: number }[] = [
+  const updateNews = !!updates && (!!updates.justUpdated || updates.newer.length > 0);
+  const tabs: { id: Tab; label: string; icon: ReactNode; count?: number; dot?: string }[] = [
     { id: "users", label: "משתמשים", icon: <Users className="size-5" aria-hidden />, count: counts?.approved },
     { id: "waitlist", label: "ממתינים", icon: <Hourglass className="size-5" aria-hidden />, count: counts?.pending },
     { id: "archive", label: "ארכיון", icon: <Archive className="size-5" aria-hidden />, count: counts?.archived },
+    {
+      id: "updates",
+      label: "עדכונים",
+      icon: <RefreshCw className="size-5" aria-hidden />,
+      dot: updateNews ? (updates?.justUpdated ? "האתר עודכן" : "יש גרסה חדשה") : undefined,
+    },
     { id: "settings", label: "הגדרות", icon: <Settings className="size-5" aria-hidden /> },
   ];
 
@@ -145,6 +170,8 @@ export default function SiteAdmin() {
           <p className="text-muted-fg">מי יכול ליצור אירועים באתר, בקשות הצטרפות והגדרות.</p>
         </div>
 
+        {updates && tab !== "updates" && <UpdateBanner info={updates} onOpen={() => setTab("updates")} onSeen={updateSeen} />}
+
         {overview && !overview.mail.connected && tab !== "settings" && (
           <Card className="flex flex-wrap items-center justify-between gap-3 border-amber-300 bg-amber-50 text-amber-900">
             <p className="flex items-center gap-2 font-medium">
@@ -157,7 +184,7 @@ export default function SiteAdmin() {
           </Card>
         )}
 
-        <div role="tablist" aria-label="אזורי ניהול" className="grid grid-cols-4 gap-1 rounded-2xl bg-muted p-1">
+        <div role="tablist" aria-label="אזורי ניהול" className="grid grid-cols-5 gap-1 rounded-2xl bg-muted p-1">
           {tabs.map((t) => {
             const active = t.id === tab;
             return (
@@ -186,15 +213,22 @@ export default function SiteAdmin() {
                     <span className="sr-only">({num(t.count)})</span>
                   </span>
                 )}
+                {t.dot && (
+                  <span className="absolute end-2 top-2 size-2.5 rounded-full bg-sky-500 ring-2 ring-muted sm:static">
+                    <span className="sr-only">({t.dot})</span>
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
 
         <section role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-          {tab === "users" && <UsersTab version={version} onChanged={changed} />}
-          {tab === "waitlist" && <WaitlistTab version={version} onChanged={changed} overview={overview} goSettings={() => setTab("settings")} />}
-          {tab === "archive" && <ArchiveTab version={version} onChanged={changed} />}
+          {tab === "users" && <UsersTab version={reloadKey} onChanged={changed} />}
+          {tab === "waitlist" && <WaitlistTab version={reloadKey} onChanged={changed} overview={overview} goSettings={() => setTab("settings")} />}
+          {tab === "archive" && <ArchiveTab version={reloadKey} onChanged={changed} />}
+          {tab === "updates" && updates && <UpdatesTab info={updates} onInfo={setUpdates} onSeen={updateSeen} />}
+          {tab === "updates" && !updates && <Spinner />}
           {tab === "settings" && overview && <SettingsTab overview={overview} onChanged={changed} />}
           {tab === "settings" && !overview && <Spinner />}
         </section>
@@ -771,11 +805,38 @@ function SettingsTab({ overview, onChanged }: { overview: AdminOverview; onChang
           החשבון המנהל: <span dir="ltr" className="font-semibold">{overview.admin?.email}</span>
         </p>
         <p className="text-sm text-muted-fg">
-          ניהול האתר שייך למי שמארח/ת אותו. כדי להעביר את הניהול לחשבון Google אחר: פותחים את קישור ההגדרה שקיבלתם בהתקנה (הוא מודפס גם אחרי
-          npm run deploy), ובשלב האחרון לוחצים "כניסה כמנהל/ת האתר" עם החשבון החדש.
+          ניהול האתר שייך למי שמארח/ת אותו. כדי להעביר את הניהול לחשבון Google אחר, או לשנות את החיבור ל-Google: פותחים את אשף ההגדרה, ובשלב
+          האחרון לוחצים "כניסה כמנהל/ת האתר" עם החשבון החדש.
         </p>
+        <OpenSetupWizard />
       </Card>
     </div>
+  );
+}
+
+/** Opens the setup wizard for the admin (the setup code itself is never shown: it can't be read back). */
+function OpenSetupWizard() {
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      variant="outline"
+      loading={busy}
+      icon={<Wand2 className="size-4" aria-hidden />}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await api("/admin/setup-session", { method: "POST" });
+          navigate("/setup");
+        } catch (e) {
+          toast(errorMessage(e), "error");
+          setBusy(false);
+        }
+      }}
+    >
+      פתיחת אשף ההגדרה
+    </Button>
   );
 }
 

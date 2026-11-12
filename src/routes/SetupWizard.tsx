@@ -12,11 +12,13 @@ import {
   XCircle,
   Wand2,
   Terminal,
+  RefreshCw,
 } from "lucide-react";
 import { api, errorMessage } from "../lib/api";
 import { applyTheme } from "../lib/themes";
 import { Stepper } from "../components/Stepper";
 import { Button, Card, CopyField, Field, Spinner, cx, inputClass, useToast } from "../components/ui";
+import { HookForm, HookSteps } from "../components/admin/Updates";
 
 interface Status {
   configured: boolean;
@@ -29,6 +31,8 @@ interface Status {
   test?: { at: number; ok: boolean; result: Record<string, { ok: boolean; message?: string }> } | null;
   operator?: { name: string; email: string };
   admin?: { email: string; name: string | null } | null;
+  /** How the site was installed: sites built from GitHub (and following the original repo) can update themselves. */
+  install?: { source: "git" | "manual"; autoCapable: boolean; hookSet: boolean };
 }
 
 const STEPS = ["פתיחה", "חשבון חיוב", "פרויקט", "הפעלת שירותים", "מסך הסכמה", "הרשאות", "פרסום", "מפתח חיבור", "הדבקת המפתח", "בדיקה", "סיום"];
@@ -784,6 +788,36 @@ export default function SetupWizard() {
                 </a>
               </div>
             </div>
+            {status.install?.autoCapable && (
+              <div className="space-y-3 rounded-2xl bg-muted p-5">
+                <h3 className="flex items-center gap-2 text-lg font-bold">
+                  <RefreshCw className="size-5" aria-hidden />
+                  עדכונים אוטומטיים
+                </h3>
+                {status.install.hookSet ? (
+                  <p className="flex items-center gap-2 text-emerald-900">
+                    <CheckCircle2 className="size-5 shrink-0" aria-hidden />
+                    מחובר. כשתצא גרסה חדשה, האתר יתעדכן לבד (לא בזמן שאורחים מעלים תמונות).
+                  </p>
+                ) : (
+                  <>
+                    <p>
+                      האתר הותקן מ-GitHub, ולכן הוא יכול להתעדכן לבד בכל פעם שיוצאת גרסה חדשה. נשאר רק לחבר פעם אחת "Deploy Hook" מ-Cloudflare (כ-2
+                      דקות, אפשר גם אחר כך מלוח ניהול האתר, בלשונית עדכונים):
+                    </p>
+                    <HookSteps />
+                    <HookForm
+                      submitLabel="חיבור עדכונים אוטומטיים"
+                      onSave={async (url) => {
+                        await api("/setup/update-hook", { method: "PUT", json: { hookUrl: url } });
+                        toast("החיבור נשמר. מעכשיו האתר יתעדכן לבד.");
+                        await load();
+                      }}
+                    />
+                  </>
+                )}
+              </div>
+            )}
             <details className="rounded-2xl border border-border p-4">
               <summary className="flex min-h-11 items-center gap-2 text-lg font-semibold">
                 <ShieldCheck className="size-5" aria-hidden />

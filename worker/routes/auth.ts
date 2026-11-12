@@ -20,7 +20,8 @@ import { createSession, destroySessions, hasSetupSession, isSiteAdmin, rateLimit
 import { findMember, getSetting, getSiteAdmin, normEmail, putSetting, siteOrigin, waitlistEnabled, type MemberRow } from "../lib/site";
 import { sendMail } from "../lib/mail";
 import { waitlistRequestMail } from "../lib/emails";
-import type { OwnerMe } from "../../shared/types";
+import type { OwnerMe, UpdateFlag } from "../../shared/types";
+import { updateFlag } from "../lib/updates";
 
 export const auth = new Hono<AppEnv>();
 
@@ -345,10 +346,10 @@ auth.get("/me", async (c) => {
     if (r) owner = { id: r.id, email: r.email, name: r.name, picture: r.picture, connected: !!r.refresh_token_enc };
   }
   const configured = !!(await getOAuthClient(c.env));
-  let siteAdmin: { pending: number } | null = null;
+  let siteAdmin: { pending: number; update: UpdateFlag } | null = null;
   if (owner && (await isSiteAdmin(c))) {
     const r = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM members WHERE status = 'pending'").first<{ n: number }>();
-    siteAdmin = { pending: r?.n ?? 0 };
+    siteAdmin = { pending: r?.n ?? 0, update: await updateFlag(c.env) };
   }
   return c.json({ owner, adminEventId: c.get("adminEventId") ?? null, configured, siteAdmin });
 });
