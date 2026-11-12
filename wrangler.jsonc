@@ -1,5 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  // This file is the same for everyone and is never edited by the deploy scripts. Your own values (Worker name,
+  // database id, domain) are passed at build time (scripts/lib/deploy-core.mjs -> vite.config.ts), or come from
+  // the Cloudflare dashboard when the site is built from GitHub.
   "name": "albums",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
@@ -11,20 +14,22 @@
     // Pages go through the Worker (to redirect the old workers.dev address); hashed files are served directly. /music/* is sliced by the Worker for Range requests (iOS audio).
     "run_worker_first": ["/*", "!/assets/*"]
   },
-  // The workers.dev address always stays on. With your own domain (see README), `npm run deploy` adds
-  // "routes" + "vars.CANONICAL_ORIGIN" here at deploy time, and workers.dev pages redirect to that domain.
+  // The workers.dev address always stays on. With your own domain, CANONICAL_ORIGIN (set by `npm run deploy`, or
+  // as a variable in the Cloudflare dashboard) makes workers.dev pages redirect to it.
   "workers_dev": true,
+  // Keep variables set in the Cloudflare dashboard (e.g. CANONICAL_ORIGIN) when a new version is deployed.
+  "keep_vars": true,
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "live-event-albums",
-      // Placeholder. Your real id is kept in .deploy-state.json (not in git) and filled in at deploy time.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // No database id or name on purpose: on a new site Cloudflare creates the database automatically,
+      // and later deploys keep using the database that is already connected to the Worker.
+      // The site updates the database structure by itself (worker/lib/schema.ts).
       "migrations_dir": "migrations"
     }
   ],
   "triggers": {
-    // Daily storage check (80% warning).
-    "crons": ["17 6 * * *"]
+    // Every 15 minutes: looks for a new version (and rebuilds itself when allowed). Once a day: storage check (80% warning) and housekeeping.
+    "crons": ["*/15 * * * *"]
   }
 }

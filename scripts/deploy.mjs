@@ -1,15 +1,7 @@
 #!/usr/bin/env node
-// `npm run deploy` - publishes the current code to Cloudflare (use it after updating to a new version).
-// First time? Run `npm run setup` instead - it guides you step by step.
-// Never rotates encryption keys; your settings stay in .deploy-state.json.
-import { deploy, isLoggedIn, green, bold, step } from "./lib/deploy-core.mjs";
-
-step("Checking the Cloudflare login");
-if (!isLoggedIn()) {
-  console.error("Not logged in to Cloudflare. Run: npm run setup (or npx wrangler login)");
-  process.exit(1);
-}
-
-const { url, setupUrl } = deploy();
-console.log(`\n${green(`Your site is live: ${url}`)}`);
-console.log(`\n${bold("Setup link (open it on a computer; keep it private):")}\n  ${setupUrl}\n`);
+// `npm run deploy`. Keep this file tiny and never change what it does: copies of this repository (forks, and
+// sites installed with the "Deploy to Cloudflare" button) keep running THEIR copy of it forever.
+//   - On Cloudflare Workers Builds (site installed from GitHub): scripts/ci-bootstrap.mjs
+//   - On your computer: scripts/deploy-cli.mjs
+if (process.env.WORKERS_CI) await import("./ci-bootstrap.mjs");
+else await import("./deploy-cli.mjs");

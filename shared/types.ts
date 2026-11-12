@@ -240,6 +240,47 @@ export interface AdminOverview {
   operator: { name: string; email: string };
 }
 
+// ---------------------------------------------------------------- versions & updates
+
+/** One entry of release-notes.json (Hebrew, plain text). */
+export interface ReleaseEntry {
+  version: string;
+  /** YYYY-MM-DD */
+  date: string;
+  notes: string[];
+  /** Something the site admin must do by hand after this version (shown even when the site updated itself). */
+  adminAction?: string;
+}
+
+/** What the site admin's dashboard shows: "available" = a newer version exists; "updated" = the site was just updated. */
+export type UpdateFlag = "available" | "updated" | null;
+
+export interface UpdatesInfo {
+  current: { version: string; commit: string; builtAt: string };
+  /** "git" = installed from GitHub through Cloudflare (can update itself); "manual" = deployed from a computer. */
+  source: "git" | "manual";
+  /** This build follows the original repository, so a rebuild installs the newest version. */
+  autoCapable: boolean;
+  latest: string | null;
+  /** Releases newer than the running version, newest first. */
+  newer: ReleaseEntry[];
+  /** Set after an update landed and until the admin marks it as seen: what the update brought. */
+  justUpdated: { from: string | null; releases: ReleaseEntry[] } | null;
+  /** Release history known to this copy (bundled + feed), newest first. */
+  history: ReleaseEntry[];
+  checkedAt: number | null;
+  checkError: string | null;
+  auto: {
+    enabled: boolean;
+    hook: { set: boolean; masked: string | null };
+    /** Last automatic or manual rebuild request. */
+    last: { version: string; at: number; attempts: number; ok: boolean; error?: string } | null;
+    /** Why an available update is waiting, if it is. */
+    waiting: "event" | "backoff" | "stopped" | null;
+  };
+  schemaError: string | null;
+}
+
 /** Result of an admin action that may send an email. */
 export interface MailOutcome {
   mailed?: boolean;

@@ -118,7 +118,7 @@ await pause();
 rl.close();
 let result;
 try {
-  result = deploy({ workerName, customDomain });
+  result = await deploy({ workerName, customDomain, rotateSetupIfUnknown: true });
 } catch (e) {
   fail(`Publishing failed: ${e.message}
   - If Cloudflare asked to register a workers.dev subdomain and you said no: run this again and answer y.
@@ -141,7 +141,8 @@ console.log(`
 ${bold("What's next")}
   - When the wizard is done: open your site, log in with Google and create your first event.
   - ${bold("Don't delete this folder.")} The hidden file .deploy-state.json in it keeps your site's settings.
-  - Updating to a new version: download the new code, copy .deploy-state.json from this folder into it,
-    then run: npm run deploy
+  - New versions: your site's admin dashboard tells you when one is out and what's new. To update, download
+    the new code, copy .deploy-state.json from this folder into it, then run: npm run deploy
     Lost the file? Run npm run setup and choose exactly the same site name.
+  - Want updates to install by themselves? See "Automatic updates" in README.md (GitHub + Cloudflare).
 `);

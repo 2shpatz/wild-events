@@ -15,6 +15,7 @@ import { manage } from "./routes/manage";
 import { imports } from "./routes/import";
 import { admin } from "./routes/admin";
 import { board } from "./routes/board";
+import { ensureSchema, updatingResponse } from "./lib/schema";
 
 const app = new Hono<AppEnv>().basePath("/api");
 
@@ -167,7 +168,11 @@ export default {
     const redirect = canonicalRedirect(request, env);
     if (redirect) return redirect;
     const { pathname } = new URL(request.url);
-    if (pathname.startsWith("/api/")) return withSecurityHeaders(await app.fetch(request, env, ctx));
+    if (pathname.startsWith("/api/")) {
+      // The database structure updates itself after a new version (lib/schema.ts).
+      if ((await ensureSchema(env)) === "pending") return withSecurityHeaders(updatingResponse());
+      return withSecurityHeaders(await app.fetch(request, env, ctx));
+    }
     if (pathname.startsWith("/music/")) return withSecurityHeaders(await serveMusic(request, env));
     return withSecurityHeaders(await env.ASSETS.fetch(request));
   },

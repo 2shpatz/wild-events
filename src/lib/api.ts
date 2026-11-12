@@ -72,6 +72,7 @@ const MESSAGES: Record<string, string> = {
   not_found: "הפריט לא נמצא - אולי הוא כבר נמחק.",
   network: "אין חיבור לאינטרנט. ננסה שוב כשהחיבור יחזור.",
   server_error: "משהו השתבש אצלנו. ננסה שוב.",
+  updating: "האתר מתעדכן לגרסה חדשה. נסו שוב בעוד רגע.",
 };
 
 export function errorMessage(e: unknown): string {
@@ -79,6 +80,8 @@ export function errorMessage(e: unknown): string {
   if (e instanceof TypeError) return MESSAGES.network;
   return MESSAGES.server_error;
 }
+
+const UPDATING_RETRY_MS = [500, 1000, 2000, 3000, 4000];
 
 export async function api<T = any>(
   path: string,
@@ -91,7 +94,14 @@ export async function api<T = any>(
     body = JSON.stringify(init.json);
   }
   if (init.guest) headers.set("X-Guest", init.guest);
-  const res = await fetch(`/api${path}`, { ...init, headers, body, credentials: "same-origin" });
+  let res: Response;
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(`/api${path}`, { ...init, headers, body, credentials: "same-origin" });
+    // Right after a new version the server updates its database for a moment (503 + X-Updating); the request
+    // never reached the app, so it is safe to send again.
+    if (res.status !== 503 || !res.headers.get("X-Updating") || attempt >= UPDATING_RETRY_MS.length) break;
+    await new Promise((r) => setTimeout(r, UPDATING_RETRY_MS[attempt]));
+  }
   if (!res.ok) {
     let code = "server_error";
     let detail: string | undefined;

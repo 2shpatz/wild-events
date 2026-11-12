@@ -9,6 +9,8 @@ export interface Env {
   SETUP_TOKEN: string;
   /** main address (e.g. https://photos.example.com); workers.dev page requests redirect to it. */
   CANONICAL_ORIGIN?: string;
+  /** Optional: where to look for new versions instead of the original repository (local testing, own forks). */
+  UPDATE_FEED_URL?: string;
 }
 
 export type AppVars = {

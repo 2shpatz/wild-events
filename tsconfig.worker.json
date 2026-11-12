@@ -10,6 +10,7 @@
     "isolatedModules": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "resolveJsonModule": true,
     "types": ["@cloudflare/workers-types"]
   },
   "include": ["worker", "shared"]
