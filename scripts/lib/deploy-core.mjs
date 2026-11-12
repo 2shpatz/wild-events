@@ -91,13 +91,27 @@ function wranglerDeploy() {
   }
 }
 
-function ensureSecrets(state, workerName) {
-  let existing = [];
-  try {
-    existing = JSON.parse(run(`npx wrangler secret list --name ${workerName} --format json`)).map((s) => s.name);
-  } catch {
-    /* first deploy */
+/**
+ * Names of the secrets already set on the Worker, or null when the Worker doesn't exist yet.
+ * Any other failure (network, login, Cloudflare error) throws: treating it as "no secrets" would
+ * generate new encryption keys and make every stored Google connection unreadable.
+ */
+export function listSecretNames(workerName) {
+  const r = spawnSync(`npx wrangler secret list --name ${workerName} --format json`, { shell: true, encoding: "utf8" });
+  if (r.status === 0) {
+    try {
+      return JSON.parse(r.stdout).map((s) => s.name);
+    } catch {
+      throw new Error(`Could not read the secret list of "${workerName}":\n${r.stdout}`);
+    }
   }
+  const out = `${r.stdout}\n${r.stderr}`;
+  if (/Worker "[^"]+"[^\n]* not found/.test(out)) return null;
+  throw new Error(`Could not read the secret list of "${workerName}" (nothing was changed):\n${out.trim()}`);
+}
+
+function ensureSecrets(state, workerName) {
+  const existing = listSecretNames(workerName) ?? [];
   const toSet = {};
   // Encryption keys are generated ONCE - rotating them would make stored Google tokens unreadable.
   if (!existing.includes("TOKEN_ENC_KEY")) toSet.TOKEN_ENC_KEY = b64url(randomBytes(32));

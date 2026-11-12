@@ -47,8 +47,8 @@ ${bold("Welcome! This installs the event photo album site (\"Eirua Parua\").")}
 
 // 1. Node + packages
 title("Checking your computer");
-const major = Number(process.versions.node.split(".")[0]);
-if (major < 20) fail(`Node.js 20 or newer is needed (you have ${process.versions.node}). Install the LTS version from https://nodejs.org and run this again.`);
+const [major, minor] = process.versions.node.split(".").map(Number);
+if (major < 22 || (major === 22 && minor < 12)) fail(`Node.js 22.12 or newer is needed (you have ${process.versions.node}). Install the LTS version from https://nodejs.org and run this again.`);
 console.log(`  Node.js ${process.versions.node} - OK`);
 if (!existsSync("node_modules")) {
   console.log("  Installing components (1-2 minutes)...");
