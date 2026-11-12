@@ -45,8 +45,8 @@
 2. לוחצים **Create application**, בוחרים **GitHub**, ומאשרים ל-Cloudflare גישה לחשבון GitHub שלכם (מספיק לעותק `wild-events`).
 3. בוחרים מהרשימה את **העותק שלכם**, `<השם-שלכם>/wild-events` (לא את המקור `2shpatz/wild-events`, אם הוא מופיע), וממלאים:
    - **שם הפרויקט:** `albums` (מומלץ). זה החלק הראשון של כתובת האתר: `https://albums.<השם-שלכם>.workers.dev`.
-   - **Build command:** משאירים ריק.
-   - **Deploy command:** `npm run deploy`
+   - **Build command:** משאירים ריק. אם Cloudflare מילאה שם `npm run build`, מוחקים.
+   - **Deploy command:** `npm run deploy` (במקום `npx wrangler deploy` ש-Cloudflare ממלאת לבד).
 4. לוחצים **Save and Deploy**. הבנייה הראשונה לוקחת כ-3 דקות.
 
 > בחרתם שם אחר? זה עובד. Cloudflare עשויה לפתוח בעותק שלכם בקשת שינוי (Pull Request) על שם ה-Worker. אפשר לסגור אותה.
@@ -174,7 +174,7 @@
 ### מעבר מהתקנה מהמחשב לעדכונים אוטומטיים
 האתר, הכתובת, מסד הנתונים, החיבור ל-Google והדומיין נשמרים:
 1. יוצרים עותק של הקוד ב-GitHub ([שלב 1 בדרך א](#שלב-1-עותק-משלכם-של-הקוד-fork)).
-2. ב-Cloudflare, בדף האתר הקיים: **Settings** ואז **Builds** ואז **Connect**. בוחרים את העותק, ענף `main`, **Build command** ריק, ו-**Deploy command** `npm run deploy`.
+2. ב-Cloudflare, בדף האתר הקיים: **Settings** ואז **Builds** ואז **Connect**. בוחרים את העותק, ענף `main`, **Build command** ריק, ו-**Deploy command** `npm run deploy` (מוחקים את מה ש-Cloudflare ממלאת לבד בשני השדות).
 3. מפעילים בנייה ראשונה: ב-**Deployments**, או בדחיפת שינוי קטן לעותק. היא משתמשת באותו מסד נתונים ובאותם סודות.
 4. בניהול האתר, בלשונית **עדכונים**, מחברים Deploy Hook ([שלב 4 בדרך א](#שלב-4-אשף-ההגדרה-בדפדפן-בעברית-כ-15-דקות), סעיף 6).
 
@@ -219,8 +219,9 @@
 | הדפדפן לא נפתח | מעתיקים את הקישור שמודפס בחלון השחור. |
 | בהתחברות ל-Google מופיע "Google hasn't verified this app" | זה צפוי באפליקציה פרטית: לוחצים **Advanced**, ואז **Go to ...**. |
 | בנייה ב-Cloudflare נכשלה עם `Could not get the newest code` | GitHub לא היה זמין לרגע. האתר נשאר בגרסה הקודמת. ב-**Deployments** לוחצים על בנייה חוזרת (Retry), או מחכים לבדיקה הבאה. |
+| בנייה נכשלה עם `Wrong build settings`, או שאחרי בנייה האתר חזר לגרסה ישנה | הגדרות הבנייה חזרו לברירת המחדל של Cloudflare (קורה למשל אחרי ניתוק וחיבור מחדש של העותק). ב-**Settings** ואז **Build**, ליד **Build configuration** לוחצים על העיפרון: **Build command** ריק, **Deploy command** `npm run deploy`. ואז ב-**Deployments** לוחצים **Retry build**. |
 | בנייה נכשלה עם `needs Node.js` | ב-**Settings** ואז **Build**, תחת **Build variables and secrets**, מוסיפים `NODE_VERSION` עם הערך `22`, ובונים שוב. |
-| האתר לא מתעדכן לגרסה חדשה | בניהול האתר ← **עדכונים** כתוב למה (למשל: מחכה לסוף האירוע, או שה-Deploy Hook לא תקין). את פרטי הבנייה רואים ב-Cloudflare: **Deployments** ואז **View build history**. |
+| האתר לא מתעדכן לגרסה חדשה | בניהול האתר ← **עדכונים** כתוב למה (למשל: הגרסה תותקן הלילה, או שה-Deploy Hook לא תקין). את פרטי הבנייה רואים ב-Cloudflare: **Deployments** ואז **View build history**. |
 
 ## מגבלות של Google
 - האתר רואה רק קבצים שהוא עצמו העלה. תמונות שכבר נמצאות ב-Google Photos נכנסות דרך "ייבוא מ-Google Photos" (כעותק).
@@ -265,7 +266,7 @@ npm run dev           # http://localhost:5173
 
 **Install, option A - GitHub + Cloudflare (updates itself, recommended):**
 1. Fork this repository. Cloudflare can only build repositories in your own account. Your fork is just a launcher: every build fetches the newest release of the original repository (`scripts/ci-bootstrap.mjs`), so the fork never needs syncing.
-2. Cloudflare dashboard: Workers & Pages, then Create application, then GitHub. Pick your fork, name it `albums`, leave Build command empty, and set Deploy command `npm run deploy`. Then Save and Deploy.
+2. Cloudflare dashboard: Workers & Pages, then Create application, then GitHub. Pick your fork, name it `albums`, leave Build command empty, and set Deploy command `npm run deploy` (replace Cloudflare's defaults `npm run build` / `npx wrangler deploy`). Then Save and Deploy.
 3. The end of the first build log (Deployments, then View build history) shows the setup link and code, once.
 4. Run the in-site setup wizard. In its last step, paste a Deploy Hook (Worker, then Settings, then Builds, then Deploy Hooks, branch `main`).
 
