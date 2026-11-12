@@ -43,7 +43,7 @@
 ### שלב 2: חיבור העותק ל-Cloudflare
 1. נכנסים ל-[Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages) ב-Cloudflare.
 2. לוחצים **Create application**, בוחרים **GitHub**, ומאשרים ל-Cloudflare גישה לחשבון GitHub שלכם (מספיק לעותק `wild-events`).
-3. בוחרים את `wild-events` מהרשימה וממלאים:
+3. בוחרים מהרשימה את **העותק שלכם**, `<השם-שלכם>/wild-events` (לא את המקור `2shpatz/wild-events`, אם הוא מופיע), וממלאים:
    - **שם הפרויקט:** `albums` (מומלץ). זה החלק הראשון של כתובת האתר: `https://albums.<השם-שלכם>.workers.dev`.
    - **Build command:** משאירים ריק.
    - **Deploy command:** `npm run deploy`
@@ -53,8 +53,16 @@
 
 ### שלב 3: קוד ההגדרה
 בסיום הבנייה הראשונה נוצר קוד הגדרה סודי, שמאפשר לשנות את הגדרות האתר:
-1. ב-Cloudflare, בדף האתר: **Deployments** ואז **View build history**, ופותחים את הבנייה האחרונה.
-2. בסוף היומן יש מסגרת `YOUR SITE IS READY` עם **קישור ההגדרה** ו**קוד ההגדרה**. מעתיקים ושומרים אותם במקום בטוח. הם מוצגים רק פעם אחת.
+1. ב-Cloudflare, בדף האתר: **Deployments** ואז **View build history**, ולוחצים על הבנייה העליונה ברשימה.
+2. גוללים לסוף היומן. יש שם מסגרת כזו:
+   ```
+   | YOUR SITE IS READY - NEXT STEP: THE SETUP WIZARD     |
+   | Setup link (open it on a computer):                  |
+   |   https://albums.<השם-שלכם>.workers.dev/setup?token=XXXXXXXXXXXXXXXXXXXXXXXX
+   | Setup code (if the wizard asks for it):              |
+   |   XXXXXXXXXXXXXXXXXXXXXXXX                           |
+   ```
+   **קוד ההגדרה** הוא 24 התווים שמתחת ל-`Setup code` (אותם תווים שאחרי `token=` בקישור). מעתיקים את הקישור והקוד ושומרים אותם במקום בטוח: הם מוצגים רק פעם אחת.
 
 ### שלב 4: אשף ההגדרה (בדפדפן, בעברית, כ-15 דקות)
 פותחים את קישור ההגדרה במחשב. האשף מלווה אתכם בכל לחיצה:
