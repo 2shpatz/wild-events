@@ -74,9 +74,10 @@ setup.post("/progress", async (c) => {
 
 /** Last step (sites installed from GitHub): the Deploy Hook that lets the site rebuild itself on a new version. */
 setup.put("/update-hook", async (c) => {
-  const { hookUrl } = await c.req.json<{ hookUrl?: string | null }>();
-  await saveHook(c.env, hookUrl ? cleanHookUrl(hookUrl, new URL(c.req.url).origin) : null);
-  return c.json({ ok: true, hookSet: !!hookUrl });
+  const { hookUrl } = await c.req.json<{ hookUrl?: unknown }>().catch(() => ({ hookUrl: undefined }));
+  const url = hookUrl === null || hookUrl === "" ? null : cleanHookUrl(hookUrl, new URL(c.req.url).origin);
+  await saveHook(c.env, url);
+  return c.json({ ok: true, hookSet: !!url });
 });
 
 setup.post("/operator", async (c) => {

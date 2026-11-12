@@ -29,9 +29,10 @@ updates.post("/trigger", async (c) => {
 });
 
 updates.put("/settings", async (c) => {
-  const body = await c.req.json<{ hookUrl?: string | null; auto?: boolean }>().catch(() => ({}) as { hookUrl?: string | null; auto?: boolean });
+  const body = await c.req.json<{ hookUrl?: unknown; auto?: unknown }>().catch(() => ({}) as { hookUrl?: unknown; auto?: unknown });
   if (body.hookUrl !== undefined) {
-    await saveHook(c.env, body.hookUrl ? cleanHookUrl(body.hookUrl, new URL(c.req.url).origin) : null);
+    // null or "" removes the hook; anything else must be a valid URL (cleanHookUrl rejects non-strings).
+    await saveHook(c.env, body.hookUrl === null || body.hookUrl === "" ? null : cleanHookUrl(body.hookUrl, new URL(c.req.url).origin));
   }
   if (typeof body.auto === "boolean") await putSetting(c, "update_auto", body.auto ? "1" : "0");
   return c.json(await updatesInfo(c));

@@ -21,4 +21,4 @@
 
 ## Never
 - Show the app version outside the admin screens (it is not in the public bundle at all).
-- Show the setup code; "פתיחת אשף ההגדרה" (Settings tab) opens the wizard through a session instead.
+- Show the setup code, or open the setup wizard from an admin login: the setup code is the proof of hosting (a stolen admin session must not be able to move the admin role or the Google client).

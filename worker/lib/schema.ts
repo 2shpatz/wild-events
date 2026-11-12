@@ -22,9 +22,11 @@ const ERROR_PAUSE_MS = 30_000;
 /** ready = up to date; pending = updated something just now (answer "try again", fresh budget next time); error = see logs. */
 export type SchemaState = "ready" | "pending" | "error";
 
+// Plain values only: a promise must never be shared between requests (Workers can't resolve it across request
+// contexts, and waiting requests would hang if the first one is cancelled). Requests that check at the same time are
+// safe anyway: each migration is one atomic batch and its name is UNIQUE in d1_migrations.
 let ready = false;
 let pausedUntil = 0;
-let running: Promise<SchemaState> | null = null;
 
 async function appliedNames(db: D1Database): Promise<Set<string>> {
   try {
@@ -37,16 +39,17 @@ async function appliedNames(db: D1Database): Promise<Set<string>> {
   }
 }
 
-async function applyOne(db: D1Database, m: { name: string; statements: string[] }, first: boolean) {
+/** Applies one migration. False = another instance of the Worker applied it at the same moment. */
+async function applyOne(db: D1Database, m: { name: string; statements: string[] }, first: boolean): Promise<boolean> {
   const batch = m.statements.map((s) => db.prepare(s));
   batch.push(db.prepare(`INSERT INTO "d1_migrations" (name) VALUES (?)`).bind(m.name));
   // A brand-new site: remember the version it started with, so the admin isn't told "the site was updated".
   if (first) batch.push(db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('last_seen_version', ?)").bind(APP.version));
   try {
     await db.batch(batch); // one transaction: all or nothing
+    return true;
   } catch (e) {
-    // Another instance of the Worker may have applied it at the same moment.
-    if ((await appliedNames(db)).has(m.name)) return;
+    if ((await appliedNames(db)).has(m.name)) return false;
     throw new Error(`${m.name}: ${(e as Error)?.message || e}`);
   }
 }
@@ -63,9 +66,8 @@ async function run(env: Env): Promise<SchemaState> {
     for (const m of todo) {
       const cost = m.statements.length + 2;
       if (used > 2 && used + cost > BUDGET) return "pending";
-      await applyOne(env.DB, m, m.name === migrations[0]?.name);
+      if (await applyOne(env.DB, m, m.name === migrations[0]?.name)) console.log(`database updated: ${m.name}`);
       used += cost;
-      console.log(`database updated: ${m.name}`);
     }
     ready = true;
     return "pending";
@@ -91,10 +93,7 @@ async function run(env: Env): Promise<SchemaState> {
 export function ensureSchema(env: Env): Promise<SchemaState> | SchemaState {
   if (ready) return "ready";
   if (Date.now() < pausedUntil) return "error";
-  running ??= run(env).finally(() => {
-    running = null;
-  });
-  return running;
+  return run(env);
 }
 
 /** True once this Worker instance confirmed every bundled migration is applied. */

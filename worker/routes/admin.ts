@@ -6,7 +6,7 @@ import type { AppEnv, Env } from "../env";
 import { decrypt } from "../lib/crypto";
 import { cleanName } from "../lib/db";
 import { revokeToken } from "../lib/google";
-import { createSession, endUserSessions, requireSiteAdmin } from "../lib/session";
+import { endUserSessions, requireSiteAdmin } from "../lib/session";
 import { sendMail, type Mail, type MailError } from "../lib/mail";
 import { archivedMail, deletedMail, inviteMail, restoredMail, testMail } from "../lib/emails";
 import { cleanEmail, getSetting, getSiteAdmin, putSetting, siteOrigin, waitlistEnabled, type MemberRow, type MemberStatus } from "../lib/site";
@@ -280,15 +280,6 @@ admin.put("/settings/waitlist", async (c) => {
 
 admin.put("/settings/operator", async (c) => {
   await saveOperator(c, await body<{ name?: string; email?: string }>(c));
-  return c.json({ ok: true });
-});
-
-/**
- * Opens the setup wizard for the logged-in admin (instead of showing the setup code, which can't be read back and
- * shouldn't be: a stolen admin session must not turn into a permanent way back in).
- */
-admin.post("/setup-session", async (c) => {
-  await createSession(c, "setup", { days: 1 });
   return c.json({ ok: true });
 });
 

@@ -147,6 +147,9 @@ export async function warmUp(url) {
 export async function deploy(opts = {}) {
   const state = readState();
   state.workerName = opts.workerName || state.workerName || DEFAULT_NAME;
+  // Removing the domain in `npm run setup` must also clear the redirect. Otherwise CANONICAL_ORIGIN is left as it is,
+  // so a value set in the Cloudflare dashboard (sites installed from GitHub) survives a deploy from a computer.
+  const removedDomain = opts.customDomain !== undefined && !opts.customDomain && !!state.customDomain;
   if (opts.customDomain !== undefined) state.customDomain = opts.customDomain || undefined;
 
   step("Checking the site on Cloudflare");
@@ -168,7 +171,7 @@ export async function deploy(opts = {}) {
     name: state.workerName,
     databaseId: state.databaseId,
     databaseName: state.databaseId ? DB_NAME : undefined,
-    canonicalOrigin: state.customDomain ? `https://${state.customDomain}` : "",
+    canonicalOrigin: state.customDomain ? `https://${state.customDomain}` : removedDomain ? "" : undefined,
     routes: state.customDomain ? [{ pattern: state.customDomain, custom_domain: true }] : undefined,
   });
 

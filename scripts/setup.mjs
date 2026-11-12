@@ -3,7 +3,7 @@
 // Puts the site on YOUR free Cloudflare account, then opens the in-site wizard (Hebrew) that connects YOUR Google account.
 // Terminal text is English on purpose: Windows terminals can't display right-to-left Hebrew correctly.
 // The same steps are explained in Hebrew in README.md.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import {
@@ -47,8 +47,12 @@ ${bold("Welcome! This installs the event photo album site (\"Eirua Parua\").")}
 
 // 1. Node + packages
 title("Checking your computer");
+// The minimum comes from package.json "engines" (also checked by the build on Cloudflare, scripts/ci/deploy.mjs).
+const need = (/(\d+)\.(\d+)/.exec(JSON.parse(readFileSync("package.json", "utf8")).engines?.node || "") || [0, 0, 0]).slice(1).map(Number);
 const [major, minor] = process.versions.node.split(".").map(Number);
-if (major < 22 || (major === 22 && minor < 12)) fail(`Node.js 22.12 or newer is needed (you have ${process.versions.node}). Install the LTS version from https://nodejs.org and run this again.`);
+if (major < need[0] || (major === need[0] && minor < need[1])) {
+  fail(`Node.js ${need.join(".")} or newer is needed (you have ${process.versions.node}). Install the LTS version from https://nodejs.org and run this again.`);
+}
 console.log(`  Node.js ${process.versions.node} - OK`);
 if (!existsSync("node_modules")) {
   console.log("  Installing components (1-2 minutes)...");

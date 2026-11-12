@@ -93,8 +93,12 @@ export async function checkFeed(env: Env): Promise<FeedState> {
     }
   }
   await putSetting(c, "update_feed", JSON.stringify(next));
-  const latest = next.releases[0]?.version;
-  if (latest) await putSetting(c, "update_latest", latest);
+  if (!next.error) {
+    // Follows the last good list exactly (a pulled release or another source can lower it).
+    const latest = next.releases[0]?.version;
+    if (latest) await putSetting(c, "update_latest", latest);
+    else await env.DB.prepare("DELETE FROM settings WHERE key = 'update_latest'").run();
+  }
   return next;
 }
 
@@ -126,8 +130,9 @@ export async function markSeen(env: Env) {
 // ---------------------------------------------------------------- deploy hook
 
 /** Checks a Deploy Hook URL the admin pasted. Throws 400 bad_hook_url. */
-export function cleanHookUrl(raw: string, siteOrigin: string): string {
-  const s = (raw || "").trim();
+export function cleanHookUrl(raw: unknown, siteOrigin: string): string {
+  if (typeof raw !== "string") throw new HTTPException(400, { message: "bad_hook_url" });
+  const s = raw.trim();
   let u: URL;
   try {
     u = new URL(s);
@@ -153,14 +158,27 @@ export function maskHook(url: string): string {
   }
 }
 
-async function readHook(env: Env): Promise<string | null> {
-  const enc = await getSetting({ env }, "update_hook_enc");
+/** Several settings in one query. */
+async function settings(env: Env, keys: string[]): Promise<Record<string, string | null>> {
+  const rows = await env.DB.prepare(`SELECT key, value FROM settings WHERE key IN (${keys.map(() => "?").join(",")})`)
+    .bind(...keys)
+    .all<{ key: string; value: string }>();
+  const out: Record<string, string | null> = Object.fromEntries(keys.map((k) => [k, null]));
+  for (const r of rows.results) out[r.key] = r.value;
+  return out;
+}
+
+async function decryptHook(env: Env, enc: string | null): Promise<string | null> {
   if (!enc) return null;
   try {
     return await decrypt(env.TOKEN_ENC_KEY, enc);
   } catch {
     return null;
   }
+}
+
+async function readHook(env: Env): Promise<string | null> {
+  return decryptHook(env, await getSetting({ env }, "update_hook_enc"));
 }
 
 /** Saves (or with null, removes) the Deploy Hook URL, encrypted. A new URL also clears an earlier "stopped". */
@@ -205,8 +223,8 @@ async function uploadsRecently(env: Env, now: number) {
 type Waiting = UpdatesInfo["auto"]["waiting"];
 
 /** Why an available update would not be requested right now (null = it would be). */
-async function waitingReason(env: Env, latest: string, now: number): Promise<Waiting> {
-  const t = parse<TriggerState>(await getSetting({ env }, "update_trigger"));
+async function waitingReason(env: Env, latest: string, now: number, trigger?: TriggerState | null): Promise<Waiting> {
+  const t = trigger !== undefined ? trigger : parse<TriggerState>(await getSetting({ env }, "update_trigger"));
   if (t?.version === latest) {
     if (t.stopped) return "stopped";
     if (now < t.at + BACKOFF[Math.min(t.attempts, BACKOFF.length) - 1]) return "backoff";
@@ -233,12 +251,13 @@ export async function maybeAutoUpdate(env: Env, feed: FeedState, now = Date.now(
 
 export async function updatesInfo(c: HasEnv): Promise<UpdatesInfo> {
   const env = c.env;
-  const feed = parse<FeedState>(await getSetting(c, "update_feed"));
+  const st = await settings(env, ["update_feed", "last_seen_version", "update_hook_enc", "update_trigger", "update_auto", "schema_error"]);
+  const feed = parse<FeedState>(st.update_feed);
   const all = mergeReleases(feed?.releases ?? []);
   const newer = all.filter((r) => compareVersions(r.version, APP.version) > 0);
   const latest = all[0]?.version ?? null;
 
-  const seen = await getSetting(c, "last_seen_version");
+  const seen = st.last_seen_version;
   let justUpdated: UpdatesInfo["justUpdated"] = null;
   if (seen !== APP.version) {
     const releases = all.filter(
@@ -247,13 +266,13 @@ export async function updatesInfo(c: HasEnv): Promise<UpdatesInfo> {
     justUpdated = { from: seen, releases };
   }
 
-  const hook = await readHook(env);
-  const trigger = parse<TriggerState>(await getSetting(c, "update_trigger"));
-  const enabled = (await getSetting(c, "update_auto")) !== "0";
-  const waiting = newer.length && APP.autoCapable && enabled && hook ? await waitingReason(env, newer[0].version, Date.now()) : null;
+  const hook = await decryptHook(env, st.update_hook_enc);
+  const trigger = parse<TriggerState>(st.update_trigger);
+  const enabled = st.update_auto !== "0";
+  const waiting = newer.length && APP.autoCapable && enabled && hook ? await waitingReason(env, newer[0].version, Date.now(), trigger) : null;
 
   let schemaError: string | null = null;
-  const se = parse<{ message: string; version: string }>(await getSetting(c, "schema_error"));
+  const se = parse<{ message: string; version: string }>(st.schema_error);
   if (se) {
     if (schemaReady()) await env.DB.prepare("DELETE FROM settings WHERE key = 'schema_error'").run();
     else schemaError = se.message;

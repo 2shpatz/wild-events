@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Settings,
   ShieldCheck,
-  Wand2,
   Trash2,
   UserPlus,
   Users,
@@ -805,38 +804,11 @@ function SettingsTab({ overview, onChanged }: { overview: AdminOverview; onChang
           החשבון המנהל: <span dir="ltr" className="font-semibold">{overview.admin?.email}</span>
         </p>
         <p className="text-sm text-muted-fg">
-          ניהול האתר שייך למי שמארח/ת אותו. כדי להעביר את הניהול לחשבון Google אחר, או לשנות את החיבור ל-Google: פותחים את אשף ההגדרה, ובשלב
-          האחרון לוחצים "כניסה כמנהל/ת האתר" עם החשבון החדש.
+          ניהול האתר שייך למי שמארח/ת אותו. כדי להעביר את הניהול לחשבון Google אחר: פותחים את קישור ההגדרה שקיבלתם בהתקנה, ובשלב האחרון לוחצים
+          "כניסה כמנהל/ת האתר" עם החשבון החדש. איבדתם את הקישור? במדריך ההתקנה יש פרק "איבדתי את קישור ההגדרה".
         </p>
-        <OpenSetupWizard />
       </Card>
     </div>
-  );
-}
-
-/** Opens the setup wizard for the admin (the setup code itself is never shown: it can't be read back). */
-function OpenSetupWizard() {
-  const toast = useToast();
-  const navigate = useNavigate();
-  const [busy, setBusy] = useState(false);
-  return (
-    <Button
-      variant="outline"
-      loading={busy}
-      icon={<Wand2 className="size-4" aria-hidden />}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          await api("/admin/setup-session", { method: "POST" });
-          navigate("/setup");
-        } catch (e) {
-          toast(errorMessage(e), "error");
-          setBusy(false);
-        }
-      }}
-    >
-      פתיחת אשף ההגדרה
-    </Button>
   );
 }
 

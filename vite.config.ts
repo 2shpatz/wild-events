@@ -24,8 +24,9 @@ function buildInfo() {
   }
   // Set by scripts/ci-bootstrap.mjs for builds connected to a git repo (Cloudflare Workers Builds).
   const follows = process.env.EP_FOLLOWS_UPSTREAM === "1";
-  const repo = process.env.UPSTREAM_REPO || DEFAULT_UPSTREAM;
-  const ref = process.env.UPSTREAM_REF || "main";
+  // Same reading as scripts/ci-bootstrap.mjs (trimmed), so "pinned" matches what was actually built.
+  const repo = (process.env.UPSTREAM_REPO || "").trim() || DEFAULT_UPSTREAM;
+  const ref = (process.env.UPSTREAM_REF || "").trim() || "main";
   const pinned = /^v?\d+\.\d+\.\d+$/.test(ref); // pinned to a release tag: tell about new versions, never auto-update
   const gh = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(repo);
   const feed = gh ? `https://raw.githubusercontent.com/${gh[1]}/${gh[2]}/${pinned ? "main" : ref}/release-notes.json` : "";

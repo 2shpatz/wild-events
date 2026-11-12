@@ -73,6 +73,9 @@ const MESSAGES: Record<string, string> = {
   network: "אין חיבור לאינטרנט. ננסה שוב כשהחיבור יחזור.",
   server_error: "משהו השתבש אצלנו. ננסה שוב.",
   updating: "האתר מתעדכן לגרסה חדשה. נסו שוב בעוד רגע.",
+  bad_hook_url: "הכתובת לא תקינה. מעתיקים מ-Cloudflare את כל כתובת ה-Deploy Hook, שמתחילה ב-https://",
+  no_hook: "עוד לא חובר Deploy Hook. מחברים אותו בלשונית עדכונים.",
+  hook_failed: "Cloudflare לא קיבלה את בקשת העדכון. אם זה חוזר, ייתכן שה-Deploy Hook נמחק: יוצרים חדש ב-Cloudflare ומדביקים אותו כאן.",
 };
 
 export function errorMessage(e: unknown): string {

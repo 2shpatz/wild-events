@@ -397,7 +397,7 @@ function HowUpdatesWork({ info, onInfo }: { info: UpdatesInfo; onInfo: (i: Updat
 
 const WAITING: Record<NonNullable<UpdatesInfo["auto"]["waiting"]>, string> = {
   event: "ממתין לסיום האירוע: אורחים העלו תמונות בשעה האחרונה, ולכן העדכון יחכה שיהיה שקט.",
-  backoff: "בקשת העדכון נשלחה. אם האתר לא יתעדכן תוך שעה, הוא יבקש שוב.",
+  backoff: "בקשת העדכון נשלחה. אם האתר לא יתעדכן, הוא יבקש שוב מאוחר יותר (אחרי שעה, ואם צריך אחרי 6 ו-24 שעות).",
   stopped: "Cloudflare לא קיבלה את כתובת ה-Deploy Hook (אולי היא נמחקה). צריך ליצור חדשה ולהדביק אותה כאן.",
 };
 

@@ -19,8 +19,8 @@ const git = (...args) =>
   spawnSync("git", ["-c", "safe.directory=*", "-c", "advice.detachedHead=false", ...args], { stdio: "inherit" }).status === 0;
 
 if (follow) {
-  const repo = (process.env.UPSTREAM_REPO || DEFAULT_REPO).trim();
-  const ref = (process.env.UPSTREAM_REF || "main").trim();
+  const repo = (process.env.UPSTREAM_REPO || "").trim() || DEFAULT_REPO;
+  const ref = (process.env.UPSTREAM_REF || "").trim() || "main";
   console.log(`\n>>> Getting the newest code: ${repo} (${ref})`);
   if (!git("fetch", "--depth=1", "--no-tags", repo, ref) || !git("checkout", "-f", "--detach", "FETCH_HEAD")) {
     console.error(

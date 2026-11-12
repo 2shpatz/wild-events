@@ -15,12 +15,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeChangelog } from "./changelog.mjs";
+import { bold, green, step } from "./lib/deploy-core.mjs";
 
 const KINDS = ["patch", "minor", "major"];
 const kind = process.argv[2];
-const bold = (s) => `\x1b[1m${s}\x1b[0m`;
-const green = (s) => `\x1b[32m${s}\x1b[0m`;
-const step = (s) => console.log(`\n${bold(`▶ ${s}`)}`);
 const git = (args) => execSync(`git ${args}`, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 const ok = (args) => spawnSync(`git ${args}`, { shell: true, stdio: "ignore" }).status === 0;
 const sh = (cmd) => {
