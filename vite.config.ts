@@ -15,6 +15,15 @@ const DEFAULT_UPSTREAM = "https://github.com/2shpatz/wild-events.git";
  * so the version never ends up in the public JavaScript; the admin screen gets it from the API.
  */
 function buildInfo() {
+  // On Cloudflare the build must start with `npm run deploy` (scripts/ci-bootstrap.mjs sets EP_FOLLOWS_UPSTREAM).
+  // Cloudflare's own defaults (Build command "npm run build", Deploy command "npx wrangler deploy") would quietly
+  // deploy the copy's frozen code, which never updates; stop with a clear message instead.
+  if (process.env.WORKERS_CI && process.env.EP_FOLLOWS_UPSTREAM === undefined) {
+    throw new Error(
+      "Wrong build settings. In Cloudflare: your Worker -> Settings -> Build: leave Build command EMPTY and set " +
+        "Deploy command to: npm run deploy (README, install option A, step 2). Then Retry build.",
+    );
+  }
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
   let commit = "";
   try {
