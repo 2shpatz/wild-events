@@ -1,10 +1,19 @@
+import { cx } from "../ui";
+
+// Off: an outlined track with a dark knob, so the switch stands out on any card or theme (a light-gray track on a
+// white card was nearly invisible, and on the dark theme it matched the card exactly). On: filled with the theme color.
+const TRACK =
+  "h-8 w-14 rounded-full border-2 border-muted-fg bg-card transition-colors duration-200 peer-checked:border-primary peer-checked:bg-primary peer-focus-visible:outline peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring";
+const KNOB =
+  "pointer-events-none absolute start-1 size-6 rounded-full bg-muted-fg shadow transition-[transform,background-color] duration-200 peer-checked:-translate-x-6 peer-checked:bg-on-primary";
+
 /** The switch itself (RTL: the knob moves toward the start when on). Wrapped in a label so the knob is clickable. */
 export function Switch({ id, checked, onChange, label }: { id?: string; checked: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
     <label className="relative inline-flex min-h-11 shrink-0 cursor-pointer items-center">
       <input id={id} type="checkbox" role="switch" aria-label={label} checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
-      <span className="h-8 w-14 rounded-full bg-muted transition-colors duration-200 peer-checked:bg-primary peer-focus-visible:outline peer-focus-visible:outline-3 peer-focus-visible:outline-ring" />
-      <span className="absolute start-1 top-1/2 size-6 -translate-y-1/2 rounded-full bg-white shadow transition-transform duration-200 peer-checked:-translate-x-6" />
+      <span className={TRACK} />
+      <span className={cx(KNOB, "top-1/2 -translate-y-1/2")} />
     </label>
   );
 }
@@ -19,8 +28,8 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
       </span>
       <span className="relative inline-flex shrink-0">
         <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
-        <span className="h-8 w-14 rounded-full bg-muted transition-colors duration-200 peer-checked:bg-primary peer-focus-visible:outline peer-focus-visible:outline-3 peer-focus-visible:outline-ring" />
-        <span className="absolute start-1 top-1 size-6 rounded-full bg-white shadow transition-transform duration-200 peer-checked:-translate-x-6" />
+        <span className={TRACK} />
+        <span className={cx(KNOB, "top-1")} />
       </span>
     </label>
   );

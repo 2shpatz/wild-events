@@ -26,6 +26,7 @@ import { freeBytes, StorageBar, storageLevel } from "../components/StorageBar";
 import { connectHref } from "../components/StorageAccountPicker";
 import { QRShare } from "../components/QRShare";
 import { GoogleButton } from "../components/GoogleButton";
+import { OwnSiteNote } from "../components/OwnSiteNote";
 import type { OwnerEventSummary, StorageAccountDTO } from "../../shared/types";
 
 export default function Dashboard() {
@@ -119,6 +120,8 @@ export default function Dashboard() {
             </div>
           </Card>
         )}
+
+        {!me.siteAdmin && me.siteOperator && <OwnSiteNote operator={me.siteOperator} />}
 
         {me.siteAdmin?.update && (
           <Card

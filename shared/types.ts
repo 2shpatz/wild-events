@@ -201,6 +201,12 @@ export interface OwnerMe {
   connected: boolean;
 }
 
+/** Who hosts this copy of the site, shown to users who are not the site admin. */
+export interface SiteOperator {
+  name: string | null;
+  email: string | null;
+}
+
 // ---------------------------------------------------------------- site admin
 
 export type MemberSource = "manual" | "waitlist" | "open" | "legacy" | "admin";

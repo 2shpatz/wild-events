@@ -17,12 +17,10 @@ import {
 import type { ReleaseEntry, UpdatesInfo } from "../../../shared/types";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate, timeAgo } from "../../lib/format";
+import { CF_WORKERS_URL, REPO_URL } from "../../lib/links";
 import { Button, Card, ConfirmDialog, Field, cx, inputClass, useToast } from "../ui";
 import { Toggle } from "../manage/Toggle";
 
-/** The original repository (code, guide, downloads). */
-export const REPO_URL = "https://github.com/2shpatz/wild-events";
-const CF_WORKERS_URL = "https://dash.cloudflare.com/?to=/:account/workers-and-pages";
 
 const V = ({ v }: { v: string }) => (
   <bdi dir="ltr" className="font-semibold">

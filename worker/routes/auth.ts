@@ -20,7 +20,7 @@ import { createSession, destroySessions, hasSetupSession, isSiteAdmin, rateLimit
 import { findMember, getSetting, getSiteAdmin, normEmail, putSetting, siteOrigin, waitlistEnabled, type MemberRow } from "../lib/site";
 import { sendMail } from "../lib/mail";
 import { waitlistRequestMail } from "../lib/emails";
-import type { OwnerMe, UpdateFlag } from "../../shared/types";
+import type { OwnerMe, SiteOperator, UpdateFlag } from "../../shared/types";
 import { updateFlag } from "../lib/updates";
 
 export const auth = new Hono<AppEnv>();
@@ -347,9 +347,16 @@ auth.get("/me", async (c) => {
   }
   const configured = !!(await getOAuthClient(c.env));
   let siteAdmin: { pending: number; update: UpdateFlag } | null = null;
+  let siteOperator: SiteOperator | null = null;
   if (owner && (await isSiteAdmin(c))) {
     const r = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM members WHERE status = 'pending'").first<{ n: number }>();
     siteAdmin = { pending: r?.n ?? 0, update: await updateFlag(c.env) };
+  } else if (owner) {
+    // Users who don't host the site see who does (the operator details from setup, which are public on the legal
+    // pages anyway; the admin's own Google name/email only if those were never filled in).
+    const [opName, opEmail] = await Promise.all([getSetting(c, "operator_name"), getSetting(c, "operator_email")]);
+    const admin = opName && opEmail ? null : await getSiteAdmin(c.env);
+    siteOperator = { name: opName || admin?.name || null, email: opEmail || admin?.email || null };
   }
-  return c.json({ owner, adminEventId: c.get("adminEventId") ?? null, configured, siteAdmin });
+  return c.json({ owner, adminEventId: c.get("adminEventId") ?? null, configured, siteAdmin, siteOperator });
 });

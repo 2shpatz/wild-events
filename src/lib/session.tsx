@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { api } from "./api";
-import type { OwnerMe, PublicEvent, UpdateFlag } from "../../shared/types";
+import type { OwnerMe, PublicEvent, SiteOperator, UpdateFlag } from "../../shared/types";
 import { applyTheme } from "./themes";
 import { rememberEvent } from "./share";
 
@@ -10,6 +10,8 @@ interface Me {
   configured: boolean;
   /** Only for the site admin: how many people wait for approval, and news about versions. */
   siteAdmin?: { pending: number; update?: UpdateFlag } | null;
+  /** For logged-in users who are not the site admin: who hosts this copy of the site. */
+  siteOperator?: SiteOperator | null;
 }
 
 const MeCtx = createContext<{ me: Me | null; refresh: () => Promise<void> }>({ me: null, refresh: async () => {} });
