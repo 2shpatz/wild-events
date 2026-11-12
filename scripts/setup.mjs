@@ -144,5 +144,6 @@ ${bold("What's next")}
   - New versions: your site's admin dashboard tells you when one is out and what's new. To update, download
     the new code, copy .deploy-state.json from this folder into it, then run: npm run deploy
     Lost the file? Run npm run setup and choose exactly the same site name.
-  - Want updates to install by themselves? See "Automatic updates" in README.md (GitHub + Cloudflare).
+  - Want new versions to install by themselves? README.md explains how to move this site to
+    GitHub + Cloudflare builds (your database, Google connection and address stay).
 `);

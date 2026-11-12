@@ -6,7 +6,7 @@
 // Builds the site, deploys it, adds the internal secrets a new site needs (never replaces existing ones), and on a
 // brand-new site prints the setup code at the end of the build log.
 import { execSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { bold, build, green, listSecretNames, missingSecrets, step, warmUp, wranglerDeploy, yellow } from "../lib/deploy-core.mjs";
 
 const PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
@@ -62,7 +62,8 @@ try {
 console.log(`\n${bold(`Eirua Parua ${pkg.version}${commit ? ` (${commit})` : ""}${follows ? " - newest code of the original repository" : " - this copy as it is"}`)}`);
 
 checkNode();
-if (follows) {
+// The newest code may need other packages than the copy that Cloudflare installed (and some hosts don't install at all).
+if (follows || !existsSync("node_modules")) {
   step("Installing components");
   if (spawnSync("npm ci --no-audit --no-fund", { shell: true, stdio: "inherit" }).status !== 0) fail("Installing components failed. Retry the build.");
 }
