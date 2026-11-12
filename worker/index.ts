@@ -59,26 +59,33 @@ app.onError((err, c) => {
   return c.json({ error: "server_error" }, 500);
 });
 
+/** Runs from this hour (UTC) on are the morning run; earlier ones are the night run. Matches wrangler.jsonc. */
+const MORNING_FROM_UTC_HOUR = 6;
+
 /**
- * Cron, every 15 minutes. Once a day (from 06:00 UTC): storage check + housekeeping. The other runs: look for a new
- * version and, for sites installed from GitHub, rebuild when allowed (lib/updates.ts). Never both in one run, to
- * stay within the outgoing-request limit of one run.
+ * Cron (wrangler.jsonc), twice a day:
+ * - night (01:17 UTC): look for a new version and, for sites installed from GitHub, rebuild when allowed
+ *   (lib/updates.ts). Nobody is using the site then, and the admin sees the news in the morning.
+ * - morning (06:17 UTC): storage check + housekeeping.
+ * Never both in one run, to stay within the outgoing-request limit of one run.
  */
 async function scheduled(controller: ScheduledController, env: Env) {
   const schema = await ensureSchema(env);
-  if (schema === "pending") return; // spent this run on the database update; the next run continues
+  if (schema === "pending") return; // spent this run on the database update; the site's first request continues it
   const now = controller.scheduledTime;
-  const lastDaily = Number(await getSetting({ env }, "last_daily_run")) || 0;
-  if (now - lastDaily >= 20 * 3_600_000 && new Date(now).getUTCHours() >= 6) {
-    await putSetting({ env }, "last_daily_run", String(now));
-    await runDaily(env);
+  if (new Date(now).getUTCHours() < MORNING_FROM_UTC_HOUR) {
+    try {
+      await maybeAutoUpdate(env, await checkFeed(env), now);
+    } catch (e) {
+      console.warn("update check failed", e);
+    }
     return;
   }
-  try {
-    await maybeAutoUpdate(env, await checkFeed(env), now);
-  } catch (e) {
-    console.warn("update check failed", e);
-  }
+  // Once a day, even if the schedule runs more often (a copy with its own wrangler.jsonc, a manual test run).
+  const lastDaily = Number(await getSetting({ env }, "last_daily_run")) || 0;
+  if (now - lastDaily < 20 * 3_600_000) return;
+  await putSetting({ env }, "last_daily_run", String(now));
+  await runDaily(env);
 }
 
 async function runDaily(env: Env) {

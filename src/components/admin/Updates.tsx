@@ -103,7 +103,7 @@ export function UpdateBanner({ info, onOpen, onSeen }: { info: UpdatesInfo; onOp
           <Download className="size-5 shrink-0" aria-hidden />
           <span>
             יצאה גרסה חדשה: <V v={info.newer[0].version} />
-            {info.autoCapable && info.auto.enabled && info.auto.hook.set ? " (תותקן אוטומטית)" : ""}
+            {info.autoCapable && info.auto.enabled && info.auto.hook.set ? " (תותקן לבד בלילה)" : ""}
           </span>
         </p>
         <Button variant="outline" size="sm" onClick={onOpen}>
@@ -206,7 +206,7 @@ export function UpdatesTab({ info, onInfo, onSeen }: { info: UpdatesInfo; onInfo
     try {
       const i = await api<UpdatesInfo>("/admin/updates/check", { method: "POST" });
       onInfo(i);
-      toast(i.newer.length ? `יש גרסה חדשה: ${i.newer[0].version}` : i.checkError ? "הבדיקה לא הצליחה. ננסה שוב בקרוב." : "האתר מעודכן לגרסה האחרונה", i.checkError ? "error" : "success");
+      toast(i.newer.length ? `יש גרסה חדשה: ${i.newer[0].version}` : i.checkError ? "הבדיקה לא הצליחה. אפשר לנסות שוב מאוחר יותר." : "האתר מעודכן לגרסה האחרונה", i.checkError ? "error" : "success");
     } catch (e) {
       toast(errorMessage(e), "error");
     } finally {
@@ -268,7 +268,7 @@ export function UpdatesTab({ info, onInfo, onSeen }: { info: UpdatesInfo; onInfo
           )}
         </dl>
         {info.checkError && (
-          <p className="text-sm text-amber-800">הבדיקה האחרונה לגרסה חדשה לא הצליחה. האתר ינסה שוב לבד בעוד רבע שעה.</p>
+          <p className="text-sm text-amber-800">הבדיקה האחרונה לגרסה חדשה לא הצליחה. האתר ינסה שוב לבד בלילה, ואפשר גם ללחוץ "בדיקה עכשיו".</p>
         )}
         {info.schemaError && (
           <p className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-red-900">
@@ -396,8 +396,7 @@ function HowUpdatesWork({ info, onInfo }: { info: UpdatesInfo; onInfo: (i: Updat
 }
 
 const WAITING: Record<NonNullable<UpdatesInfo["auto"]["waiting"]>, string> = {
-  event: "ממתין לסיום האירוע: אורחים העלו תמונות בשעה האחרונה, ולכן העדכון יחכה שיהיה שקט.",
-  backoff: "בקשת העדכון נשלחה. אם האתר לא יתעדכן, הוא יבקש שוב מאוחר יותר (אחרי שעה, ואם צריך אחרי 6 ו-24 שעות).",
+  requested: "בקשת העדכון נשלחה, והאתר עובר לגרסה החדשה תוך כמה דקות. אם זה לא קרה, הוא יבקש שוב בלילה הבא.",
   stopped: "Cloudflare לא קיבלה את כתובת ה-Deploy Hook (אולי היא נמחקה). צריך ליצור חדשה ולהדביק אותה כאן.",
 };
 
@@ -437,7 +436,7 @@ function AutoUpdates({ info, onInfo }: { info: UpdatesInfo; onInfo: (i: UpdatesI
         checked={auto.enabled}
         onChange={(v) => save({ auto: v }).then(() => toast(v ? "עדכונים אוטומטיים הופעלו" : "עדכונים אוטומטיים כובו")).catch((e) => toast(errorMessage(e), "error"))}
         label={auto.enabled ? "פעילים: גרסה חדשה מותקנת לבד" : "כבויים: גרסה חדשה תחכה ללחיצה על \"עדכון עכשיו\""}
-        hint="האתר בודק כל רבע שעה אם יצאה גרסה חדשה. הוא לא מתעדכן בזמן שאורחים מעלים תמונות, כדי לא להפריע לאירוע."
+        hint="פעם בלילה האתר בודק אם יצאה גרסה חדשה ומתקין אותה. אם אורחים העלו תמונות בשעה שלפני הבדיקה, העדכון מחכה ללילה הבא, כדי לא להפריע לאירוע."
       />
 
       {auto.hook.set && !replacing ? (
@@ -484,6 +483,11 @@ function AutoUpdates({ info, onInfo }: { info: UpdatesInfo; onInfo: (i: UpdatesI
 
       {status && <p className="text-sm text-muted-fg">{status}</p>}
       {newest && auto.waiting && <p className="text-sm text-amber-800">{WAITING[auto.waiting]}</p>}
+      {newest && !auto.waiting && auto.enabled && auto.hook.set && (
+        <p className="text-sm text-muted-fg">
+          הגרסה החדשה תותקן לבד הלילה, בסביבות 3-4 לפנות בוקר. לא רוצים לחכות? אפשר ללחוץ "עדכון עכשיו".
+        </p>
+      )}
       {auto.last && !auto.last.ok && auto.last.attempts >= 2 && (
         <p className="text-sm text-muted-fg">
           העדכון לא מסתיים? ב-Cloudflare: האתר ← <span dir="ltr">Deployments</span> ← <span dir="ltr">View build history</span>, שם רואים למה הבנייה נכשלה.

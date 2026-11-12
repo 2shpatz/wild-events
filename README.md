@@ -19,7 +19,7 @@
 | | **דרך א: דרך GitHub ו-Cloudflare** (מומלץ) | **דרך ב: מהמחשב** |
 |---|---|---|
 | מה צריך | חשבונות GitHub, Cloudflare ו-Google (חינמיים) | מחשב עם Node.js, וחשבונות Cloudflare ו-Google |
-| גרסאות חדשות | **מותקנות לבד**, כמה דקות אחרי שהן יוצאות (אבל לא באמצע אירוע) | לוח הניהול מודיע שיש גרסה חדשה, ומעדכנים מהמחשב |
+| גרסאות חדשות | **מותקנות לבד**, בלילה שאחרי שהן יוצאות (אבל לא באמצע אירוע) | לוח הניהול מודיע שיש גרסה חדשה, ומעדכנים מהמחשב |
 | חלון שחור (טרמינל) | לא צריך | צריך, ההוראות בו באנגלית |
 | זמן | כ-25 דקות, פעם אחת | כ-20 דקות, פעם אחת |
 
@@ -140,10 +140,10 @@
 לכל גרסה של הקוד יש מספר (למשל `1.2.0`) ורשימת חידושים. **רק מנהל/ת האתר** רואה אותם: בלוח הבקרה מופיעה הודעה כשיש גרסה חדשה או אחרי שהאתר התעדכן, ובלשונית **עדכונים** בניהול האתר רואים את הגרסה הנוכחית, מה חדש, ו"צריך לעשות" אם גרסה דורשת פעולה ידנית. כל ההיסטוריה גם ב-[CHANGELOG.md](CHANGELOG.md).
 
 ### אתר שהותקן דרך GitHub (דרך א)
-- האתר בודק כל רבע שעה אם יצאה גרסה חדשה. אם כן, הוא מבקש מ-Cloudflare לבנות אותו מחדש (דרך ה-Deploy Hook), והבנייה לוקחת את הקוד החדש ביותר. אחרי כמה דקות האתר בגרסה החדשה.
-- **לא באמצע אירוע:** אם אורחים העלו תמונות בשעה האחרונה, העדכון מחכה שיהיה שקט.
-- בלשונית **עדכונים** אפשר לכבות עדכונים אוטומטיים, או ללחוץ **עדכון עכשיו**.
-- אם בנייה נכשלת, האתר נשאר בגרסה הקודמת ומנסה שוב מאוחר יותר.
+- פעם בלילה (בסביבות 3-4 לפנות בוקר, שעון ישראל) האתר בודק אם יצאה גרסה חדשה. אם כן, הוא מבקש מ-Cloudflare לבנות אותו מחדש (דרך ה-Deploy Hook), והבנייה לוקחת את הקוד החדש ביותר. אחרי כמה דקות האתר בגרסה החדשה, ובבוקר מנהל/ת האתר רואה מה חדש.
+- **לא באמצע אירוע:** אם אורחים העלו תמונות בשעה שלפני הבדיקה, העדכון מחכה ללילה הבא.
+- בלשונית **עדכונים** אפשר לכבות עדכונים אוטומטיים, ללחוץ **בדיקה עכשיו** כדי לבדוק בלי לחכות ללילה, או ללחוץ **עדכון עכשיו**.
+- אם בנייה נכשלת, האתר נשאר בגרסה הקודמת ומנסה שוב בלילה הבא.
 - מבנה מסד הנתונים מתעדכן לבד בגרסה החדשה. הנתונים נשמרים.
 
 **משתני בנייה (לא חובה).** ב-Cloudflare, בדף האתר: **Settings** ואז **Build**, תחת **Build variables and secrets**:
@@ -263,7 +263,7 @@ npm run dev           # http://localhost:5173
 
 **Install, option B - from a computer:** install Node.js LTS (22.12+), download the ZIP, then run `install-windows.bat`, `install-mac.command`, or `npm run setup`.
 
-**Versions & updates:** only the site admin sees versions and "what's new" (dashboard notice + the Updates tab in `/admin`). Option-A sites check `release-notes.json` of the original repository every 15 minutes and trigger their own rebuild through the Deploy Hook, never while guests uploaded in the last hour. The database schema migrates itself at runtime (`worker/lib/schema.ts`, compatible with wrangler's `d1_migrations`). Build variables: `UPSTREAM_REF=vX.Y.Z` pins a version, `FOLLOW_UPSTREAM=off` builds your fork as-is, `UPSTREAM_REPO` changes the source. Option-B sites update with: copy `.deploy-state.json` into the new version's folder, then `npm install && npm run deploy`. To move from B to A, connect the existing Worker to your fork (Settings, then Builds, then Connect); the database, secrets and domain stay.
+**Versions & updates:** only the site admin sees versions and "what's new" (dashboard notice + the Updates tab in `/admin`). Option-A sites check `release-notes.json` of the original repository once a night (01:17 UTC) and trigger their own rebuild through the Deploy Hook, never while guests uploaded in the last hour (then they wait for the next night). The database schema migrates itself at runtime (`worker/lib/schema.ts`, compatible with wrangler's `d1_migrations`). Build variables: `UPSTREAM_REF=vX.Y.Z` pins a version, `FOLLOW_UPSTREAM=off` builds your fork as-is, `UPSTREAM_REPO` changes the source. Option-B sites update with: copy `.deploy-state.json` into the new version's folder, then `npm install && npm run deploy`. To move from B to A, connect the existing Worker to your fork (Settings, then Builds, then Connect); the database, secrets and domain stay.
 
 **Site admin:** whoever holds the setup code (`SETUP_TOKEN`, a plain secret, so it works on any host) claims the site admin role by logging in with Google from the last step of the setup wizard. The admin's `/admin` dashboard manages the allowlist, the waitlist (on by default; new users wait for approval), an archive (blocked accounts, event pages offline), permanent deletion, and updates. Emails (invitations, new-request alerts) are sent from the admin's own Gmail via the Gmail API (`gmail.send`, granted only by the admin).
 

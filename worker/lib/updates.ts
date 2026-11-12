@@ -18,8 +18,11 @@ const FEED_MAX_BYTES = 256 * 1024;
 const HOUR = 3_600_000;
 /** Don't rebuild while guests are uploading: a live event must never be disturbed. */
 const EVENT_QUIET_MS = 60 * 60_000;
-/** Wait before asking again for the same version (protects the free build minutes if builds keep failing). */
-const BACKOFF = [HOUR, 6 * HOUR, 24 * HOUR];
+/**
+ * After asking for a version, don't ask again for it for 12 hours (a build still running, or "update now" pressed this
+ * evening). The next night's run asks again if the site still isn't on it, so a failing build costs one try a night.
+ */
+const ASK_AGAIN_AFTER = 12 * HOUR;
 
 interface FeedState {
   at: number;
@@ -188,7 +191,7 @@ export async function saveHook(env: Env, url: string | null) {
   await env.DB.prepare("DELETE FROM settings WHERE key = 'update_trigger'").run();
 }
 
-/** Asks the hosting platform to rebuild the site. Records the attempt (for backoff and the admin screen). */
+/** Asks the hosting platform to rebuild the site. Records the attempt (for ASK_AGAIN_AFTER and the admin screen). */
 export async function triggerRebuild(env: Env, version: string): Promise<TriggerState> {
   const url = await readHook(env);
   if (!url) throw new HTTPException(400, { message: "no_hook" });
@@ -222,28 +225,29 @@ async function uploadsRecently(env: Env, now: number) {
 
 type Waiting = UpdatesInfo["auto"]["waiting"];
 
-/** Why an available update would not be requested right now (null = it would be). */
-async function waitingReason(env: Env, latest: string, now: number, trigger?: TriggerState | null): Promise<Waiting> {
-  const t = trigger !== undefined ? trigger : parse<TriggerState>(await getSetting({ env }, "update_trigger"));
-  if (t?.version === latest) {
-    if (t.stopped) return "stopped";
-    if (now < t.at + BACKOFF[Math.min(t.attempts, BACKOFF.length) - 1]) return "backoff";
-  }
-  if (await uploadsRecently(env, now)) return "event";
+/** Why the night run would not ask for this version (null = it would, if guests aren't uploading right then). */
+function requestBlocked(t: TriggerState | null, latest: string, now: number): Waiting {
+  if (t?.version !== latest) return null;
+  if (t.stopped) return "stopped";
+  if (now < t.at + ASK_AGAIN_AFTER) return "requested";
   return null;
 }
 
 /**
- * Cron: when a newer version exists and the admin allowed automatic updates, ask for a rebuild, as soon as
- * possible but never while guests uploaded in the last hour.
+ * Night cron: when a newer version exists and the admin allowed automatic updates, ask for a rebuild. Never while
+ * guests uploaded in the last hour (an event running late): then it waits for the next night.
  */
 export async function maybeAutoUpdate(env: Env, feed: FeedState, now = Date.now()) {
   if (!APP.autoCapable) return;
   const latest = feed.releases[0]?.version;
   if (!latest || compareVersions(latest, APP.version) <= 0) return;
-  if ((await getSetting({ env }, "update_auto")) === "0") return;
-  if (!(await getSetting({ env }, "update_hook_enc"))) return;
-  if (await waitingReason(env, latest, now)) return;
+  const st = await settings(env, ["update_auto", "update_hook_enc", "update_trigger"]);
+  if (st.update_auto === "0" || !st.update_hook_enc) return;
+  if (requestBlocked(parse<TriggerState>(st.update_trigger), latest, now)) return;
+  if (await uploadsRecently(env, now)) {
+    console.log(`update to ${latest} waits for the next night: guests uploaded in the last hour`);
+    return;
+  }
   await triggerRebuild(env, latest);
 }
 
@@ -269,7 +273,7 @@ export async function updatesInfo(c: HasEnv): Promise<UpdatesInfo> {
   const hook = await decryptHook(env, st.update_hook_enc);
   const trigger = parse<TriggerState>(st.update_trigger);
   const enabled = st.update_auto !== "0";
-  const waiting = newer.length && APP.autoCapable && enabled && hook ? await waitingReason(env, newer[0].version, Date.now(), trigger) : null;
+  const waiting = newer.length && APP.autoCapable && enabled && hook ? requestBlocked(trigger, newer[0].version, Date.now()) : null;
 
   let schemaError: string | null = null;
   const se = parse<{ message: string; version: string }>(st.schema_error);

@@ -797,7 +797,7 @@ export default function SetupWizard() {
                 {status.install.hookSet ? (
                   <p className="flex items-center gap-2 text-emerald-900">
                     <CheckCircle2 className="size-5 shrink-0" aria-hidden />
-                    מחובר. כשתצא גרסה חדשה, האתר יתעדכן לבד (לא בזמן שאורחים מעלים תמונות).
+                    מחובר. כשתצא גרסה חדשה, האתר יתעדכן לבד בלילה שאחרי (לא בזמן שאורחים מעלים תמונות).
                   </p>
                 ) : (
                   <>

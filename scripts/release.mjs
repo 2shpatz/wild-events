@@ -8,7 +8,7 @@
 // 2. Bumps the version (package.json + lock), dates the notes, regenerates CHANGELOG.md.
 // 3. Typecheck, build, and all migrations on a brand-new local database.
 // 4. Commits "Release vX.Y.Z" on dev, fast-forwards main to it, tags vX.Y.Z, returns to dev.
-// It never pushes. Publishing = pushing main (every site installed from GitHub then updates itself):
+// It never pushes. Publishing = pushing main (every site installed from GitHub updates itself the following night):
 //   git push origin dev main vX.Y.Z
 import { execSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -110,7 +110,7 @@ try {
 console.log(`
 ${green(`Version ${version} is ready on main (tag v${version}).`)}
 
-Publish it (every site installed from GitHub then updates itself, not during live events):
+Publish it (every site installed from GitHub updates itself the following night, not during live events):
   ${bold(`git push origin dev main v${version}`)}
 
 After this, add the next change's notes to a new "unreleased" entry at the top of release-notes.json.

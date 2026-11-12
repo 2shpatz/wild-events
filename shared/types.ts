@@ -275,8 +275,11 @@ export interface UpdatesInfo {
     hook: { set: boolean; masked: string | null };
     /** Last automatic or manual rebuild request. */
     last: { version: string; at: number; attempts: number; ok: boolean; error?: string } | null;
-    /** Why an available update is waiting, if it is. */
-    waiting: "event" | "backoff" | "stopped" | null;
+    /**
+     * null = a newer version is installed automatically the coming night; requested = asked for it in the last 12
+     * hours; stopped = the platform rejected the Deploy Hook URL.
+     */
+    waiting: "requested" | "stopped" | null;
   };
   schemaError: string | null;
 }
