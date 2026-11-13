@@ -5,7 +5,7 @@ import { loadSession } from "./lib/session";
 import { GoogleError } from "./lib/google";
 import { setup } from "./routes/setup";
 import { getSetting, putSetting } from "./lib/site";
-import { checkFeed, maybeAutoUpdate } from "./lib/updates";
+import { checkFeed, maybeAutoUpdate, retryRequestedUpdate } from "./lib/updates";
 import { auth } from "./routes/auth";
 import { owner, ownerStorage } from "./routes/owner";
 import { migrate } from "./routes/migrate";
@@ -60,21 +60,42 @@ app.onError((err, c) => {
   return c.json({ error: "server_error" }, 500);
 });
 
-/** Runs from this hour (UTC) on are the morning run; earlier ones are the night run. Matches wrangler.jsonc. */
+/** The night run (new version check) is the first run from this hour (UTC); the morning run from MORNING_FROM_UTC_HOUR. */
+const NIGHT_FROM_UTC_HOUR = 1;
 const MORNING_FROM_UTC_HOUR = 6;
+/** Each of the two runs at most once a day, even though the cron fires every 15 minutes. */
+const ONCE_A_DAY_MS = 20 * 3_600_000;
+
+/** True (and recorded) when the once-a-day run `key` hasn't happened in the last 20 hours. */
+async function dueOnce(env: Env, key: string, now: number) {
+  const last = Number(await getSetting({ env }, key)) || 0;
+  if (now - last < ONCE_A_DAY_MS) return false;
+  await putSetting({ env }, key, String(now));
+  return true;
+}
 
 /**
- * Cron (wrangler.jsonc), twice a day:
- * - night (01:17 UTC): look for a new version and, for sites installed from GitHub, rebuild when allowed
+ * Cron (wrangler.jsonc), every 15 minutes:
+ * - every run: after "update now", ask again until the new version is installed (lib/updates.ts). Usually nothing to do.
+ * - night (from 01:00 UTC, once): look for a new version and, for sites installed from GitHub, rebuild when allowed
  *   (lib/updates.ts). Nobody is using the site then, and the admin sees the news in the morning.
- * - morning (06:17 UTC): storage check + housekeeping.
- * Never both in one run, to stay within the outgoing-request limit of one run.
+ * - morning (from 06:00 UTC, once): storage check + housekeeping.
+ * Never night and morning in one run, to stay within the outgoing-request limit of one run. Copies whose own
+ * wrangler.jsonc still has the old twice-a-day schedule keep working the same way.
  */
 async function scheduled(controller: ScheduledController, env: Env) {
   const schema = await ensureSchema(env);
   if (schema === "pending") return; // spent this run on the database update; the site's first request continues it
   const now = controller.scheduledTime;
-  if (new Date(now).getUTCHours() < MORNING_FROM_UTC_HOUR) {
+  try {
+    await retryRequestedUpdate(env, now);
+  } catch (e) {
+    console.warn("update retry failed", e);
+  }
+  const hour = new Date(now).getUTCHours();
+  if (hour < NIGHT_FROM_UTC_HOUR) return;
+  if (hour < MORNING_FROM_UTC_HOUR) {
+    if (!(await dueOnce(env, "last_night_run", now))) return;
     try {
       await maybeAutoUpdate(env, await checkFeed(env), now);
     } catch (e) {
@@ -82,11 +103,7 @@ async function scheduled(controller: ScheduledController, env: Env) {
     }
     return;
   }
-  // Once a day, even if the schedule runs more often (a copy with its own wrangler.jsonc, a manual test run).
-  const lastDaily = Number(await getSetting({ env }, "last_daily_run")) || 0;
-  if (now - lastDaily < 20 * 3_600_000) return;
-  await putSetting({ env }, "last_daily_run", String(now));
-  await runDaily(env);
+  if (await dueOnce(env, "last_daily_run", now)) await runDaily(env);
 }
 
 async function runDaily(env: Env) {

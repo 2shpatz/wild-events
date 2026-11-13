@@ -17,7 +17,7 @@ import {
 import type { ReleaseEntry, UpdatesInfo } from "../../../shared/types";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate, timeAgo } from "../../lib/format";
-import { CF_WORKERS_URL, REPO_URL } from "../../lib/links";
+import { CF_WORKERS_URL, MIGRATE_GUIDE_URL, REPO_URL } from "../../lib/links";
 import { Button, Card, ConfirmDialog, Field, cx, inputClass, useToast } from "../ui";
 import { Toggle } from "../manage/Toggle";
 
@@ -386,15 +386,29 @@ function HowUpdatesWork({ info, onInfo }: { info: UpdatesInfo; onInfo: (i: Updat
           <span dir="ltr" className="font-mono text-sm">npm run deploy</span>.
         </li>
       </ol>
-      <p className="text-sm text-muted-fg">
-        רוצים שהאתר יתעדכן לבד? במדריך ההתקנה יש הסבר על מעבר להתקנה דרך GitHub ו-Cloudflare. האתר, הנתונים והחיבור ל-Google נשמרים.
-      </p>
+      <div className="space-y-1 rounded-2xl bg-muted p-3">
+        <p className="text-sm text-muted-fg">
+          רוצים שהאתר יתעדכן לבד? אפשר לעבור להתקנה דרך GitHub ו-Cloudflare, ב-4 שלבים. האתר, הנתונים והחיבור ל-Google נשמרים.
+        </p>
+        <a
+          href={MIGRATE_GUIDE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg font-semibold text-primary underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          <ExternalLink className="size-4 shrink-0" aria-hidden />
+          למדריך ההגדרה המהירה
+          <span className="sr-only"> (נפתח בחלון חדש)</span>
+        </a>
+      </div>
     </Card>
   );
 }
 
 const WAITING: Record<NonNullable<UpdatesInfo["auto"]["waiting"]>, string> = {
   requested: "בקשת העדכון נשלחה, והאתר עובר לגרסה החדשה תוך כמה דקות. אם זה לא קרה, הוא יבקש שוב בלילה הבא.",
+  retrying:
+    "בקשת העדכון נשלחה, והאתר עובר לגרסה החדשה תוך כמה דקות. אם זה לא קרה, האתר יבקש שוב כל 15 דקות עד שהגרסה תותקן (עד יממה, ואחר כך בלילה).",
   stopped: "Cloudflare לא קיבלה את כתובת ה-Deploy Hook (אולי היא נמחקה). צריך ליצור חדשה ולהדביק אותה כאן.",
 };
 
@@ -415,7 +429,8 @@ function AutoUpdates({ info, onInfo }: { info: UpdatesInfo; onInfo: (i: UpdatesI
     const when = timeAgo(auto.last.at);
     status = auto.last.ok ? (
       <>
-        בקשת עדכון לגרסה <V v={auto.last.version} /> נשלחה {when}.
+        בקשת עדכון לגרסה <V v={auto.last.version} /> נשלחה {when}
+        {auto.last.attempts >= 2 ? ` (ניסיון ${auto.last.attempts})` : ""}.
       </>
     ) : (
       <>
@@ -486,7 +501,7 @@ function AutoUpdates({ info, onInfo }: { info: UpdatesInfo; onInfo: (i: UpdatesI
           הגרסה החדשה תותקן לבד הלילה, בסביבות 3-4 לפנות בוקר. לא רוצים לחכות? אפשר ללחוץ "עדכון עכשיו".
         </p>
       )}
-      {auto.last && !auto.last.ok && auto.last.attempts >= 2 && (
+      {auto.last && auto.last.attempts >= 2 && (!auto.last.ok || auto.waiting === "retrying") && (
         <p className="text-sm text-muted-fg">
           העדכון לא מסתיים? ב-Cloudflare: האתר ← <span dir="ltr">Deployments</span> ← <span dir="ltr">View build history</span>, שם רואים למה הבנייה נכשלה.
         </p>
@@ -500,7 +515,7 @@ function AutoUpdates({ info, onInfo }: { info: UpdatesInfo; onInfo: (i: UpdatesI
             setUpdating(true);
             try {
               onInfo(await api<UpdatesInfo>("/admin/updates/trigger", { method: "POST" }));
-              toast("העדכון התחיל. בעוד כמה דקות האתר יעבור לגרסה החדשה.");
+              toast("העדכון התחיל. בעוד כמה דקות האתר יעבור לגרסה החדשה, ואם לא, הוא ינסה שוב כל 15 דקות.");
             } catch (e) {
               toast(errorMessage(e), "error");
             } finally {

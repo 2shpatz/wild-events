@@ -4,7 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../env";
 import { rateLimit } from "../lib/session";
 import { putSetting } from "../lib/site";
-import { checkFeed, cleanHookUrl, markSeen, saveHook, triggerRebuild, updatesInfo } from "../lib/updates";
+import { checkFeed, cleanHookUrl, markSeen, saveHook, startRetrying, triggerRebuild, updatesInfo } from "../lib/updates";
 import { APP, compareVersions } from "../lib/appInfo";
 
 export const updates = new Hono<AppEnv>();
@@ -18,12 +18,16 @@ updates.post("/check", async (c) => {
   return c.json(await updatesInfo(c));
 });
 
-/** "Update now": rebuild through the Deploy Hook right away (also during an event: the admin decided). */
+/**
+ * "Update now": rebuild through the Deploy Hook right away (also during an event: the admin decided), then ask again
+ * every 15 minutes until the site runs the new version (retryRequestedUpdate), unless the platform refused the hook.
+ */
 updates.post("/trigger", async (c) => {
   await rateLimit(c.env, `upd-trigger:${c.get("ownerId")}`, 3, 60 * 60_000);
   const info = await updatesInfo(c);
   const target = info.latest && compareVersions(info.latest, APP.version) > 0 ? info.latest : APP.version;
   const r = await triggerRebuild(c.env, target);
+  if (!r.stopped) await startRetrying(c.env, target);
   if (!r.ok) throw new HTTPException(502, { message: "hook_failed", cause: r.error });
   return c.json(await updatesInfo(c));
 });

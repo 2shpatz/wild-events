@@ -283,9 +283,10 @@ export interface UpdatesInfo {
     last: { version: string; at: number; attempts: number; ok: boolean; error?: string } | null;
     /**
      * null = a newer version is installed automatically the coming night; requested = asked for it in the last 12
-     * hours; stopped = the platform rejected the Deploy Hook URL.
+     * hours; retrying = "update now" was pressed and the site asks again every 15 minutes until it's installed;
+     * stopped = the platform rejected the Deploy Hook URL.
      */
-    waiting: "requested" | "stopped" | null;
+    waiting: "requested" | "retrying" | "stopped" | null;
   };
   schemaError: string | null;
 }

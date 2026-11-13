@@ -3,7 +3,8 @@
 // The rebuild itself takes the newest code (scripts/ci-bootstrap.mjs), so the copy on GitHub never needs syncing.
 //
 // Settings keys: update_feed (JSON {at, releases, error}), update_latest, update_hook_enc (encrypted URL),
-// update_auto ("0" = off), update_trigger (JSON TriggerState), last_seen_version, schema_error.
+// update_auto ("0" = off), update_trigger (JSON TriggerState), update_retry (JSON RetryState), last_seen_version,
+// schema_error.
 import { HTTPException } from "hono/http-exception";
 import type { Env } from "../env";
 import type { ReleaseEntry, UpdateFlag, UpdatesInfo } from "../../shared/types";
@@ -23,6 +24,13 @@ const EVENT_QUIET_MS = 60 * 60_000;
  * evening). The next night's run asks again if the site still isn't on it, so a failing build costs one try a night.
  */
 const ASK_AGAIN_AFTER = 12 * HOUR;
+/**
+ * "Update now" keeps asking every 15 minutes until the site runs that version (a build that failed or never started),
+ * for up to a day. After that the night run takes over, so a build that always fails doesn't use up the account's
+ * build minutes. One minute less than 15, so the cron run 15 minutes after the last request isn't skipped by jitter.
+ */
+const RETRY_EVERY = 14 * 60_000;
+const RETRY_FOR = 24 * HOUR;
 
 interface FeedState {
   at: number;
@@ -38,6 +46,12 @@ interface TriggerState {
   error?: string;
   /** The platform refused the hook (4xx): stop until the admin saves a new URL. */
   stopped?: boolean;
+}
+
+interface RetryState {
+  version: string;
+  /** When the admin pressed "update now". */
+  since: number;
 }
 
 const parse = <T>(s: string | null): T | null => {
@@ -218,6 +232,37 @@ export async function triggerRebuild(env: Env, version: string): Promise<Trigger
   return state;
 }
 
+/** "Update now" was pressed: keep asking for this version until it's installed (retryRequestedUpdate). */
+export async function startRetrying(env: Env, version: string, now = Date.now()) {
+  if (!APP.autoCapable || compareVersions(version, APP.version) <= 0) return;
+  await putSetting({ env }, "update_retry", JSON.stringify({ version, since: now } satisfies RetryState));
+}
+
+/** Is "update now" still retrying for this version? */
+function retrying(r: RetryState | null, t: TriggerState | null, version: string, now: number) {
+  if (!r || r.version !== version || now > r.since + RETRY_FOR) return false;
+  if (compareVersions(APP.version, version) >= 0) return false;
+  return !(t?.version === version && t.stopped);
+}
+
+/**
+ * Every cron run (every 15 minutes): after "update now", ask again until the site runs that version. Ends by itself
+ * once the new version is installed (it's the new code that runs then), the Deploy Hook is refused or removed, or after
+ * RETRY_FOR. Runs during an event too: the admin decided.
+ */
+export async function retryRequestedUpdate(env: Env, now = Date.now()) {
+  const st = await settings(env, ["update_retry", "update_trigger", "update_hook_enc"]);
+  if (!st.update_retry) return;
+  const r = parse<RetryState>(st.update_retry);
+  const t = parse<TriggerState>(st.update_trigger);
+  if (!APP.autoCapable || !r || !st.update_hook_enc || !retrying(r, t, r.version, now)) {
+    await env.DB.prepare("DELETE FROM settings WHERE key = 'update_retry'").run();
+    return;
+  }
+  if (t?.version === r.version && now < t.at + RETRY_EVERY) return;
+  await triggerRebuild(env, r.version);
+}
+
 async function uploadsRecently(env: Env, now: number) {
   const r = await env.DB.prepare("SELECT 1 AS x FROM uploads WHERE created_at > ? LIMIT 1").bind(now - EVENT_QUIET_MS).first();
   return !!r;
@@ -226,9 +271,10 @@ async function uploadsRecently(env: Env, now: number) {
 type Waiting = UpdatesInfo["auto"]["waiting"];
 
 /** Why the night run would not ask for this version (null = it would, if guests aren't uploading right then). */
-function requestBlocked(t: TriggerState | null, latest: string, now: number): Waiting {
+function requestBlocked(t: TriggerState | null, r: RetryState | null, latest: string, now: number): Waiting {
+  if (t?.version === latest && t.stopped) return "stopped";
+  if (retrying(r, t, latest, now)) return "retrying";
   if (t?.version !== latest) return null;
-  if (t.stopped) return "stopped";
   if (now < t.at + ASK_AGAIN_AFTER) return "requested";
   return null;
 }
@@ -241,9 +287,9 @@ export async function maybeAutoUpdate(env: Env, feed: FeedState, now = Date.now(
   if (!APP.autoCapable) return;
   const latest = feed.releases[0]?.version;
   if (!latest || compareVersions(latest, APP.version) <= 0) return;
-  const st = await settings(env, ["update_auto", "update_hook_enc", "update_trigger"]);
+  const st = await settings(env, ["update_auto", "update_hook_enc", "update_trigger", "update_retry"]);
   if (st.update_auto === "0" || !st.update_hook_enc) return;
-  if (requestBlocked(parse<TriggerState>(st.update_trigger), latest, now)) return;
+  if (requestBlocked(parse<TriggerState>(st.update_trigger), parse<RetryState>(st.update_retry), latest, now)) return;
   if (await uploadsRecently(env, now)) {
     console.log(`update to ${latest} waits for the next night: guests uploaded in the last hour`);
     return;
@@ -255,7 +301,7 @@ export async function maybeAutoUpdate(env: Env, feed: FeedState, now = Date.now(
 
 export async function updatesInfo(c: HasEnv): Promise<UpdatesInfo> {
   const env = c.env;
-  const st = await settings(env, ["update_feed", "last_seen_version", "update_hook_enc", "update_trigger", "update_auto", "schema_error"]);
+  const st = await settings(env, ["update_feed", "last_seen_version", "update_hook_enc", "update_trigger", "update_retry", "update_auto", "schema_error"]);
   const feed = parse<FeedState>(st.update_feed);
   const all = mergeReleases(feed?.releases ?? []);
   const newer = all.filter((r) => compareVersions(r.version, APP.version) > 0);
@@ -273,7 +319,13 @@ export async function updatesInfo(c: HasEnv): Promise<UpdatesInfo> {
   const hook = await decryptHook(env, st.update_hook_enc);
   const trigger = parse<TriggerState>(st.update_trigger);
   const enabled = st.update_auto !== "0";
-  const waiting = newer.length && APP.autoCapable && enabled && hook ? requestBlocked(trigger, newer[0].version, Date.now()) : null;
+  const retry = parse<RetryState>(st.update_retry);
+  const now = Date.now();
+  // "Update now" retries also when automatic updates are off: the admin asked for this version.
+  const waiting =
+    newer.length && APP.autoCapable && hook && (enabled || retrying(retry, trigger, newer[0].version, now))
+      ? requestBlocked(trigger, retry, newer[0].version, now)
+      : null;
 
   let schemaError: string | null = null;
   const se = parse<{ message: string; version: string }>(st.schema_error);

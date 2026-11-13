@@ -31,9 +31,10 @@
     }
   ],
   "triggers": {
-    // One trigger, two runs a day (worker/index.ts):
-    //   01:17 UTC (night in Israel): look for a new version and rebuild itself when allowed.
-    //   06:17 UTC: storage check (80% warning) and housekeeping.
-    "crons": ["17 1,6 * * *"]
+    // One trigger, every 15 minutes (worker/index.ts):
+    //   every run: after "update now", ask again until the new version is installed (usually nothing to do).
+    //   once from 01:00 UTC (night in Israel): look for a new version and rebuild itself when allowed.
+    //   once from 06:00 UTC: storage check (80% warning) and housekeeping.
+    "crons": ["2,17,32,47 * * * *"]
   }
 }
