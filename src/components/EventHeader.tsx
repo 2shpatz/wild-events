@@ -25,6 +25,7 @@ export function EventHeader({
   pageTitle,
   actions,
   children,
+  compact = false,
 }: {
   event: PublicEvent;
   backTo?: string;
@@ -32,7 +33,10 @@ export function EventHeader({
   pageTitle?: string;
   actions?: ReactNode;
   children?: ReactNode;
+  /** No banner strip: the bar is stuck from the start (full-screen views like the carousel, where every px counts). */
+  compact?: boolean;
 }) {
+  const banner = compact ? 0 : BANNER;
   const ref = useRef<HTMLElement>(null);
   const [t, setT] = useState(0); // 0 = top, 1 = stuck
 
@@ -40,7 +44,7 @@ export function EventHeader({
     let raf = 0;
     const on = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setT(Math.min(1, window.scrollY / BANNER)));
+      raf = requestAnimationFrame(() => setT(banner ? Math.min(1, window.scrollY / banner) : 1));
     };
     on();
     window.addEventListener("scroll", on, { passive: true });
@@ -48,16 +52,16 @@ export function EventHeader({
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", on);
     };
-  }, []);
+  }, [banner]);
 
   // Expose the visible (stuck) height for sticky sub-headers and full-height views.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => document.documentElement.style.setProperty("--toolbar-h", `${el.offsetHeight - BANNER}px`));
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty("--toolbar-h", `${el.offsetHeight - banner}px`));
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [banner]);
 
   const img = headerImageUrl(event);
   const bg = backgroundProps(event);
@@ -65,7 +69,7 @@ export function EventHeader({
   useFonts(font);
 
   return (
-    <header ref={ref} className="group/header sticky z-30 text-white" style={{ top: -BANNER }}>
+    <header ref={ref} className="group/header sticky z-30 text-white" style={{ top: -banner }}>
       {/* Image layer: fades from 100% to ~50% as the header sticks; back to full on hover/focus. */}
       <div
         className="absolute inset-0 overflow-hidden transition-opacity duration-300 group-hover/header:!opacity-100 group-focus-within/header:!opacity-100"
@@ -81,16 +85,18 @@ export function EventHeader({
       <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/35 to-black/65" aria-hidden />
       <div
         className="absolute inset-x-0 bottom-0 backdrop-blur-md transition-colors duration-300"
-        style={{ top: BANNER, backgroundColor: `rgb(9 9 11 / ${0.2 + t * 0.35})` }}
+        style={{ top: banner, backgroundColor: `rgb(9 9 11 / ${0.2 + t * 0.35})` }}
         aria-hidden
       />
 
       {/* Banner strip (scrolls away): big event title. */}
-      <div className="relative flex items-end px-4 pb-2" style={{ height: BANNER, opacity: 1 - t, ...titleFontVars(font) }}>
+      {banner > 0 && (
+      <div className="relative flex items-end px-4 pb-2" style={{ height: banner, opacity: 1 - t, ...titleFontVars(font) }}>
         <p className="mx-auto w-full max-w-[1600px] truncate font-title text-3xl drop-shadow-[0_2px_8px_rgb(0_0_0/0.5)] sm:text-4xl" style={{ color: barTextColor(event.design, "top") ?? undefined }}>
           {event.title}
         </p>
       </div>
+      )}
 
       {/* Sticky bar. */}
       <div className="relative mx-auto flex min-h-16 max-w-[1600px] items-center gap-2 px-3 ps-[max(0.75rem,var(--music-inset,0px))] sm:px-4 sm:ps-[max(1rem,var(--music-inset,0px))]">

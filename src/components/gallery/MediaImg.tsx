@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { Play, Loader2 } from "lucide-react";
 import type { MediaDTO } from "../../../shared/types";
-import { thumbUrl } from "../../lib/media";
+import { fullUrl, thumbUrl } from "../../lib/media";
 import { cx } from "../ui";
 
 export interface MediaImgProps {
@@ -13,6 +13,8 @@ export interface MediaImgProps {
   eager?: boolean;
   fit?: "cover" | "contain";
   alt?: string;
+  /** Screen-sized image (same URL as the lightbox, so opening it is instant) instead of a `width` thumbnail. */
+  full?: boolean;
 }
 
 /**
@@ -28,6 +30,7 @@ export const MediaImg = memo(function MediaImg({
   eager,
   fit = "cover",
   alt = "",
+  full = false,
 }: MediaImgProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(!!eager);
@@ -57,7 +60,7 @@ export const MediaImg = memo(function MediaImg({
     if (show && (!m.url || m.processing)) onNeedUrl([m.id]);
   }, [show, m.url, m.id, m.processing, onNeedUrl]);
 
-  const src = show ? thumbUrl(m, width) : null;
+  const src = show ? (full ? fullUrl(m) : thumbUrl(m, width)) : null;
   return (
     <div ref={ref} className={cx("relative overflow-hidden bg-white/5", className)}>
       {!loaded && <div className="skeleton absolute inset-0" aria-hidden />}

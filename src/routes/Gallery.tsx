@@ -8,8 +8,8 @@ import {
   LayoutGrid,
   MonitorPlay,
   Shuffle,
-  Sparkles,
   Users,
+  Wind,
   Grid3x3,
   ArrowDownUp,
   ImageOff,
@@ -20,7 +20,7 @@ import { useEvent } from "../lib/session";
 import { useFeed } from "../lib/useFeed";
 import { EventStatus } from "../components/EventChrome";
 import { EventHeader } from "../components/EventHeader";
-import { IconButton, Segmented, Spinner, useToast } from "../components/ui";
+import { IconButton, Segmented, Spinner, cx, useToast } from "../components/ui";
 import { ViewSheet } from "../components/gallery/ViewSheet";
 import { Masonry } from "../components/gallery/Masonry";
 import { Floating } from "../components/gallery/Floating";
@@ -46,7 +46,7 @@ const ORDERS_SHORT = ORDERS.map((o) => ({ ...o, label: o.value === "mixed" ? "ה
 
 const VIEWS: { value: ViewMode; label: string; icon: React.ReactNode; hint: string }[] = [
   { value: "masonry", label: "גלילה", icon: <LayoutGrid className="size-4" aria-hidden />, hint: "כל התמונות ברשת, גוללים למטה" },
-  { value: "floating", label: "מרחפות", icon: <Sparkles className="size-4" aria-hidden />, hint: "תמונות צפות ומתחלפות, לוחצים להגדלה" },
+  { value: "floating", label: "מרחפות", icon: <Wind className="size-4" aria-hidden />, hint: "תמונות צפות ומתחלפות, לוחצים להגדלה" },
   { value: "carousel", label: "קרוסלה", icon: <GalleryHorizontal className="size-4" aria-hidden />, hint: "תמונה גדולה אחת, מחליקים הצידה" },
   { value: "slideshow", label: "מצגת לייב", icon: <MonitorPlay className="size-4" aria-hidden />, hint: "מתחלפת לבד, החדשות קודם - מעולה למסך באולם" },
   { value: "mosaic", label: "קיר פסיפס", icon: <Grid3x3 className="size-4" aria-hidden />, hint: "קיר צפוף שמשתנה כל הזמן" },
@@ -162,6 +162,9 @@ export default function Gallery() {
   };
 
   const showAlbumsGrid = order === "albums" && !albumId;
+  // Carousel / floating: the page is exactly one screen tall (no page scroll), so the photos always fit
+  // (and a floating photo enlarged to the center is really in the middle of the screen).
+  const fitScreen = (view === "carousel" || view === "floating") && !showAlbumsGrid && !feed.loading && feed.media.length > 0;
   const viewProps = {
     items,
     fresh: feed.fresh,
@@ -173,10 +176,11 @@ export default function Gallery() {
   };
 
   return (
-    <div className="min-h-dvh bg-canvas text-white" data-theme={event.theme}>
+    <div className={cx("bg-canvas text-white", fitScreen ? "flex h-dvh flex-col overflow-hidden" : "min-h-dvh")} data-theme={event.theme}>
       {!immersive && (
       <EventHeader
         event={event}
+        compact={fitScreen}
         backTo={`/${code}`}
         pageTitle={`${feed.media.length.toLocaleString("he-IL")} פריטים · ${feed.albums.length.toLocaleString("he-IL")} אלבומים`}
         actions={
@@ -236,7 +240,7 @@ export default function Gallery() {
       ) : showAlbumsGrid ? (
         <AlbumsGrid albums={feed.albums} byId={byId} onPick={(id) => setParam("album", id)} onNeedUrl={feed.requestUrls} />
       ) : (
-        <main className={immersive ? "pt-0" : "mx-auto max-w-[1600px] pt-2"}>
+        <main className={cx(immersive ? "pt-0" : "mx-auto max-w-[1600px] pt-2", fitScreen && "flex min-h-0 w-full flex-1 flex-col")}>
           {order === "albums" && albumId && (
             <div className="flex items-center gap-3 px-4 py-2">
               <button onClick={() => setParam("album", null)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-white/10 px-3 text-sm font-semibold hover:bg-white/15">
@@ -250,7 +254,7 @@ export default function Gallery() {
           )}
           {view === "masonry" && <Masonry {...viewProps} />}
           {view === "floating" && <Floating {...viewProps} />}
-          {view === "carousel" && <Carousel {...viewProps} />}
+          {view === "carousel" && <Carousel {...viewProps} fabInset={event.uploadsOpen && !immersive} />}
           {view === "slideshow" && <Slideshow {...viewProps} />}
           {view === "mosaic" && <Mosaic {...viewProps} />}
         </main>

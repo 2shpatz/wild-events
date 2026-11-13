@@ -2,14 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 import type { ViewProps } from "./types";
 import { MediaImg } from "./MediaImg";
-import { IconButton } from "../ui";
+import { IconButton, cx } from "../ui";
 import { formatTime } from "../../lib/format";
+
+/** Width/height of a photo, or null when unknown (then the slide just fills the box). */
+const ratioOf = (m: { w: number; h: number }) => (m.w > 0 && m.h > 0 ? m.w / m.h : null);
 
 /**
  * Swipeable carousel (native scroll-snap). RTL: "next" is on the left.
  * Prev/next buttons + keyboard + thumbnails expose every slide without dragging (ux: Dragging Movements).
+ * Fills its parent (a flex column one screen tall): each photo is sized to its own proportions inside the free
+ * space, so it's never cropped and the rounded corners hug the photo itself. `fabInset` keeps the bottom rows
+ * clear of the floating upload button.
  */
-export function Carousel({ items, albumName, onOpen, onNeedUrl }: ViewProps) {
+export function Carousel({ items, albumName, onOpen, onNeedUrl, fabInset }: ViewProps & { fabInset?: boolean }) {
   const scroller = useRef<HTMLDivElement>(null);
   const thumbs = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState(0);
@@ -38,13 +44,13 @@ export function Carousel({ items, albumName, onOpen, onNeedUrl }: ViewProps) {
 
   return (
     <div
-      className="flex h-[calc(100dvh-var(--toolbar-h,64px))] min-h-[480px] flex-col"
+      className="flex min-h-0 flex-1 flex-col"
       onKeyDown={(e) => {
         if (e.key === "ArrowLeft") go(current + 1);
         if (e.key === "ArrowRight") go(current - 1);
       }}
     >
-      <div className="relative flex-1">
+      <div className="relative min-h-0 flex-1">
         <div
           ref={scroller}
           className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto scroll-smooth"
@@ -52,24 +58,33 @@ export function Carousel({ items, albumName, onOpen, onNeedUrl }: ViewProps) {
           aria-roledescription="קרוסלה"
           aria-label="קרוסלת תמונות"
         >
-          {items.map((m, i) => (
-            <div
-              key={m.id}
-              data-index={i}
-              className="relative flex h-full w-full shrink-0 snap-center items-center justify-center px-2 py-4 sm:px-16"
-              aria-roledescription="שקופית"
-              aria-label={`${i + 1} מתוך ${items.length}`}
-            >
-              {Math.abs(i - current) <= 4 ? (
-                <button onClick={() => onOpen(i)} className="group relative size-full" aria-label={`הגדלת תמונה ${i + 1}`}>
-                  <MediaImg m={m} width={1400} fit="contain" eager={Math.abs(i - current) <= 1} onNeedUrl={onNeedUrl} className="size-full rounded-2xl bg-transparent" />
-                  <Maximize2 className="absolute end-3 top-3 size-9 rounded-full bg-black/50 p-2 text-white opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
-                </button>
-              ) : (
-                <div className="size-full" />
-              )}
-            </div>
-          ))}
+          {items.map((m, i) => {
+            const ratio = ratioOf(m);
+            return (
+              <div
+                key={m.id}
+                data-index={i}
+                className="relative h-full w-full shrink-0 snap-center px-2 py-2 sm:px-16 sm:py-3"
+                aria-roledescription="שקופית"
+                aria-label={`${i + 1} מתוך ${items.length}`}
+              >
+                {/* Size container: the photo box is the largest one with the photo's proportions that fits. */}
+                <div className="flex size-full items-center justify-center [container-type:size]">
+                  {Math.abs(i - current) <= 4 && (
+                    <button
+                      onClick={() => onOpen(i)}
+                      className={cx("group relative max-h-full max-w-full", !ratio && "size-full")}
+                      style={ratio ? { aspectRatio: ratio, width: `min(100cqw, ${ratio} * 100cqh)` } : undefined}
+                      aria-label={`הגדלת תמונה ${i + 1}`}
+                    >
+                      <MediaImg m={m} full fit="contain" eager={Math.abs(i - current) <= 1} onNeedUrl={onNeedUrl} className="size-full rounded-2xl bg-transparent" />
+                      <Maximize2 className="absolute end-3 top-3 size-9 rounded-full bg-black/50 p-2 text-white opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
         <IconButton
           label="הקודם"
@@ -88,7 +103,7 @@ export function Carousel({ items, albumName, onOpen, onNeedUrl }: ViewProps) {
           <ChevronLeft className="size-6" aria-hidden />
         </IconButton>
       </div>
-      <div className="flex items-center justify-between gap-3 px-4 text-sm text-white/80" aria-live="polite">
+      <div className={cx("flex shrink-0 items-center justify-between gap-3 px-4 py-1 text-sm text-white/80", fabInset && "me-40")} aria-live="polite">
         <span>
           {items[current] && (
             <>
@@ -100,7 +115,8 @@ export function Carousel({ items, albumName, onOpen, onNeedUrl }: ViewProps) {
           {current + 1} / {items.length}
         </span>
       </div>
-      <div ref={thumbs} className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 py-3">
+      {/* Short screens (phone on its side): the photo gets the room, thumbnails step aside. */}
+      <div ref={thumbs} className={cx("no-scrollbar flex shrink-0 gap-1.5 overflow-x-auto px-4 py-3 [@media(max-height:520px)]:hidden", fabInset && "me-40")}>
         {items.map((m, i) => (
           <button
             key={m.id}
