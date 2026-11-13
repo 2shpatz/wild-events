@@ -4,7 +4,7 @@ import { Modal, cx } from "../../ui";
 import { BLOCK_META } from "./blockMeta";
 import type { Where } from "./draft";
 
-const ORDER: BlockType[] = ["text", "image", "details", "featured", "invitation", "live", "whatsapp", "messages", "checklist"];
+const ORDER: BlockType[] = ["text", "image", "details", "featured", "invitation", "live", "whatsapp", "messages", "checklist", "findTable"];
 
 /** Choose an element to add before / after the main page. Elements that can appear once are disabled when used. */
 export function AddBlockSheet({
@@ -27,7 +27,7 @@ export function AddBlockSheet({
       {full && <p className="mb-4 font-semibold text-destructive">הגעתם למספר האלמנטים המרבי ({MAX_BLOCKS}).</p>}
       <ul className="grid gap-3 sm:grid-cols-2">
         {ORDER.map((t) => {
-          const used = SINGLETONS.includes(t as SingletonType) && all.some((b) => b.type === t);
+          const used = (SINGLETONS.includes(t as SingletonType) || t === "findTable") && all.some((b) => b.type === t);
           const { Icon, label, hint } = BLOCK_META[t];
           return (
             <li key={t}>

@@ -455,7 +455,7 @@ export default function SetupWizard() {
 
         {step === 3 && (
           <Card className="space-y-5">
-            <h2 className="text-2xl font-bold">הפעלת 4 שירותים</h2>
+            <h2 className="text-2xl font-bold">הפעלת 5 שירותים</h2>
             <p className="text-muted-fg">
               לכל שירות: לוחצים על הכפתור, מוודאים שלמעלה נבחר הפרויקט <bdi dir="ltr" className="font-semibold">{projectId}</bdi>, ולוחצים על הכפתור הכחול <G>Enable</G>.
             </p>
@@ -464,6 +464,7 @@ export default function SetupWizard() {
               { k: "api_picker", name: "Photos Picker API", id: "photospicker.googleapis.com", why: "ייבוא תמונות שכבר נמצאות ב-Google Photos" },
               { k: "api_drive", name: "Google Drive API", id: "drive.googleapis.com", why: "הצגת נפח האחסון ואזהרת ה-80%" },
               { k: "api_gmail", name: "Gmail API", id: "gmail.googleapis.com", why: "שליחת הזמנות ועדכונים למשתמשים מה-Gmail שלך (רק מנהל/ת האתר)" },
+              { k: "api_sheets", name: "Google Sheets API", id: "sheets.googleapis.com", why: "רשימת האורחים של כל אירוע בגיליון Google Sheets" },
             ].map((a) => (
               <div key={a.k} className={cx("flex flex-col gap-3 rounded-2xl border-2 p-4 sm:flex-row sm:items-center", checks[a.k] ? "border-emerald-500" : "border-border")}>
                 <div className="flex-1">
@@ -487,7 +488,7 @@ export default function SetupWizard() {
                 </label>
               </div>
             ))}
-            {nav(!!(checks.api_photos && checks.api_picker && checks.api_drive && checks.api_gmail))}
+            {nav(!!(checks.api_photos && checks.api_picker && checks.api_drive && checks.api_gmail && checks.api_sheets))}
           </Card>
         )}
 
@@ -694,6 +695,7 @@ export default function SetupWizard() {
                   { k: "photos", name: "שמירה ב-Google Photos", fix: 2 },
                   { k: "picker", name: "ייבוא מ-Google Photos", fix: 2 },
                   { k: "drive", name: "נתוני נפח אחסון", fix: 2 },
+                  { k: "sheets", name: "רשימת אורחים ב-Google Sheets", fix: 2 },
                 ].map((r) => {
                   const res = test.result[r.k];
                   return (

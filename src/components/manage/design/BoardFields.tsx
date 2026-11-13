@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Minus, Plus, Trash2, Undo2 } from "lucide-react";
+import { Armchair, Check, ChevronDown, ChevronUp, Minus, Plus, Trash2, Undo2 } from "lucide-react";
 import {
   CHECKLIST_ITEM_MAX,
   CHECKLIST_TEXTS,
+  FIND_TABLE_TEXTS,
   VISIBLE_ITEMS,
   MESSAGES_TEXTS,
   PART_TEXT_MAX,
   WHATSAPP_TEXTS,
   whatsappUrl,
   type ChecklistBlock,
+  type FindTableBlock,
   type MessagesBlock,
   type WhatsAppBlock,
 } from "../../../../shared/design";
@@ -383,5 +385,35 @@ function ItemText({ item, onSave }: { item: ChecklistItem; onSave: (t: string) =
       onBlur={save}
       onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), (e.target as HTMLInputElement).blur())}
     />
+  );
+}
+
+// ------------------------------------------------------------------ "find my table"
+
+export function FindTableFields({ event, block, update }: { event: ManageEvent; block: FindTableBlock; update: (p: Partial<FindTableBlock>) => void }) {
+  return (
+    <>
+      <div className="space-y-3 rounded-xl border border-border bg-muted/50 px-4 py-3">
+        <p className="text-muted-fg">
+          השולחנות נלקחים מסידור ההושבה ברשימת האורחים. האורחים יראו את מספר השולחן רק אחרי שתפעילו שם את &quot;פרסום ההושבה לאורחים&quot;.
+        </p>
+        <a
+          href={`/${event.code}/manage/guests?view=seating`}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-primary px-4 font-semibold text-fg no-underline transition-colors duration-200 hover:bg-primary/10"
+        >
+          <Armchair className="size-4" aria-hidden />
+          לסידור ההושבה
+        </a>
+      </div>
+      <PartText id={`${block.id}-title`} label="כותרת" value={block.texts.title} fallback={FIND_TABLE_TEXTS.title} max={PART_TEXT_MAX.title} onChange={(v) => update({ texts: { ...block.texts, title: v } })} />
+      <PartText id={`${block.id}-text`} label="הסבר" value={block.texts.text} fallback={FIND_TABLE_TEXTS.text} max={PART_TEXT_MAX.text} onChange={(v) => update({ texts: { ...block.texts, text: v } })} />
+      <PartText id={`${block.id}-button`} label="כפתור החיפוש" value={block.texts.button} fallback={FIND_TABLE_TEXTS.button} max={PART_TEXT_MAX.button} onChange={(v) => update({ texts: { ...block.texts, button: v } })} />
+      <Toggle
+        checked={block.inBar}
+        onChange={(v) => update({ inBar: v })}
+        label="כפתור קפיצה בבאנר התחתון"
+        hint="בטלפון, בבאנר שמופיע בזמן הגלילה: כפתור שמקפיץ מיד לחיפוש השולחן"
+      />
+    </>
   );
 }

@@ -18,6 +18,7 @@ const EventHome = lazy(() => import("./routes/EventHome"));
 const Upload = lazy(() => import("./routes/Upload"));
 const Gallery = lazy(() => import("./routes/Gallery"));
 const Manage = lazy(() => import("./routes/Manage"));
+const Rsvp = lazy(() => import("./routes/Rsvp"));
 const AdminLogin = lazy(() => import("./routes/AdminLogin"));
 const ShareReceive = lazy(() => import("./routes/ShareReceive"));
 const SiteAdmin = lazy(() => import("./routes/SiteAdmin"));
@@ -57,6 +58,8 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/:code/gallery" element={<Gallery />} />
               <Route path="/:code/manage" element={<Manage />} />
               <Route path="/:code/admin" element={<AdminLogin />} />
+              {/* A family's personal RSVP link (sent by WhatsApp from the guest planner) */}
+              <Route path="/:code/r/:token" element={<Rsvp />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             {/* Inside Suspense so it doesn't flash under the loading spinner. */}

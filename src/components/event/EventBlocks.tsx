@@ -24,6 +24,7 @@ import { EventDetails, detailsCardHasContent } from "../EventDetails";
 import { FeaturedPhotos } from "./FeaturedViews";
 import { MessageBoard } from "./MessageBoard";
 import { Checklist } from "./Checklist";
+import { FindMyTable } from "./FindMyTable";
 
 export const blockImageUrl = (ev: PublicEvent, slot: number) => {
   const img = ev.images.find((i) => i.slot === slot);
@@ -53,6 +54,8 @@ export function blockHasContent(b: Block, ev: PublicEvent): boolean {
       return true;
     case "checklist":
       return (ev.checklistCounts[b.id] ?? 0) > 0 || b.guestsAdd;
+    case "findTable":
+      return true;
   }
 }
 
@@ -102,6 +105,8 @@ export function EventBlock({ block, ctx }: { block: Block; ctx: BlockCtx }) {
       return <MessageBoard block={block} event={event} dark={dark} preview={preview} />;
     case "checklist":
       return <Checklist block={block} event={event} dark={dark} preview={preview} />;
+    case "findTable":
+      return <FindMyTable block={block} event={event} dark={dark} preview={preview} />;
   }
 }
 
@@ -115,6 +120,7 @@ const PLACEHOLDER: Record<Block["type"], string> = {
   whatsapp: "כאן יופיע הכפתור להצטרפות לקבוצת הוואטסאפ - הדביקו את קישור ההזמנה לקבוצה",
   messages: "",
   checklist: "כאן תופיע הרשימה - הוסיפו פריטים, או אפשרו לאורחים להוסיף",
+  findTable: "",
 };
 
 function Placeholder({ block, dark }: { block: Block; dark: boolean }) {

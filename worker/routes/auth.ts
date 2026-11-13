@@ -328,6 +328,14 @@ async function runApiTests(_env: Env, token: string) {
   } catch (e) {
     result.drive = { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
+  // Sheets: reading a file that doesn't exist answers 404 when the API is on (403 "has not been used" when it is off).
+  try {
+    const r = await fetch("https://sheets.googleapis.com/v4/spreadsheets/connection-test?fields=spreadsheetId", { headers: { Authorization: `Bearer ${token}` } });
+    const text = r.ok ? "" : await r.text();
+    result.sheets = r.ok || r.status === 404 || !/SERVICE_DISABLED|has not been used|is disabled|accessNotConfigured/i.test(text) ? { ok: true } : { ok: false, message: `${r.status} ${text.slice(0, 200)}` };
+  } catch (e) {
+    result.sheets = { ok: false, message: String(e) };
+  }
   return { at: Date.now(), result, ok: Object.values(result).every((r) => r.ok) };
 }
 

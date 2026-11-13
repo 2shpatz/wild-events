@@ -16,6 +16,8 @@ import { manage } from "./routes/manage";
 import { imports } from "./routes/import";
 import { admin } from "./routes/admin";
 import { board } from "./routes/board";
+import { planner } from "./routes/planner";
+import { syncDirtySheets } from "./lib/sheets";
 import { ensureSchema, updatingResponse } from "./lib/schema";
 import { eventPagePreview } from "./lib/preview";
 
@@ -37,6 +39,7 @@ app.route("/", manage);
 app.route("/", imports);
 app.route("/", migrate);
 app.route("/", board);
+app.route("/", planner);
 
 app.get("/health", (c) => c.json({ ok: true }));
 
@@ -77,6 +80,7 @@ async function dueOnce(env: Env, key: string, now: number) {
 /**
  * Cron (wrangler.jsonc), every 15 minutes:
  * - every run: after "update now", ask again until the new version is installed (lib/updates.ts). Usually nothing to do.
+ * - every run: push guest-list changes (e.g. guests' RSVP answers) to the hosts' Google Sheets that are behind (lib/sheets.ts).
  * - night (from 01:00 UTC, once): look for a new version and, for sites installed from GitHub, rebuild when allowed
  *   (lib/updates.ts). Nobody is using the site then, and the admin sees the news in the morning.
  * - morning (from 06:00 UTC, once): storage check + housekeeping.
@@ -92,10 +96,18 @@ async function scheduled(controller: ScheduledController, env: Env) {
   } catch (e) {
     console.warn("update retry failed", e);
   }
+  // Guest-list sheets that are behind; skipped on the run that does the night / morning job (outgoing-request limit).
+  const sheets = async () => {
+    try {
+      await syncDirtySheets(env);
+    } catch (e) {
+      console.warn("sheet sync failed", e);
+    }
+  };
   const hour = new Date(now).getUTCHours();
-  if (hour < NIGHT_FROM_UTC_HOUR) return;
+  if (hour < NIGHT_FROM_UTC_HOUR) return sheets();
   if (hour < MORNING_FROM_UTC_HOUR) {
-    if (!(await dueOnce(env, "last_night_run", now))) return;
+    if (!(await dueOnce(env, "last_night_run", now))) return sheets();
     try {
       await maybeAutoUpdate(env, await checkFeed(env), now);
     } catch (e) {
@@ -104,6 +116,7 @@ async function scheduled(controller: ScheduledController, env: Env) {
     return;
   }
   if (await dueOnce(env, "last_daily_run", now)) await runDaily(env);
+  else await sheets();
 }
 
 async function runDaily(env: Env) {
@@ -144,6 +157,9 @@ async function runDaily(env: Env) {
     env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(Date.now() - 7 * 86_400_000),
     // Checklist items deleted more than a day ago (the undo window is minutes).
     env.DB.prepare("DELETE FROM checklist_items WHERE deleted_at < ?").bind(Date.now() - 86_400_000),
+    // Planner rows deleted more than 30 days ago (undo + "deleted" list in the guest planner).
+    env.DB.prepare("DELETE FROM households WHERE deleted_at < ?").bind(Date.now() - 30 * 86_400_000),
+    env.DB.prepare("DELETE FROM planner_records WHERE deleted_at < ?").bind(Date.now() - 30 * 86_400_000),
   ]);
 }
 

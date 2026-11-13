@@ -9,7 +9,7 @@ import { BLOCK_META } from "./blockMeta";
 import type { DraftAction } from "./draft";
 import { DetailsFields, LiveFields } from "./PartsFields";
 import { BlockStyleFields } from "./BlockStyleFields";
-import { ChecklistFields, MessagesFields, WhatsAppFields } from "./BoardFields";
+import { ChecklistFields, FindTableFields, MessagesFields, WhatsAppFields } from "./BoardFields";
 import { MediaChooser } from "./MediaChooser";
 
 /** Editing one block: its content / style, hide-show and delete. */
@@ -50,7 +50,8 @@ export function BlockInspector({
     block.type === "live" ||
     block.type === "whatsapp" ||
     block.type === "messages" ||
-    block.type === "checklist" ? (
+    block.type === "checklist" ||
+    block.type === "findTable" ? (
       <BlockStyleFields
         key={block.id}
         font={block.font}
@@ -103,6 +104,7 @@ export function BlockInspector({
       {block.type === "whatsapp" && <WhatsAppFields key={block.id} block={block} update={update} />}
       {block.type === "messages" && <MessagesFields event={event} block={block} update={update} />}
       {block.type === "checklist" && <ChecklistFields event={event} block={block} update={update} onChanged={onChanged} />}
+      {block.type === "findTable" && <FindTableFields event={event} block={block} update={update} />}
 
       {style}
 

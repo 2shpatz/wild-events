@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
+  ClipboardList,
   CalendarPlus,
   ExternalLink,
   Images,
@@ -212,6 +213,9 @@ export default function Dashboard() {
                     <Button variant="outline" onClick={() => setQrFor(ev)} icon={<QrCode className="size-4" aria-hidden />}>
                       QR ושיתוף
                     </Button>
+                    <LinkButton href={`/${ev.code}/manage?tab=guests`} variant="ghost" icon={<ClipboardList className="size-4" aria-hidden />}>
+                      רשימת אורחים
+                    </LinkButton>
                     <LinkButton href={`/${ev.code}/gallery`} variant="ghost" icon={<Images className="size-4" aria-hidden />}>
                       לגלריה
                     </LinkButton>

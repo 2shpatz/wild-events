@@ -498,3 +498,83 @@ export async function driveDelete(token: string, fileId: string) {
     if (!(e instanceof GoogleError && e.status === 404)) throw e;
   }
 }
+
+// ---------------------------------------------------------------- Google Sheets (the guest list sheet)
+// drive.file is enough for spreadsheets this app created. The Sheets API must be enabled in the Cloud project.
+
+const SHEETS = "https://sheets.googleapis.com/v4/spreadsheets";
+
+export type SheetTab = { sheetId: number; title: string };
+export type CellValue = string | number | boolean;
+
+/** True when Google says the Sheets API is not enabled in the site's Cloud project. */
+export const sheetsDisabled = (e: unknown) =>
+  e instanceof GoogleError && e.status === 403 && /SERVICE_DISABLED|has not been used|is disabled|accessNotConfigured/i.test(`${e.googleStatus} ${e.message}`);
+
+export async function sheetsCreate(token: string, title: string, tabs: { sheetId: number; title: string }[]) {
+  return gjson<{ spreadsheetId: string; spreadsheetUrl: string }>(`${SHEETS}?fields=spreadsheetId,spreadsheetUrl`, {
+    method: "POST",
+    token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      properties: { title, locale: "iw_IL" },
+      sheets: tabs.map((t) => ({ properties: { sheetId: t.sheetId, title: t.title, rightToLeft: true, gridProperties: { frozenRowCount: 1 } } })),
+    }),
+  });
+}
+
+export async function sheetsTabs(token: string, id: string): Promise<SheetTab[]> {
+  const r = await gjson<{ sheets?: { properties: SheetTab }[] }>(`${SHEETS}/${encodeURIComponent(id)}?fields=sheets.properties(sheetId,title)`, { token });
+  return (r.sheets ?? []).map((s) => s.properties);
+}
+
+/** A1 range on a tab whatever its name ('my tab'!A1:ZZ). */
+export const a1 = (tab: string, range: string) => `'${tab.replace(/'/g, "''")}'!${range}`;
+
+export async function sheetsRead(token: string, id: string, range: string): Promise<CellValue[][]> {
+  const r = await gjson<{ values?: CellValue[][] }>(
+    `${SHEETS}/${encodeURIComponent(id)}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`,
+    { token },
+  );
+  return r.values ?? [];
+}
+
+/** Writes several ranges in one call (RAW: "050..." stays text, numbers stay numbers). */
+export async function sheetsWrite(token: string, id: string, data: { range: string; values: CellValue[][] }[]) {
+  await gfetch(`${SHEETS}/${encodeURIComponent(id)}/values:batchUpdate`, {
+    method: "POST",
+    token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ valueInputOption: "RAW", data }),
+  });
+}
+
+export async function sheetsClear(token: string, id: string, ranges: string[]) {
+  if (!ranges.length) return;
+  await gfetch(`${SHEETS}/${encodeURIComponent(id)}/values:batchClear`, {
+    method: "POST",
+    token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ranges }),
+  });
+}
+
+export async function sheetsBatch(token: string, id: string, requests: unknown[]) {
+  if (!requests.length) return;
+  await gfetch(`${SHEETS}/${encodeURIComponent(id)}:batchUpdate`, {
+    method: "POST",
+    token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ requests }),
+  });
+}
+
+/** Lets another Google account edit a file this app created (no notification email). */
+export async function driveShare(token: string, fileId: string, email: string) {
+  await gfetch(`${DRIVE}/files/${encodeURIComponent(fileId)}/permissions?sendNotificationEmail=false`, {
+    method: "POST",
+    token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role: "writer", type: "user", emailAddress: email }),
+  });
+}

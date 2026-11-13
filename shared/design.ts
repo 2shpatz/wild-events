@@ -96,6 +96,14 @@ export type MessagesText = keyof typeof MESSAGES_TEXTS;
 export const CHECKLIST_TEXTS = { title: "מה נשאר לעשות" } as const;
 export type ChecklistText = keyof typeof CHECKLIST_TEXTS;
 
+/** "Find my table": a guest types their name and sees their table (when the hosts published the seating). */
+export const FIND_TABLE_TEXTS = {
+  title: "איפה אני יושב/ת?",
+  text: "כתבו שם פרטי ושם משפחה כדי לראות את מספר השולחן",
+  button: "חיפוש",
+} as const;
+export type FindTableText = keyof typeof FIND_TABLE_TEXTS;
+
 /** Max length of each editable heading / card text. */
 export const PART_TEXT_MAX = {
   title: 80,
@@ -156,8 +164,17 @@ export type ChecklistBlock = BlockBase &
     showProgress: boolean;
   };
 
+/** One per page. Answers only when the hosts published the seating (planner settings). */
+export type FindTableBlock = BlockBase &
+  BlockStyle & {
+    type: "findTable";
+    texts: Record<FindTableText, string | null>;
+    /** a quick-jump button in the bottom banner (phones) */
+    inBar: boolean;
+  };
+
 export type SingletonBlock = (BlockBase & { type: "invitation" }) | FeaturedBlock | DetailsBlock | LiveBlock | MessagesBlock;
-export type Block = TextBlock | ImageBlock | WhatsAppBlock | ChecklistBlock | SingletonBlock;
+export type Block = TextBlock | ImageBlock | WhatsAppBlock | ChecklistBlock | FindTableBlock | SingletonBlock;
 export type BlockType = Block["type"];
 
 /**
@@ -266,6 +283,7 @@ export function newBlock(type: BlockType, slot = 0): Block {
   if (type === "whatsapp") return { id, type, url: "", texts: allNull(Object.keys(WHATSAPP_TEXTS) as WhatsAppText[]), font: null, textFont: null, color: null };
   if (type === "checklist")
     return { id, type, texts: allNull(Object.keys(CHECKLIST_TEXTS) as ChecklistText[]), guestsTick: false, guestsAdd: false, guestsDelete: false, inBar: false, visible: VISIBLE_ITEMS.default, showProgress: true, font: null, textFont: null, color: null };
+  if (type === "findTable") return { id, type, texts: allNull(Object.keys(FIND_TABLE_TEXTS) as FindTableText[]), inBar: false, font: null, textFont: null, color: null };
   return singletonBlock(type, id);
 }
 
@@ -373,6 +391,19 @@ function sanitizeBlock(input: unknown, seen: { ids: Set<string>; singles: Set<st
       inBar: bool(b.inBar, false),
       visible: visibleItems(b.visible),
       showProgress: bool(b.showProgress, true),
+      font: font(b.font),
+      textFont: font(b.textFont),
+      color: color(b.color),
+      ...hidden,
+    };
+  } else if (b.type === "findTable") {
+    if (seen.singles.has("findTable")) return null;
+    seen.singles.add("findTable");
+    out = {
+      id,
+      type: "findTable",
+      texts: partTexts(b.texts, Object.keys(FIND_TABLE_TEXTS) as FindTableText[]),
+      inBar: bool(b.inBar, false),
       font: font(b.font),
       textFont: font(b.textFont),
       color: color(b.color),

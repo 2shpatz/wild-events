@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Camera, Images, ListChecks, Settings } from "lucide-react";
+import { Armchair, Camera, Images, ListChecks, Settings } from "lucide-react";
 import { useEvent } from "../lib/session";
 import { EventStatus } from "../components/EventChrome";
 import { BgLayer } from "../components/BgLayer";
@@ -12,7 +12,7 @@ import { EventHero } from "../components/event/EventHero";
 import { EventBlock, blockHasContent, type BlockCtx } from "../components/event/EventBlocks";
 import { postToParent, usePreviewDraft } from "../lib/designPreview";
 import { loadFont, loadTextFont, textFontStyle, titleFontVars } from "../lib/fonts";
-import { CHECKLIST_TEXTS, barTextColor, blockFonts, textFonts, headerObjectPosition, pagesTitleFont, partText, type Block } from "../../shared/design";
+import { CHECKLIST_TEXTS, FIND_TABLE_TEXTS, barTextColor, blockFonts, textFonts, headerObjectPosition, pagesTitleFont, partText, type Block } from "../../shared/design";
 
 /** Glyphs fetched while browsing fonts in the editor preview (title + date digits + Hebrew letters). */
 const PREVIEW_GLYPHS = "0123456789.|אבגדהוזחטיכךלמםנןסעפףצץקרשת׳״";
@@ -75,7 +75,8 @@ export default function EventHome() {
   const bottomUpload = bottom.upload && event.uploadsOpen;
   // Elements the hosts put in the bottom banner as quick jumps (checklists), in page order.
   const jumps = [...design.before, ...design.after].filter(
-    (b): b is Extract<Block, { type: "checklist" }> => b.type === "checklist" && b.inBar && !b.hidden && (preview.active || blockHasContent(b, event)),
+    (b): b is Extract<Block, { type: "checklist" | "findTable" }> =>
+      (b.type === "checklist" || b.type === "findTable") && b.inBar && !b.hidden && (preview.active || blockHasContent(b, event)),
   );
   const bottomShown = barShown && !choiceVisible && bottom.show && (bottomUpload || bottom.view || jumps.length > 0);
   const topColor = barTextColor(design, "top") ?? undefined;
@@ -189,8 +190,8 @@ export default function EventHome() {
                 onClick={() => scrollTo(document.querySelector(`[data-block-id="${b.id}"]`))}
                 className="inline-flex min-h-11 max-w-[70%] shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-4 text-sm font-semibold transition-colors duration-200 hover:bg-white/25"
               >
-                <ListChecks className="size-4 shrink-0" aria-hidden />
-                <span className="truncate">{partText(b.texts, "title", CHECKLIST_TEXTS.title)}</span>
+                {b.type === "findTable" ? <Armchair className="size-4 shrink-0" aria-hidden /> : <ListChecks className="size-4 shrink-0" aria-hidden />}
+                <span className="truncate">{b.type === "findTable" ? partText(b.texts, "title", FIND_TABLE_TEXTS.title) : partText(b.texts, "title", CHECKLIST_TEXTS.title)}</span>
               </button>
             ))}
           </div>
