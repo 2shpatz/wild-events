@@ -17,6 +17,7 @@ import { imports } from "./routes/import";
 import { admin } from "./routes/admin";
 import { board } from "./routes/board";
 import { ensureSchema, updatingResponse } from "./lib/schema";
+import { eventPagePreview } from "./lib/preview";
 
 const app = new Hono<AppEnv>().basePath("/api");
 
@@ -204,6 +205,9 @@ export default {
       return withSecurityHeaders(await app.fetch(request, env, ctx));
     }
     if (pathname.startsWith("/music/")) return withSecurityHeaders(await serveMusic(request, env));
+    // Event pages: the event's title + picture for link previews (WhatsApp...).
+    const preview = await eventPagePreview(request, env);
+    if (preview) return withSecurityHeaders(preview);
     return withSecurityHeaders(await env.ASSETS.fetch(request));
   },
   scheduled,

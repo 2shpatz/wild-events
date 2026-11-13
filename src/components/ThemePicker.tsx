@@ -144,7 +144,7 @@ export function BackgroundPicker({
 }
 
 /** Compress a background image client-side (≤1920px JPEG) so it can live in D1 and load fast. */
-export async function compressBackground(file: File, maxEdge = 1920): Promise<Blob> {
+export async function compressBackground(file: Blob, maxEdge = 1920, maxBytes = 850 * 1024): Promise<Blob> {
   const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
   const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
   const canvas = document.createElement("canvas");
@@ -154,7 +154,7 @@ export async function compressBackground(file: File, maxEdge = 1920): Promise<Bl
   bmp.close();
   for (const q of [0.82, 0.7, 0.55]) {
     const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej()), "image/jpeg", q));
-    if (blob.size < 850 * 1024) return blob;
+    if (blob.size < maxBytes) return blob;
   }
   throw new Error("too_large");
 }

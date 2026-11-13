@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import QRCode from "qrcode";
 import { Download, Link2, MessageSquareText, RotateCcw, Save, Share2 } from "lucide-react";
-import { Button, CopyField, inputClass, useToast } from "./ui";
+import { Button, CopyField, cx, inputClass, useToast } from "./ui";
 import { eventUrl } from "../lib/format";
 
 export function WhatsAppIcon({ className }: { className?: string }) {
@@ -51,17 +51,33 @@ export const defaultShareText = (title: string) => `📸 ${title}\nמעלים ת
 /** The message that is shared: the hosts' text (or the built-in one), with the event link always on its own last line. */
 export const shareMessage = (text: string | null, title: string, url: string) => `${text?.trim() || defaultShareText(title)}\n${url}`;
 
+/** The link preview WhatsApp shows above the message (the page's tags come from worker/lib/preview.ts). */
+export interface LinkCard {
+  /** picture URL; `large` = a wide picture over the text (header image), else a small square (logo) */
+  image: string;
+  large: boolean;
+  /** CSS object-position of the picture */
+  position?: string;
+  description: string;
+}
+
 export function QRShare({
   code,
   title,
   shareText,
   onSaveText,
+  linkCard,
+  imagePicker,
 }: {
   code: string;
   title: string;
   shareText?: string | null;
   /** given = the hosts can edit the message here; null = back to the built-in text */
   onSaveText?: (text: string | null) => Promise<void>;
+  /** shown in the message preview */
+  linkCard?: LinkCard;
+  /** the choice of the link's picture, above the message editor */
+  imagePicker?: ReactNode;
 }) {
   const url = eventUrl(code);
   const [src, setSrc] = useState<string | null>(null);
@@ -121,7 +137,8 @@ export function QRShare({
           <Link2 className="size-4" aria-hidden />
           כל מי שיש לו את הקישור יכול להעלות ולצפות
         </p>
-        {onSaveText && <ShareTextEditor title={title} url={url} shareText={shareText ?? null} onSave={onSaveText} />}
+        {imagePicker}
+        {onSaveText && <ShareTextEditor title={title} url={url} shareText={shareText ?? null} onSave={onSaveText} linkCard={linkCard} />}
       </div>
     </div>
   );
@@ -133,11 +150,13 @@ function ShareTextEditor({
   url,
   shareText,
   onSave,
+  linkCard,
 }: {
   title: string;
   url: string;
   shareText: string | null;
   onSave: (text: string | null) => Promise<void>;
+  linkCard?: LinkCard;
 }) {
   const saved = shareText?.trim() || defaultShareText(title);
   const [text, setText] = useState(saved);
@@ -179,7 +198,13 @@ function ShareTextEditor({
 
       <div className="rounded-2xl bg-[#efeae2] p-3" aria-label="תצוגה מקדימה של ההודעה">
         <p className="mb-1.5 text-xs font-semibold text-[#54656f]">כך זה ייראה בוואטסאפ</p>
-        <div className="ms-auto w-fit max-w-[92%] whitespace-pre-wrap break-words rounded-xl rounded-se-sm bg-[#d9fdd3] px-3 py-2 text-[15px] leading-relaxed text-[#111b21] shadow-sm">
+        <div
+          className={cx(
+            "ms-auto max-w-[92%] whitespace-pre-wrap break-words rounded-xl rounded-se-sm bg-[#d9fdd3] px-3 py-2 text-[15px] leading-relaxed text-[#111b21] shadow-sm",
+            linkCard ? "w-80" : "w-fit",
+          )}
+        >
+          {linkCard && <LinkCardPreview card={linkCard} title={title} url={url} />}
           {clean || defaultShareText(title)}
           {"\n"}
           <bdi dir="ltr" className="text-[#027eb5] underline">
@@ -204,5 +229,34 @@ function ShareTextEditor({
         )}
       </div>
     </section>
+  );
+}
+
+/** WhatsApp's link card at the top of the message bubble. */
+function LinkCardPreview({ card, title, url }: { card: LinkCard; title: string; url: string }) {
+  const host = url.replace(/^https?:\/\//, "").split("/")[0];
+  const text = (
+    <span className="flex min-w-0 flex-col px-2.5 py-1.5 leading-snug">
+      <span className="truncate text-sm font-bold">{title}</span>
+      <span className="line-clamp-2 text-[13px] text-[#54656f]">{card.description}</span>
+      <span dir="ltr" className="truncate text-end text-xs text-[#667781]">
+        {host}
+      </span>
+    </span>
+  );
+  return (
+    <span className="-mx-1.5 -mt-0.5 mb-2 block overflow-hidden whitespace-normal rounded-lg bg-[#cfe9c9]">
+      {card.large ? (
+        <>
+          <img src={card.image} alt="" className="block aspect-[1.91/1] w-full object-cover" style={{ objectPosition: card.position }} />
+          {text}
+        </>
+      ) : (
+        <span className="flex items-stretch">
+          <img src={card.image} alt="" className="size-20 shrink-0 bg-white object-contain" />
+          {text}
+        </span>
+      )}
+    </span>
   );
 }

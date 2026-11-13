@@ -34,10 +34,13 @@ events.get("/e/:code", async (c) => {
   return c.json(await toPublicEvent(c.env, ev, { canManage: manage, isOwner: c.get("ownerId") === ev.owner_id }));
 });
 
-/** Background ('bg'), header ('hd'), invitation ('inv'), featured photos ('f0'..'f5') and design images ('i0'..'i9'). */
+/**
+ * Background ('bg'), header ('hd') + its link-preview copy ('og'), invitation ('inv'), featured photos ('f0'..'f5')
+ * and design images ('i0'..'i9').
+ */
 events.get("/e/:code/asset/:kind", async (c) => {
   const kind = c.req.param("kind");
-  if (!/^(bg|hd|inv|f\d|i\d)$/.test(kind)) throw new HTTPException(404, { message: "not_found" });
+  if (!/^(bg|hd|og|inv|f\d|i\d)$/.test(kind)) throw new HTTPException(404, { message: "not_found" });
   const ev = await eventByCode(c.env, c.req.param("code"));
   const r = await c.env.DB.prepare("SELECT mime, data, etag FROM event_assets WHERE event_id = ? AND kind = ?")
     .bind(ev.id, kind)

@@ -18,6 +18,7 @@ import { suggestSlug } from "../../shared/slug";
 import { defaultDesign } from "../../shared/design";
 import { StorageAccountPicker } from "../components/StorageAccountPicker";
 import { clearDraft, loadDraft, saveDraft } from "../lib/wizardDraft";
+import { putHeaderShare } from "../components/manage/useAssetActions";
 
 const STEPS = ["סוג האירוע", "פרטים", "עיצוב", "איכות העלאה", "אחסון התמונות", "שיתוף"];
 const STORAGE_STEP = 4;
@@ -240,9 +241,9 @@ export default function CreateEventWizard() {
           toast("האירוע נוצר, אבל תמונת הרקע לא נשמרה. אפשר להעלות אותה שוב בהגדרות.", "error"),
         );
       }
-      const put = (path: string, blob: Blob) => api(`/e/${r.code}/manage/${path}`, { method: "PUT", body: blob, headers: { "Content-Type": "image/jpeg" } });
+      const put = (path: string, blob: Blob) => api<{ v: string }>(`/e/${r.code}/manage/${path}`, { method: "PUT", body: blob, headers: { "Content-Type": "image/jpeg" } });
       try {
-        if (header) await put("header", header.blob);
+        if (header) await putHeaderShare(r.code, (await put("header", header.blob)).v, header.blob);
         if (invitation) await put("invitation", invitation.blob);
         for (const f of featured) await put(`featured/${f.slot}`, f.blob);
       } catch {

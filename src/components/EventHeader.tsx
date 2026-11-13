@@ -7,7 +7,7 @@ import { backgroundProps } from "../lib/themes";
 import { titleFontVars, useFonts } from "../lib/fonts";
 import { barTextColor, headerObjectPosition, pagesTitleFont } from "../../shared/design";
 
-export const headerImageUrl = (ev: PublicEvent) =>
+export const headerImageUrl = (ev: Pick<PublicEvent, "code" | "headerVersion">) =>
   ev.headerVersion ? `/api/e/${ev.code}/asset/hd?v=${encodeURIComponent(ev.headerVersion)}` : null;
 
 const BANNER = 112; // px of the image strip that scrolls away before the header sticks

@@ -8,6 +8,7 @@ import { cleanName, cleanTime, createEventAlbum } from "../lib/db";
 import { rateLimit, requireOwner } from "../lib/session";
 import type { OwnerEventSummary, StorageInfo } from "../../shared/types";
 import { isValidSlug, suggestSlug } from "../../shared/slug";
+import { parseDesign } from "../../shared/design";
 
 export const owner = new Hono<AppEnv>();
 owner.use("/*", requireOwner);
@@ -51,7 +52,8 @@ owner.delete("/accounts/:id", async (c) => {
 owner.get("/events", async (c) => {
   const rows = await c.env.DB.prepare(
     `SELECT e.id, e.code, e.title, e.event_date, e.type, e.theme, e.quality, e.google_album_url, e.created_at,
-            e.storage_account_id, e.migrating, e.share_text,
+            e.storage_account_id, e.migrating, e.share_text, e.design,
+            (SELECT etag FROM event_assets h WHERE h.event_id = e.id AND h.kind = 'hd') AS header_version,
             (SELECT COUNT(*) FROM media m WHERE m.event_id = e.id AND m.hidden = 0) AS media_count,
             (SELECT COUNT(*) FROM albums a WHERE a.event_id = e.id AND a.hidden = 0) AS album_count
        FROM events e WHERE e.owner_id = ? AND e.deleted = 0 ORDER BY e.created_at DESC`,
@@ -73,6 +75,8 @@ owner.get("/events", async (c) => {
     createdAt: r.created_at,
     storageAccountId: r.storage_account_id || SELF,
     migrating: !!r.migrating,
+    headerVersion: r.header_version ?? null,
+    headerPos: parseDesign(r.design).hero.headerPos,
   }));
   return c.json({ events });
 });

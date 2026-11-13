@@ -27,6 +27,7 @@ import { connectHref } from "../components/StorageAccountPicker";
 import { QRShare } from "../components/QRShare";
 import { GoogleButton } from "../components/GoogleButton";
 import { OwnSiteNote } from "../components/OwnSiteNote";
+import { headerImageUrl } from "../components/EventHeader";
 import type { OwnerEventSummary, StorageAccountDTO } from "../../shared/types";
 
 export default function Dashboard() {
@@ -174,18 +175,26 @@ export default function Dashboard() {
           <ul className="grid gap-4 sm:grid-cols-2">
             {events.map((ev) => (
               <li key={ev.id}>
-                <Card className="flex h-full flex-col gap-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="truncate text-xl font-bold">{ev.title}</h2>
-                      <p className="text-sm text-muted-fg">
-                        {THEME_LABELS[ev.type]}
-                        {ev.date && <> · {formatDate(ev.date)}</>}
-                      </p>
+                <Card className="flex h-full flex-col gap-4 overflow-hidden">
+                  {ev.headerVersion && (
+                    // The main page's header image, cropped around the hosts' focal point. Decorative: the title follows.
+                    <div className="-mx-5 -mt-5 aspect-[21/9] shrink-0 overflow-hidden bg-muted sm:-mx-6 sm:-mt-6">
+                      <img
+                        src={headerImageUrl(ev)!}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="size-full object-cover"
+                        style={{ objectPosition: `${ev.headerPos.x}% ${ev.headerPos.y}%` }}
+                      />
                     </div>
-                    <span dir="ltr" className="rounded-lg bg-muted px-2 py-1 font-mono text-sm text-muted-fg">
-                      {ev.code}
-                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <h2 className="truncate text-xl font-bold">{ev.title}</h2>
+                    <p className="text-sm text-muted-fg">
+                      {THEME_LABELS[ev.type]}
+                      {ev.date && <> · {formatDate(ev.date)}</>}
+                    </p>
                   </div>
                   <p className="flex gap-4 text-base">
                     <span className="inline-flex items-center gap-1.5">

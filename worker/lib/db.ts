@@ -38,6 +38,8 @@ export interface EventRow {
   music: string | null;
   /** hosts' share message for the event link; NULL = the built-in text */
   share_text: string | null;
+  /** picture in the link preview: NULL = the header image (when there is one), 'logo' = the site logo */
+  share_image: string | null;
   /** NULL = the owner's login account */
   storage_account_id: string | null;
   /** id of the running move to another account (uploads pause meanwhile) */

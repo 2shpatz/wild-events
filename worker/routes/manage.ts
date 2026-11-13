@@ -34,6 +34,8 @@ manage.get("/e/:code/manage", async (c) => {
     ...pub,
     hasPassword: !!ev.admin_password_hash,
     shareText: ev.share_text,
+    shareImage: ev.share_image === "logo" ? "logo" : "header",
+    headerShareReady: !!(await c.env.DB.prepare("SELECT 1 FROM event_assets WHERE event_id = ? AND kind = 'og'").bind(ev.id).first()),
     albums: await listAlbums(c.env, ev.id, true),
     musicConfig: parseMusic(ev.music, ev.type as EventType),
     uploadedTracks: await eventTracks(c.env, ev.id),
@@ -77,6 +79,7 @@ manage.patch("/e/:code/manage", async (c) => {
   if (typeof b.background === "string" || b.background === null) set("background", b.background);
   if (typeof b.shareText === "string" || b.shareText === null)
     set("share_text", (b.shareText ?? "").normalize("NFKC").replace(/\r\n?/g, "\n").trim().slice(0, 500) || null);
+  if (b.shareImage === "header" || b.shareImage === "logo") set("share_image", b.shareImage === "logo" ? "logo" : null);
   if (typeof b.bgReveal === "boolean") set("bg_reveal", b.bgReveal ? 1 : 0);
   if (b.bgPos !== undefined) {
     const p = b.bgPos as { x?: unknown; y?: unknown; zoom?: unknown } | null;
@@ -245,21 +248,39 @@ manage.put("/e/:code/manage/image/:slot", async (c) => {
   return c.json({ ok: true, v: img.etag });
 });
 
-/** Header image shown at the top of every guest page. */
+/** Header image shown at the top of every guest page. Its old link-preview copy ('og') goes with the old image. */
 manage.put("/e/:code/manage/header", async (c) => {
   const ev = await managedEvent(c);
   const img = await readImage(c);
   await c.env.DB.batch([
     c.env.DB.prepare("INSERT OR REPLACE INTO event_assets (event_id, kind, mime, data, etag) VALUES (?, 'hd', ?, ?, ?)").bind(ev.id, img.mime, img.data, img.etag),
+    c.env.DB.prepare("DELETE FROM event_assets WHERE event_id = ? AND kind = 'og'").bind(ev.id),
     changeStmt(c.env, ev.id, "event", null),
   ]);
   return c.json({ ok: true, v: img.etag });
 });
 
+/**
+ * Small copy of the header image for link previews (WhatsApp skips big images). `?v=` is the header image it was
+ * made from: a copy of an image that was replaced meanwhile is not stored.
+ */
+manage.put("/e/:code/manage/header/share", async (c) => {
+  const ev = await managedEvent(c);
+  const img = await readImage(c);
+  if (img.data.byteLength > 400 * 1024) throw new HTTPException(413, { message: "too_large" });
+  const r = await c.env.DB.prepare(
+    `INSERT OR REPLACE INTO event_assets (event_id, kind, mime, data, etag)
+       SELECT ?1, 'og', ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM event_assets WHERE event_id = ?1 AND kind = 'hd' AND etag = ?5)`,
+  )
+    .bind(ev.id, img.mime, img.data, img.etag, c.req.query("v") || "")
+    .run();
+  return c.json({ ok: r.meta.changes > 0 });
+});
+
 manage.delete("/e/:code/manage/header", async (c) => {
   const ev = await managedEvent(c);
   await c.env.DB.batch([
-    c.env.DB.prepare("DELETE FROM event_assets WHERE event_id = ? AND kind = 'hd'").bind(ev.id),
+    c.env.DB.prepare("DELETE FROM event_assets WHERE event_id = ? AND kind IN ('hd', 'og')").bind(ev.id),
     changeStmt(c.env, ev.id, "event", null),
   ]);
   return c.json({ ok: true });

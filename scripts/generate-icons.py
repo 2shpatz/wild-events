@@ -61,6 +61,8 @@ ms = min(0.98, 0.40 / rmax)
 print("maskable scale", round(ms, 3))
 place(512, ms, (255, 255, 255, 255)).convert("RGB").save(f"{out}/icon-maskable-512.png", optimize=True)
 
+# Link previews (WhatsApp...): opaque white JPEG, small file (worker/lib/preview.ts).
+place(512, 0.86, (255, 255, 255, 255)).convert("RGB").save(f"{out}/og-logo.jpg", quality=85, optimize=True)
 # Site home: big centered logo.
 place(384, 1.0).save(f"{out}/logo-hero.webp", quality=88, method=6)
 print("wrote icons to", out)

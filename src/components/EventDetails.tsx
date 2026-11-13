@@ -1,9 +1,10 @@
-import { CalendarDays, CalendarPlus, Copy, Download, Map, MapPin, MapPinned, Share2 } from "lucide-react";
+import { CalendarDays, Copy, Download, MapPin, Share2 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { PublicEvent } from "../../shared/types";
 import { DETAILS_SHARE_NO_ADDRESS, DETAILS_TEXTS, partText, singletonBlock, type DetailsBlock } from "../../shared/design";
 import { countdown, destination, googleCalendarUrl, hasCalendar, icsFile, navLinks, shareText, whenText } from "../lib/eventInfo";
 import { WhatsAppIcon } from "./QRShare";
+import { AppleIcon, GoogleCalendarIcon, GoogleMapsIcon } from "./BrandIcons";
 import { cx, useToast } from "./ui";
 import { isAndroid } from "../lib/device";
 
@@ -25,7 +26,7 @@ export function detailsCardHasContent(ev: PublicEvent, show: DetailsBlock["show"
 }
 
 /**
- * "פרטי האירוע": when + where, one-tap navigation (Waze / Google Maps / Apple Maps - not on Android),
+ * "פרטי האירוע": when + where, one-tap navigation (Waze / Google Maps / Apple Maps - not on Android; each in its app's colors),
  * sharing the address with the links, and add-to-calendar. Links only - no embedded map / third-party scripts.
  */
 export function EventDetails({ event, dark, block = allShown }: { event: PublicEvent; dark: boolean; block?: DetailsBlock }) {
@@ -44,6 +45,11 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
     "inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl px-2 text-[15px] font-semibold transition-[background-color,filter] duration-200 sm:px-4 sm:text-base",
     dark ? "border border-white/35 bg-white/10 text-white hover:bg-white/20" : "border-2 border-border bg-card text-fg hover:border-primary hover:bg-primary/5",
   );
+
+  // App buttons in each app's own colors (like Waze and WhatsApp), the same in light and dark themes.
+  const brandBtn =
+    "inline-flex min-h-12 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl px-2 text-[15px] font-bold shadow-soft transition-[background-color,filter] duration-200 sm:px-4 sm:text-base";
+  const googleBtn = cx(brandBtn, "border border-[#dadce0] bg-white text-[#3c4043] hover:bg-[#f8f9fa]");
 
   const shareOrCopy = async () => {
     if ("share" in navigator) {
@@ -105,13 +111,18 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
               <WazeIcon className="size-6" />
               Waze
             </a>
-            <a href={links.google} target="_blank" rel="noopener noreferrer" className={btn}>
-              <MapPinned className="size-5 shrink-0" aria-hidden />
+            <a href={links.google} target="_blank" rel="noopener noreferrer" className={googleBtn}>
+              <GoogleMapsIcon className="h-6 w-5 shrink-0" />
               Google Maps
             </a>
             {!isAndroid && (
-              <a href={links.apple} target="_blank" rel="noopener noreferrer" className={btn}>
-                <Map className="size-5 shrink-0" aria-hidden />
+              <a
+                href={links.apple}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cx(brandBtn, "bg-black text-white hover:bg-[#1d1d1f]", dark && "ring-1 ring-white/30")}
+              >
+                <AppleIcon className="size-5 shrink-0 -translate-y-px" />
                 Apple Maps
               </a>
             )}
@@ -145,9 +156,9 @@ export function EventDetails({ event, dark, block = allShown }: { event: PublicE
           <h3 className={h3}>{partText(texts, "calendar", DETAILS_TEXTS.calendar)}</h3>
           <div className="grid grid-cols-2 gap-3">
             {gcal && (
-              <a href={gcal} target="_blank" rel="noopener noreferrer" className={btn}>
-                <CalendarPlus className="size-5 shrink-0" aria-hidden />
-                Google
+              <a href={gcal} target="_blank" rel="noopener noreferrer" className={googleBtn}>
+                <GoogleCalendarIcon className="size-6 shrink-0" />
+                יומן Google
               </a>
             )}
             <button type="button" onClick={downloadIcs} className={btn}>

@@ -314,6 +314,10 @@ export interface OwnerEventSummary {
   storageAccountId: string;
   /** the event is moving to another account right now */
   migrating: boolean;
+  /** version of the header image of the main page (null = none), shown on the event's card */
+  headerVersion: string | null;
+  /** focal point of the header image (HeroDesign.headerPos) */
+  headerPos: { x: number; y: number };
 }
 
 /** An event album that mirrors an album the owner has in Google Photos (copied in, re-synced on demand). */
@@ -326,10 +330,16 @@ export interface AlbumLink {
 
 export type ManageAlbum = AlbumDTO & { googleAlbumId: string | null; link: AlbumLink | null };
 
+export type ShareImage = "header" | "logo";
+
 export interface ManageEvent extends PublicEvent {
   hasPassword: boolean;
   /** the hosts' own share message (the event link is appended automatically); null = the built-in text */
   shareText: string | null;
+  /** the picture in the preview of the event link: the header image (when there is one) or the site logo */
+  shareImage: ShareImage;
+  /** the small copy of the header image made for link previews exists */
+  headerShareReady: boolean;
   albums: ManageAlbum[];
   /** the saved music settings (also when off) */
   musicConfig: EventMusic;

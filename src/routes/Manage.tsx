@@ -17,6 +17,10 @@ import { ImportFromGoogle } from "../components/manage/ImportFromGoogle";
 import { Card, LinkButton, cx } from "../components/ui";
 import { useManagePatch } from "../components/manage/useManagePatch";
 import { ManageFeedContext } from "../components/manage/feedContext";
+import { effectiveShareImage, ShareImagePicker } from "../components/manage/ShareImagePicker";
+import { headerImageUrl } from "../components/EventHeader";
+import { headerObjectPosition } from "../../shared/design";
+import { SHARE_DESCRIPTION, SHARE_LOGO } from "../../shared/linkPreview";
 
 type Tab = "share" | "media" | "albums" | "design" | "music" | "settings";
 
@@ -91,7 +95,7 @@ function ManageView({
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-bold">{event.title}</h1>
             <p className="text-sm text-muted-fg">
-              {event.mediaCount.toLocaleString("he-IL")} פריטים · {event.albumCount.toLocaleString("he-IL")} אלבומים · קוד <span dir="ltr">{event.code}</span>
+              {event.mediaCount.toLocaleString("he-IL")} פריטים · {event.albumCount.toLocaleString("he-IL")} אלבומים
             </p>
           </div>
           <div className="flex gap-2">
@@ -143,6 +147,12 @@ function ManageView({
               title={event.title}
               shareText={event.shareText}
               onSaveText={(text) => patch({ shareText: text }, text === null ? "חזרתם לנוסח המקורי" : "נוסח ההודעה נשמר")}
+              imagePicker={<ShareImagePicker event={event} onPick={(v) => patch({ shareImage: v }, "התמונה של הקישור נשמרה")} />}
+              linkCard={
+                effectiveShareImage(event) === "header"
+                  ? { image: headerImageUrl(event)!, large: true, position: headerObjectPosition(event.design.hero), description: event.subtitle || SHARE_DESCRIPTION }
+                  : { image: SHARE_LOGO.path, large: false, description: event.subtitle || SHARE_DESCRIPTION }
+              }
             />
           </Card>
         )}
