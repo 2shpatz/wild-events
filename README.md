@@ -247,6 +247,30 @@ npm run dev           # http://localhost:5173
 - **Migrations:** רק תוספות (גרסה ישנה ממשיכה לרוץ לרגע ליד המבנה החדש), בלי `BEGIN`/`COMMIT` ובלי triggers. בנייה מחדש של טבלה צריכה `PRAGMA defer_foreign_keys = true`. האתר מריץ אותן בעצמו (`worker/lib/schema.ts`), באותה טבלת מעקב של wrangler (`d1_migrations`).
 - **לא לשנות את ההתנהגות של `scripts/deploy.mjs` ו-`scripts/ci-bootstrap.mjs`.** העותקים של כל המפעילים מריצים את הגרסה שלהם של שני הקבצים האלה לתמיד. כל השאר (`scripts/ci/deploy.mjs` והלאה) מגיע תמיד מהקוד החדש.
 
+### אתר ניסיון: כל גרסה עוברת בו לפני האתר החי
+יש אתר ניסיון קבוע שמותקן בדרך א, בדיוק כמו אצל מפעילים אחרים:
+
+| | |
+|---|---|
+| כתובת | `https://albums-test.shpatzappz.link` (הכתובת `albums-test.<חשבון>.workers.dev` מעבירה אליה) |
+| ב-Cloudflare | Worker בשם `albums-test`, מסד נתונים `albums-test-db`, משתנה `CANONICAL_ORIGIN`, Deploy Hook בשם `auto-update` |
+| ב-GitHub | העותק `ShpatzAppZ/wild-events`, בארגון נפרד (אי אפשר לעשות Fork למאגר שלך לאותו חשבון) |
+| ב-Google | מפתח חיבור משלו, באותו פרויקט Google Cloud של האתר החי |
+
+**אחרי כל שחרור:**
+1. דוחפים: `git push origin dev main vX.Y.Z`.
+2. אתר הניסיון מתעדכן לבד בלילה (01:17 UTC). לא רוצים לחכות? מחכים 5-10 דקות אחרי הדחיפה (GitHub ו-Cloudflare שומרים לזמן קצר עותק של רשימת הגרסאות), ואז באתר הניסיון: ניהול האתר, לשונית **עדכונים**, **בדיקה עכשיו** ואז **עדכון עכשיו**. הבנייה לוקחת כ-2 דקות.
+3. בודקים באתר הניסיון: בלשונית **עדכונים** מופיעה הגרסה החדשה, מה שהשתנה בגרסה עובד, וההתחברות עם Google עובדת.
+4. רק אחרי זה מעדכנים את האתר החי מהמחשב: `npm run deploy`, מהתיקייה כש-`dev` זהה ל-`main` (מיד אחרי שחרור).
+
+**כללים לאתר הניסיון:**
+- **לא מעדכנים את העותק `ShpatzAppZ/wild-events`** (בלי Sync fork ובלי דחיפות). הוא צריך להישאר קפוא כמו העותקים של מפעילים אחרים, כדי שהבדיקה תהיה אמיתית: אם אתר הניסיון מתעדכן, גם עותקים ישנים אצל אחרים מתעדכנים.
+- **ב-Cloudflare מחובר העותק, לא המאגר המקורי.** אחרת כל דחיפה בונה את האתר מיד, ובקשת העדכון של האתר עצמו לא נבדקת.
+- **הגדרות הבנייה:** Build command ריק, Deploy command `npm run deploy`. ניתוק וחיבור מחדש של העותק מחזירים את ברירות המחדל של Cloudflare. אז בנייה מעלה בשקט את הקוד הקפוא של העותק (גרסה 1.0.0), כי העותק נוצר לפני ההגנה שעוצרת בנייה כזו.
+- **מה קרה בבנייה:** ב-Cloudflare, בדף `albums-test`: **Deployments** ואז **View build history**.
+- **קוד ההגדרה** הודפס רק ביומן הבנייה הראשונה. אם צריך אותו ואין אותו: ב-**Settings** ואז **Variables and Secrets**, מגדירים סוד חדש `SETUP_TOKEN` (לפחות 24 תווים אקראיים), ופותחים `https://albums-test.shpatzappz.link/setup?token=<הקוד>`.
+- לא מעלים לאתר הניסיון תמונות אמיתיות של אירועים.
+
 ### מבנה הקוד
 - `worker/`: ה-API (Hono על Cloudflare Workers). כולל התחברות Google, העלאות (רגילות ובחלקים לסרטונים), feed חי, ניהול, וייבוא מ-Google Photos (Picker). ניהול האתר: `worker/routes/admin.ts`, עדכונים: `worker/lib/updates.ts` ו-`worker/routes/updates.ts`, גרסה: `worker/lib/appInfo.ts`, מבנה מסד הנתונים: `worker/lib/schema.ts`, מיילים: `worker/lib/mail.ts` ו-`worker/lib/emails.ts`.
 - `src/`: האתר (React + Tailwind, RTL). כולל דף אירוע, העלאה, גלריה, ניהול ואשפים.
