@@ -1,11 +1,11 @@
-import { useMemo, useRef, useState } from "react";
-import { Gift, Search } from "lucide-react";
-import { GIFT_LABELS, GIFT_METHODS, fullName, waLink, waNumber, type GiftMethod, type HouseholdDTO } from "../../../shared/guests";
-import { Button, Card, cx } from "../ui";
-import { Switch } from "../manage/Toggle";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Copy, Gift, Landmark, Search } from "lucide-react";
+import { GIFT_LABELS, GIFT_METHODS, ISRAELI_BANKS, fullName, giftDetailsText, hasGiftDetails, waLink, waNumber, type GiftDetails, type GiftMethod, type HouseholdDTO } from "../../../shared/guests";
+import { Button, Card, Field, cx, inputClass, useToast } from "../ui";
+import { Switch, Toggle } from "../manage/Toggle";
 import { WhatsAppIcon } from "../QRShare";
 import { usePlanner } from "./store";
-import { Empty, StatTile, ils, num, smallInput } from "./bits";
+import { Empty, StatTile, ils, num, selectClass, smallInput } from "./bits";
 
 /**
  * Gifts: built for the evening after the event - search a name, type the amount, pick how it was given, Enter, next.
@@ -60,6 +60,8 @@ export function Gifts() {
         <StatTile label="לאורח שהגיע" value={p.stats.confirmed ? ils(st.total / Math.max(1, p.stats.arrived || p.stats.confirmed)) : "-"} sub={p.stats.arrived ? "לפי מי שהגיע בפועל" : "לפי המגיעים"} />
         <StatTile label="עוד לא קיבלו תודה" value={num(st.notThanked)} tone={st.notThanked ? "warn" : "good"} />
       </div>
+
+      <GiftDetailsCard />
 
       <Card>
         <h2 className="mb-3 text-lg font-bold">רישום מתנה</h2>
@@ -172,5 +174,129 @@ export function Gifts() {
         </Card>
       )}
     </div>
+  );
+}
+
+/**
+ * The hosts' details for gifts by bank transfer (and Bit / PayBox). Shown to guests on their personal RSVP link
+ * when switched on, and available in messages as {פרטים למתנה}. Draft + save button.
+ */
+function GiftDetailsCard() {
+  const p = usePlanner();
+  const toast = useToast();
+  const saved = p.data.config.giftDetails;
+  const [g, setG] = useState<GiftDetails>(saved);
+  const [busy, setBusy] = useState(false);
+  const dirty = JSON.stringify(g) !== JSON.stringify(saved);
+  useEffect(() => {
+    if (!dirty) setG(saved);
+  }, [saved]); // eslint-disable-line react-hooks/exhaustive-deps
+  const set = <K extends keyof GiftDetails>(k: K, v: GiftDetails[K]) => setG({ ...g, [k]: v });
+  const known = ISRAELI_BANKS.some((b) => b.code === g.bank);
+  const [otherBank, setOtherBank] = useState(!!g.bank && !known);
+  const linkBad = !!g.payLink && !/^https:\/\//i.test(g.payLink);
+  const preview = giftDetailsText(g);
+  return (
+    <Card>
+      <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
+        <Landmark className="size-5 text-primary" aria-hidden />
+        פרטים למתנה בהעברה
+      </h2>
+      <p className="mb-4 text-muted-fg">פרטי חשבון הבנק (וביט / פייבוקס) של בעלי השמחה, לאורחים שרוצים להעביר מתנה. אפשר להציג אותם בקישור האישי של אישור ההגעה, ולהוסיף אותם להודעות עם {"{פרטים למתנה}"}.</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="על שם" htmlFor="gd-holder" hint="כמו שמופיע בבנק">
+          <input id="gd-holder" className={inputClass} value={g.holder} onChange={(e) => set("holder", e.target.value)} maxLength={80} />
+        </Field>
+        <Field label="בנק" htmlFor="gd-bank">
+          {otherBank ? (
+            <div className="flex gap-2">
+              <input id="gd-bank" className={inputClass} value={g.bank} onChange={(e) => set("bank", e.target.value)} maxLength={40} placeholder="שם הבנק" />
+              <Button type="button" variant="ghost" onClick={() => { setOtherBank(false); set("bank", ""); }}>
+                מהרשימה
+              </Button>
+            </div>
+          ) : (
+            <select
+              id="gd-bank"
+              className={selectClass}
+              value={known ? g.bank : ""}
+              onChange={(e) => {
+                if (e.target.value === "other") {
+                  setOtherBank(true);
+                  set("bank", "");
+                } else set("bank", e.target.value);
+              }}
+            >
+              <option value="">בחירת בנק</option>
+              {ISRAELI_BANKS.map((b) => (
+                <option key={b.code} value={b.code}>
+                  {b.name} ({b.code})
+                </option>
+              ))}
+              <option value="other">בנק אחר...</option>
+            </select>
+          )}
+        </Field>
+        <Field label="מספר סניף" htmlFor="gd-branch">
+          <input id="gd-branch" className={inputClass} dir="ltr" inputMode="numeric" value={g.branch} onChange={(e) => set("branch", e.target.value)} maxLength={6} />
+        </Field>
+        <Field label="מספר חשבון" htmlFor="gd-account">
+          <input id="gd-account" className={inputClass} dir="ltr" inputMode="numeric" value={g.account} onChange={(e) => set("account", e.target.value)} maxLength={20} />
+        </Field>
+        <Field label="טלפון לביט / פייבוקס (לא חובה)" htmlFor="gd-bit">
+          <input id="gd-bit" className={inputClass} dir="ltr" type="tel" inputMode="tel" value={g.bitPhone} onChange={(e) => set("bitPhone", e.target.value)} maxLength={30} />
+        </Field>
+        <Field label="קישור לתשלום (לא חובה)" htmlFor="gd-link" hint="למשל קבוצת פייבוקס. מתחיל ב-https://" error={linkBad ? "הקישור צריך להתחיל ב-https://" : null}>
+          <input id="gd-link" className={inputClass} dir="ltr" value={g.payLink} onChange={(e) => set("payLink", e.target.value.trim())} maxLength={300} />
+        </Field>
+        <Field label="IBAN להעברה מחו״ל (לא חובה)" htmlFor="gd-iban">
+          <input id="gd-iban" className={inputClass} dir="ltr" value={g.iban} onChange={(e) => set("iban", e.target.value)} maxLength={40} placeholder="IL..." />
+        </Field>
+        <Field label="הערה לאורחים (לא חובה)" htmlFor="gd-note">
+          <input id="gd-note" className={inputClass} value={g.note} onChange={(e) => set("note", e.target.value)} maxLength={300} placeholder="למשל: נשמח לציין בהעברה את שמכם" />
+        </Field>
+      </div>
+      <div className="mt-4">
+        <Toggle checked={g.onRsvp} onChange={(v) => set("onRsvp", v)} label="להציג לאורחים בקישור האישי" hint="רק מי שקיבל קישור אישי רואה את הפרטים. הם לא מופיעים בעמוד האירוע הציבורי." />
+      </div>
+      {preview && (
+        <div className="mt-4 rounded-xl bg-muted px-4 py-3">
+          <p className="mb-1 text-sm font-semibold text-muted-fg">כך זה ייכתב בהודעה:</p>
+          <p className="whitespace-pre-line" dir="auto">
+            {preview}
+          </p>
+        </div>
+      )}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          loading={busy}
+          disabled={!dirty || linkBad}
+          onClick={async () => {
+            setBusy(true);
+            await p.saveConfig({ ...p.data.config, giftDetails: g }, "הפרטים למתנה נשמרו");
+            setBusy(false);
+          }}
+        >
+          שמירה
+        </Button>
+        {dirty && (
+          <Button variant="ghost" onClick={() => setG(saved)}>
+            ביטול השינויים
+          </Button>
+        )}
+        {hasGiftDetails(saved) && (
+          <Button
+            variant="outline"
+            icon={<Copy className="size-4" aria-hidden />}
+            onClick={async () => {
+              await navigator.clipboard.writeText(giftDetailsText(saved));
+              toast("הפרטים הועתקו");
+            }}
+          >
+            העתקה
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }

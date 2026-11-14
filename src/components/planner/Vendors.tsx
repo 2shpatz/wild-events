@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
-import { AtSign, Globe, MapPin, Pencil, Plus, Printer, Star, Store, Trash2 } from "lucide-react";
+import { AtSign, FileImage, FileSpreadsheet, FileText, Globe, Loader2, MapPin, Paperclip, Pencil, Plus, Printer, Star, Store, Trash2, X } from "lucide-react";
 import {
   VENDOR_CATEGORIES,
   VENDOR_CATEGORY_LABELS,
   VENDOR_STATUSES,
   VENDOR_STATUS_LABELS,
+  MAX_VENDOR_FILES,
+  MAX_VENDOR_FILE_BYTES,
+  VENDOR_FILE_ACCEPT,
   displayPhone,
   emptyVendor,
   expenseTotal,
@@ -12,8 +15,10 @@ import {
   type Vendor,
   type VendorCategory,
   type VendorDTO,
+  type VendorFile,
   type VendorStatus,
 } from "../../../shared/guests";
+import { formatBytes } from "../../lib/format";
 import { navLinks } from "../../lib/eventInfo";
 import { Button, Card, ConfirmDialog, Field, IconButton, Modal, cx, inputClass } from "../ui";
 import { Switch } from "../manage/Toggle";
@@ -159,6 +164,15 @@ function VendorCard({ v, money, onEdit }: { v: VendorDTO; money?: { total: numbe
         )}
       </div>
       {v.notes && <p className="line-clamp-3 whitespace-pre-line text-sm">{v.notes}</p>}
+      {v.files.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5" aria-label="קבצים">
+          {v.files.map((f) => (
+            <li key={f.id}>
+              <FileLink vendorId={v.id} f={f} />
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }
@@ -169,18 +183,29 @@ function VendorEditor({ vendor, isNew, onClose }: { vendor: Vendor | null; isNew
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [lastId, setLastId] = useState<string | null>(null);
+  // files picked for a vendor that isn't saved yet: uploaded right after the first save
+  const [pending, setPending] = useState<File[]>([]);
+  const [uploading, setUploading] = useState<string | null>(null);
   if (vendor && vendor.id !== lastId) {
     setLastId(vendor.id);
     setD({ ...vendor });
+    setPending([]);
   }
   if (!vendor && lastId) setLastId(null);
   if (!d || !vendor) return null;
   const set = <K extends keyof Vendor>(k: K, v: Vendor[K]) => setD({ ...d, [k]: v });
   const save = async () => {
     setBusy(true);
-    const ok = await p.saveRecord("vendor", d, isNew);
+    const rec = await p.saveRecord("vendor", d, isNew);
+    if (rec && pending.length) {
+      for (const f of pending) {
+        setUploading(f.name);
+        await p.uploadVendorFile(rec.id, f, () => {});
+      }
+      setUploading(null);
+    }
     setBusy(false);
-    if (ok) onClose();
+    if (rec) onClose();
   };
   return (
     <Modal
@@ -199,7 +224,7 @@ function VendorEditor({ vendor, isNew, onClose }: { vendor: Vendor | null; isNew
             ביטול
           </Button>
           <Button onClick={save} loading={busy} disabled={!d.name.trim()}>
-            שמירה
+            {uploading ? `מעלה את ${uploading}...` : "שמירה"}
           </Button>
         </>
       }
@@ -267,13 +292,21 @@ function VendorEditor({ vendor, isNew, onClose }: { vendor: Vendor | null; isNew
           <Switch checked={d.favorite} onChange={(v) => set("favorite", v)} label="מועדף" />
           מועדף (מופיע ראשון בתחום)
         </label>
+        <div className="sm:col-span-2">
+          <VendorFiles vendorId={isNew ? null : d.id} pending={pending} setPending={setPending} />
+        </div>
         <p className="text-sm text-muted-fg sm:col-span-2">את המחיר, המקדמה ומועדי התשלום מוסיפים בלשונית &quot;הוצאות ותקציב&quot;.</p>
         <button type="submit" hidden />
       </form>
       <ConfirmDialog
         open={confirm}
         title={`למחוק את "${d.name}"?`}
-        message={<p>פרטי הקשר יימחקו. ההוצאות שקשורות אליו יישארו, בלי שיוך לנותן שירות.</p>}
+        message={
+          <p>
+            פרטי הקשר יימחקו. ההוצאות שקשורות אליו יישארו, בלי שיוך לנותן שירות.
+            {d.files.length > 0 && ` גם ${d.files.length === 1 ? "הקובץ המצורף יימחק" : `${d.files.length} הקבצים המצורפים יימחקו`} מ-Google Drive.`}
+          </p>
+        }
         confirmLabel="מחיקה"
         onClose={() => setConfirm(false)}
         onConfirm={async () => {
@@ -282,5 +315,129 @@ function VendorEditor({ vendor, isNew, onClose }: { vendor: Vendor | null; isNew
         }}
       />
     </Modal>
+  );
+}
+
+const fileIcon = (mime: string) =>
+  mime.startsWith("image/") ? FileImage : mime.includes("sheet") || mime.includes("excel") ? FileSpreadsheet : FileText;
+
+/** A file chip that opens the file (PDF / pictures in a new tab, Office files download). */
+function FileLink({ vendorId, f }: { vendorId: string; f: VendorFile }) {
+  const p = usePlanner();
+  const Icon = fileIcon(f.mime);
+  return (
+    <a
+      href={p.vendorFileUrl(vendorId, f.id)}
+      target="_blank"
+      rel="noopener"
+      className="inline-flex min-h-11 max-w-56 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-sm font-semibold text-fg no-underline hover:border-primary hover:bg-primary/5"
+      title={`${f.name} (${formatBytes(f.size)})`}
+      aria-label={`פתיחת ${f.name} (נפתח בחלון חדש)`}
+    >
+      <Icon className="size-4 shrink-0 text-primary" aria-hidden />
+      <span className="truncate">{f.name}</span>
+    </a>
+  );
+}
+
+/**
+ * Contracts, quotes, invoices: stored in the Drive of the event's Google account. A saved vendor uploads at once
+ * (with progress); a new one keeps the picked files and uploads them right after the first save.
+ */
+function VendorFiles({ vendorId, pending, setPending }: { vendorId: string | null; pending: File[]; setPending: (f: File[]) => void }) {
+  const p = usePlanner();
+  const files = vendorId ? p.data.vendors.find((v) => v.id === vendorId)?.files ?? [] : [];
+  const [progress, setProgress] = useState<{ name: string; p: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [asking, setAsking] = useState<VendorFile | null>(null);
+  const room = MAX_VENDOR_FILES - files.length - pending.length;
+  const pick = async (list: FileList | null) => {
+    setError(null);
+    const chosen = [...(list ?? [])];
+    const big = chosen.filter((f) => f.size > MAX_VENDOR_FILE_BYTES);
+    if (big.length) setError(`${big.map((f) => f.name).join(", ")}: גדול מדי (עד ${formatBytes(MAX_VENDOR_FILE_BYTES)}).`);
+    const ok = chosen.filter((f) => f.size <= MAX_VENDOR_FILE_BYTES && f.size > 0).slice(0, Math.max(0, room));
+    if (!vendorId) {
+      setPending([...pending, ...ok]);
+      return;
+    }
+    for (const f of ok) {
+      setProgress({ name: f.name, p: 0 });
+      await p.uploadVendorFile(vendorId, f, (x) => setProgress({ name: f.name, p: x }));
+    }
+    setProgress(null);
+  };
+  return (
+    <fieldset className="space-y-3 rounded-2xl border border-border p-4">
+      <legend className="flex items-center gap-2 px-1 font-bold">
+        <Paperclip className="size-4" aria-hidden />
+        חוזה, הצעת מחיר וקבצים
+      </legend>
+      <p className="text-sm text-muted-fg">
+        PDF, תמונה (למשל צילום של חוזה חתום), Word או Excel, עד <bdi dir="ltr">{formatBytes(MAX_VENDOR_FILE_BYTES)}</bdi> לקובץ ועד {MAX_VENDOR_FILES} קבצים. הקבצים נשמרים ב-Google Drive של חשבון האירוע, ורק מנהלי האירוע רואים אותם.
+      </p>
+      {(files.length > 0 || pending.length > 0) && (
+        <ul className="space-y-1.5">
+          {files.map((f) => {
+            const Icon = fileIcon(f.mime);
+            return (
+              <li key={f.id} className="flex items-center gap-2 rounded-xl bg-muted/60 ps-3">
+                <Icon className="size-5 shrink-0 text-primary" aria-hidden />
+                <a href={p.vendorFileUrl(vendorId!, f.id)} target="_blank" rel="noopener" className="min-h-11 min-w-0 flex-1 truncate py-2.5 font-semibold text-fg underline-offset-2 hover:underline">
+                  {f.name}
+                </a>
+                <bdi dir="ltr" className="shrink-0 text-sm text-muted-fg">{formatBytes(f.size)}</bdi>
+                <IconButton label={`מחיקת ${f.name}`} type="button" className="text-destructive hover:bg-destructive/10" onClick={() => setAsking(f)}>
+                  <Trash2 className="size-5" aria-hidden />
+                </IconButton>
+              </li>
+            );
+          })}
+          {pending.map((f, i) => (
+            <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-xl border border-dashed border-border ps-3">
+              <Paperclip className="size-5 shrink-0 text-muted-fg" aria-hidden />
+              <span className="min-w-0 flex-1 truncate py-2.5 font-semibold">{f.name}</span>
+              <span className="shrink-0 text-sm text-muted-fg">יועלה בשמירה</span>
+              <IconButton label={`הסרת ${f.name}`} type="button" className="hover:bg-fg/5" onClick={() => setPending(pending.filter((_, j) => j !== i))}>
+                <X className="size-5" aria-hidden />
+              </IconButton>
+            </li>
+          ))}
+        </ul>
+      )}
+      {progress && (
+        <div role="status" className="space-y-1">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            מעלה את {progress.name}... {Math.round(progress.p * 100)}%
+          </p>
+          <div className="h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
+            <div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: `${Math.round(progress.p * 100)}%` }} />
+          </div>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="text-sm font-semibold text-destructive">
+          {error}
+        </p>
+      )}
+      {room > 0 && !progress && (
+        <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border-2 border-dashed border-border px-4 font-semibold hover:border-primary focus-within:outline focus-within:outline-2 focus-within:outline-ring">
+          <Plus className="size-4" aria-hidden />
+          צירוף קובץ
+          <input type="file" multiple accept={VENDOR_FILE_ACCEPT} className="sr-only" onChange={(e) => { pick(e.target.files); e.target.value = ""; }} />
+        </label>
+      )}
+      <ConfirmDialog
+        open={!!asking}
+        title={`למחוק את "${asking?.name ?? ""}"?`}
+        message={<p>הקובץ יימחק מ-Google Drive של חשבון האירוע ולא יהיה אפשר לשחזר אותו מכאן.</p>}
+        confirmLabel="מחיקה"
+        onClose={() => setAsking(null)}
+        onConfirm={async () => {
+          if (asking && vendorId) await p.deleteVendorFile(vendorId, asking.id);
+        }}
+      />
+    </fieldset>
   );
 }

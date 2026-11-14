@@ -19,10 +19,14 @@ import {
   MAX_HOUSEHOLDS,
   MAX_PARTY,
   MAX_VENDORS,
+  MAX_VENDOR_FILES,
+  MAX_VENDOR_FILE_BYTES,
+  VENDOR_FILE_MIME_RE,
   NOTE_MAX,
   STATUSES,
   cleanText,
   emptyHousehold,
+  hasGiftDetails,
   sanitizeConfig,
   sanitizeExpense,
   sanitizeFloor,
@@ -37,9 +41,14 @@ import {
   type PlannerConfig,
   type PlannerData,
   type RsvpStatus,
+  type Vendor,
   type VendorDTO,
+  type VendorFile,
 } from "../../shared/guests";
 import { syncSheet } from "../lib/sheets";
+import { assertNotMigrating, eventRef, eventToken, tokenForRef } from "../lib/accounts";
+import { driveDelete, driveEnsureFolder, driveMedia, driveUpload, GoogleError } from "../lib/google";
+import { getSetting, putSetting } from "../lib/site";
 
 export const planner = new Hono<AppEnv>();
 
@@ -393,6 +402,7 @@ planner.post("/e/:code/planner/records", async (c) => {
   if ((n?.n ?? 0) >= RECORD_KINDS[kind]) throw new HTTPException(409, { message: "too_many_records" });
   const rid = randomId(9);
   const rec = cleanRecord(kind, b.data, rid);
+  if (kind === "vendor") (rec as Vendor).files = [];
   const sort = (n?.s ?? 0) + 1;
   const now = Date.now();
   const { id: _i, ...data } = rec;
@@ -414,14 +424,16 @@ planner.post("/e/:code/planner/records", async (c) => {
 
 planner.put("/e/:code/planner/records/:id", async (c) => {
   const ev = await managed(c);
-  const r = await c.env.DB.prepare("SELECT kind, sort FROM planner_records WHERE id = ? AND event_id = ? AND deleted_at IS NULL")
+  const r = await c.env.DB.prepare("SELECT kind, sort, data FROM planner_records WHERE id = ? AND event_id = ? AND deleted_at IS NULL")
     .bind(c.req.param("id"), ev.id)
-    .first<{ kind: string; sort: number }>();
+    .first<{ kind: string; sort: number; data: string }>();
   if (!r) throw new HTTPException(404, { message: "not_found" });
   const kind = recordKind(r.kind);
   const b = await json(c);
   const rid = c.req.param("id");
   const rec = cleanRecord(kind, b.data, rid);
+  // the file list changes only through the file routes below
+  if (kind === "vendor") (rec as Vendor).files = sanitizeVendor(parse(r.data), rid).files;
   const { id: _i, ...data } = rec;
   void _i;
   const now = Date.now();
@@ -435,11 +447,134 @@ planner.put("/e/:code/planner/records/:id", async (c) => {
 
 planner.delete("/e/:code/planner/records/:id", async (c) => {
   const ev = await managed(c);
+  const rid = c.req.param("id");
+  const r = await c.env.DB.prepare("SELECT kind, data FROM planner_records WHERE id = ? AND event_id = ? AND deleted_at IS NULL").bind(rid, ev.id).first<{ kind: string; data: string }>();
+  const stmts = [
+    c.env.DB.prepare("UPDATE planner_records SET deleted_at = ? WHERE id = ? AND event_id = ? AND deleted_at IS NULL").bind(Date.now(), rid, ev.id),
+    bump(c.env, ev.id),
+  ];
+  // A deleted vendor's contracts leave Drive too (an undo brings the vendor back without them).
+  if (r?.kind === "vendor") {
+    const v = sanitizeVendor(parse(r.data), rid);
+    if (v.files.length) {
+      for (const f of v.files) await dropDriveFile(c.env, ev, f);
+      const { id: _i, ...data } = { ...v, files: [] };
+      void _i;
+      stmts.push(c.env.DB.prepare("UPDATE planner_records SET data = ? WHERE id = ?").bind(JSON.stringify(data), rid));
+    }
+  }
+  await c.env.DB.batch(stmts);
+  return c.json({ ok: true });
+});
+
+// ------------------------------------------------------------------ vendors' files (contracts, quotes)
+// Kept in the Drive of the event's Google account, in one app folder per account. drive.file reaches only them.
+
+const DOCS_FOLDER = "אירוע פרוע - מסמכי נותני שירות";
+
+async function dropDriveFile(env: Env, ev: EventRow, f: VendorFile) {
+  try {
+    await driveDelete(await tokenForRef(env, ev.owner_id, f.acc), f.id);
+  } catch (e) {
+    console.warn("vendor file delete failed", f.id, e);
+  }
+}
+
+async function vendorRecord(c: Context<AppEnv>, ev: EventRow) {
+  const rid = c.req.param("id")!;
+  const r = await c.env.DB.prepare("SELECT data, sort FROM planner_records WHERE id = ? AND event_id = ? AND kind = 'vendor' AND deleted_at IS NULL")
+    .bind(rid, ev.id)
+    .first<{ data: string; sort: number }>();
+  if (!r) throw new HTTPException(404, { message: "not_found" });
+  return { rid, sort: r.sort, vendor: sanitizeVendor(parse(r.data), rid) };
+}
+
+async function saveVendor(c: Context<AppEnv>, ev: EventRow, v: Vendor, sort: number) {
+  const now = Date.now();
+  const { id: _i, ...data } = v;
+  void _i;
   await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE planner_records SET deleted_at = ? WHERE id = ? AND event_id = ? AND deleted_at IS NULL").bind(Date.now(), c.req.param("id"), ev.id),
+    c.env.DB.prepare("UPDATE planner_records SET data = ?, updated_at = ? WHERE id = ? AND event_id = ?").bind(JSON.stringify(data), now, v.id, ev.id),
     bump(c.env, ev.id),
   ]);
-  return c.json({ ok: true });
+  return { ...v, sort, updatedAt: now };
+}
+
+/** Body = the raw file. Headers: Content-Type, Content-Length, X-Filename (URI-encoded). */
+planner.post("/e/:code/planner/records/:id/files", async (c) => {
+  const ev = await managed(c);
+  assertNotMigrating(ev);
+  const { rid, sort, vendor } = await vendorRecord(c, ev);
+  const mime = (c.req.header("Content-Type") || "").toLowerCase().split(";")[0].trim();
+  if (!VENDOR_FILE_MIME_RE.test(mime)) throw new HTTPException(415, { message: "bad_document" });
+  const size = Number(c.req.header("Content-Length") || 0);
+  if (!size) throw new HTTPException(400, { message: "empty" });
+  if (size > MAX_VENDOR_FILE_BYTES) throw new HTTPException(413, { message: "document_too_large" });
+  if (vendor.files.length >= MAX_VENDOR_FILES) throw new HTTPException(409, { message: "too_many_documents" });
+  const body = c.req.raw.body;
+  if (!body) throw new HTTPException(400, { message: "empty" });
+  await rateLimit(c.env, `vfile:${ev.id}`, 60, 3600_000);
+  let name = "";
+  try {
+    name = decodeURIComponent(c.req.header("X-Filename") || "");
+  } catch {
+    /* keep empty */
+  }
+  name = cleanText(name, 120) || "מסמך";
+  const ref = eventRef(ev);
+  let driveId: string;
+  try {
+    const token = await eventToken(c.env, ev);
+    const key = `vendor_docs_folder:${ev.owner_id}:${ref}`;
+    const saved = await getSetting({ env: c.env }, key);
+    const folderId = await driveEnsureFolder(token, saved || null, DOCS_FOLDER);
+    if (folderId !== saved) await putSetting({ env: c.env }, key, folderId);
+    const { readable, writable } = new FixedLengthStream(size);
+    const pipe = body.pipeTo(writable);
+    [driveId] = await Promise.all([
+      driveUpload(token, { name: `${ev.title} - ${vendor.name || "נותן שירות"} - ${name}`.slice(0, 200), mime, size, folderId, body: readable }),
+      pipe,
+    ]);
+  } catch (e) {
+    if (e instanceof GoogleError && e.storageFull) throw new HTTPException(507, { message: "storage_full" });
+    throw e;
+  }
+  const file: VendorFile = { id: driveId, name, mime, size, at: Date.now(), acc: ref };
+  return c.json({ record: await saveVendor(c, ev, { ...vendor, id: rid, files: [...vendor.files, file] }, sort) });
+});
+
+/** Opens a file (managers only, never cached). */
+planner.get("/e/:code/planner/records/:id/files/:fid", async (c) => {
+  const ev = await managed(c);
+  const { vendor } = await vendorRecord(c, ev);
+  const f = vendor.files.find((x) => x.id === c.req.param("fid"));
+  if (!f) throw new HTTPException(404, { message: "not_found" });
+  let res: Response;
+  try {
+    res = await driveMedia(await tokenForRef(c.env, ev.owner_id, f.acc), f.id);
+  } catch (e) {
+    if (e instanceof GoogleError && e.status === 404) throw new HTTPException(404, { message: "document_missing" });
+    throw e;
+  }
+  const inline = f.mime === "application/pdf" || f.mime.startsWith("image/") || f.mime === "text/plain";
+  const h = new Headers({
+    "Content-Type": f.mime === "text/plain" ? "text/plain; charset=utf-8" : f.mime,
+    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(f.name)}`,
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, no-store",
+  });
+  const len = res.headers.get("Content-Length");
+  if (len) h.set("Content-Length", len);
+  return new Response(res.body, { status: 200, headers: h });
+});
+
+planner.delete("/e/:code/planner/records/:id/files/:fid", async (c) => {
+  const ev = await managed(c);
+  const { rid, sort, vendor } = await vendorRecord(c, ev);
+  const f = vendor.files.find((x) => x.id === c.req.param("fid"));
+  if (!f) return c.json({ record: { ...vendor, sort, updatedAt: Date.now() } });
+  await dropDriveFile(c.env, ev, f);
+  return c.json({ record: await saveVendor(c, ev, { ...vendor, id: rid, files: vendor.files.filter((x) => x.id !== f.id) }, sort) });
 });
 
 planner.post("/e/:code/planner/records/:id/restore", async (c) => {
@@ -533,6 +668,8 @@ function rsvpView(cfg: PlannerConfig, floor: FloorPlan, h: Household) {
       meals: cfg.meals.map((m) => ({ id: m.id, name: m.name })),
     },
     table: cfg.seatingPublished && h.status !== "not_coming" ? tableLabelOf(h, new Map(tables(floor).map((t) => [t.id, t]))) || null : null,
+    // the hosts chose to show their bank / Bit details on the personal link (onRsvp is not sent to guests)
+    gift: cfg.giftDetails.onRsvp && hasGiftDetails(cfg.giftDetails) ? (({ onRsvp: _o, ...g }) => (void _o, g))(cfg.giftDetails) : null,
   };
 }
 

@@ -77,6 +77,75 @@ export interface RsvpSettings {
   templates: Record<TemplateId, string>;
 }
 
+/** Israeli banks (code - name) for the gift transfer details. */
+export const ISRAELI_BANKS: { code: string; name: string }[] = [
+  { code: "12", name: "בנק הפועלים" },
+  { code: "10", name: "בנק לאומי" },
+  { code: "11", name: "בנק דיסקונט" },
+  { code: "20", name: "בנק מזרחי טפחות" },
+  { code: "31", name: "הבנק הבינלאומי" },
+  { code: "17", name: "בנק מרכנתיל" },
+  { code: "14", name: "בנק אוצר החייל" },
+  { code: "46", name: "בנק מסד" },
+  { code: "52", name: "בנק פועלי אגודת ישראל" },
+  { code: "54", name: "בנק ירושלים" },
+  { code: "4", name: "בנק יהב" },
+  { code: "9", name: "בנק הדואר" },
+  { code: "18", name: "וואן זירו" },
+];
+
+/** Where guests can send a gift: bank transfer details (+ Bit / PayBox), shown on the personal RSVP link. */
+export interface GiftDetails {
+  /** show them to guests on the personal RSVP page */
+  onRsvp: boolean;
+  /** account holder(s) as the bank knows them */
+  holder: string;
+  /** bank code from ISRAELI_BANKS, or a free name */
+  bank: string;
+  branch: string;
+  account: string;
+  /** for transfers from abroad (optional) */
+  iban: string;
+  /** phone for Bit / PayBox */
+  bitPhone: string;
+  /** a PayBox group link or another payment page (https only) */
+  payLink: string;
+  note: string;
+}
+export const emptyGiftDetails = (): GiftDetails => ({ onRsvp: false, holder: "", bank: "", branch: "", account: "", iban: "", bitPhone: "", payLink: "", note: "" });
+export const hasGiftDetails = (g: GiftDetails) => !!(g.account || g.bitPhone || g.payLink || g.iban);
+export const bankName = (bank: string) => ISRAELI_BANKS.find((b) => b.code === bank)?.name ?? bank;
+
+/** The details as plain lines (copy / WhatsApp message). */
+export function giftDetailsText(g: GiftDetails): string {
+  const lines: string[] = [];
+  if (g.account) {
+    const code = ISRAELI_BANKS.some((b) => b.code === g.bank) ? ` (${g.bank})` : "";
+    lines.push(`העברה בנקאית: ${bankName(g.bank)}${code}${g.branch ? `, סניף ${g.branch}` : ""}, חשבון ${g.account}${g.holder ? `, על שם ${g.holder}` : ""}`);
+  }
+  if (g.iban) lines.push(`IBAN: ${g.iban}`);
+  if (g.bitPhone) lines.push(`ביט / פייבוקס: ${g.bitPhone}`);
+  if (g.payLink) lines.push(g.payLink);
+  return lines.join("\n");
+}
+
+function cleanGiftDetails(v: unknown): GiftDetails {
+  const o = obj(v);
+  const digits = (x: unknown, max: number) => cleanText(x, 40).replace(/[^\d-]/g, "").slice(0, max);
+  const link = cleanText(o.payLink, 300);
+  return {
+    onRsvp: bool(o.onRsvp, false),
+    holder: cleanText(o.holder, 80),
+    bank: cleanText(o.bank, 40),
+    branch: digits(o.branch, 6),
+    account: digits(o.account, 20),
+    iban: cleanText(o.iban, 40).replace(/[^A-Za-z0-9 ]/g, "").toUpperCase(),
+    bitPhone: cleanText(o.bitPhone, 30),
+    payLink: /^https:\/\/[^\s"'<>]+$/i.test(link) ? link : "",
+    note: cleanText(o.note, 300, true),
+  };
+}
+
 export interface PlannerConfig {
   v: 1;
   /** the first-visit wizard was done (or skipped) */
@@ -100,6 +169,8 @@ export interface PlannerConfig {
   budget: { total: number | null; perGuest: number | null; minGuests: number | null; categories: BudgetCategory[] };
   /** guests may see their table (personal RSVP link + "find my table" element) */
   seatingPublished: boolean;
+  /** bank / Bit details for gifts */
+  giftDetails: GiftDetails;
 }
 
 export const TEMPLATE_IDS = ["invite", "reminder", "table", "thanks"] as const;
@@ -111,7 +182,7 @@ export const TEMPLATE_LABELS: Record<TemplateId, string> = {
   thanks: "תודה אחרי האירוע",
 };
 /** Placeholders the hosts can put in a message. */
-export const PLACEHOLDERS = ["{שם}", "{שם מלא}", "{אירוע}", "{תאריך}", "{שעה}", "{מקום}", "{קישור}", "{שולחן}"] as const;
+export const PLACEHOLDERS = ["{שם}", "{שם מלא}", "{אירוע}", "{תאריך}", "{שעה}", "{מקום}", "{קישור}", "{שולחן}", "{פרטים למתנה}"] as const;
 export const DEFAULT_TEMPLATES: Record<TemplateId, string> = {
   invite: "שלום {שם}! אנחנו שמחים להזמין אתכם ל{אירוע} ב{תאריך}{מקום}.\nנשמח אם תאשרו הגעה בקישור:\n{קישור}",
   reminder: "שלום {שם}, עוד לא קיבלנו את אישור ההגעה שלכם ל{אירוע}. אפשר לאשר כאן בקליק:\n{קישור}",
@@ -146,6 +217,7 @@ export function defaultConfig(type: EventType): PlannerConfig {
     rsvp: { open: true, deadline: null, askKids: true, askMeals: false, askNote: true, allowMore: false, templates: { ...DEFAULT_TEMPLATES } },
     budget: { total: null, perGuest: null, minGuests: null, categories: [] },
     seatingPublished: false,
+    giftDetails: emptyGiftDetails(),
   };
 }
 
@@ -214,6 +286,7 @@ export function sanitizeConfig(input: unknown, type: EventType): PlannerConfig {
     },
     budget: { total: money(b.total), perGuest: money(b.perGuest), minGuests: b.minGuests == null ? null : int(b.minGuests, 0, 100_000, 0), categories: cats },
     seatingPublished: bool(o.seatingPublished, false),
+    giftDetails: cleanGiftDetails(o.giftDetails),
   };
 }
 
@@ -518,7 +591,7 @@ export const telLink = (phone: string) => {
 };
 export const smsLink = (phone: string, text: string) => `sms:${waNumber(phone) ? "+" + waNumber(phone) : phone}?&body=${encodeURIComponent(text)}`;
 
-export type TemplateVars = { name: string; fullName: string; event: string; date: string; time: string; place: string; link: string; table: string };
+export type TemplateVars = { name: string; fullName: string; event: string; date: string; time: string; place: string; link: string; table: string; gift?: string };
 
 /** Fills {שם} etc.; a placeholder with no value disappears (with the space/comma before it). */
 export function fillTemplate(tpl: string, v: TemplateVars): string {
@@ -531,8 +604,9 @@ export function fillTemplate(tpl: string, v: TemplateVars): string {
     "{מקום}": v.place ? ` ב${v.place}` : "",
     "{קישור}": v.link,
     "{שולחן}": v.table,
+    "{פרטים למתנה}": v.gift ?? "",
   };
-  return tpl.replace(/\{[^{}]{1,12}\}/g, (m) => (m in map ? map[m] : m)).replace(/[ \t]+\n/g, "\n").replace(/ {2,}/g, " ").trim();
+  return tpl.replace(/\{[^{}]{1,14}\}/g, (m) => (m in map ? map[m] : m)).replace(/[ \t]+\n/g, "\n").replace(/ {2,}/g, " ").trim();
 }
 
 // ------------------------------------------------------------------ floor plan (seating chart)
@@ -742,6 +816,24 @@ export const VENDOR_STATUS_LABELS: Record<VendorStatus, string> = {
   cancelled: "בוטל",
 };
 
+/** A contract / quote / invoice kept in the Drive of the event's Google account (uploaded from the vendor card). */
+export interface VendorFile {
+  /** Drive file id */
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  at: number;
+  /** which Google account holds it ('self' | storage account id) - the event may move to another account later */
+  acc: string;
+}
+export const MAX_VENDOR_FILES = 10;
+export const MAX_VENDOR_FILE_BYTES = 15 * 1024 * 1024;
+/** PDF, pictures (a photo of a signed contract), Word / Excel, plain text. */
+export const VENDOR_FILE_MIME_RE =
+  /^(application\/pdf|image\/(jpeg|png|webp|heic|heif)|application\/msword|application\/vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet)|application\/vnd\.ms-excel|text\/plain)$/;
+export const VENDOR_FILE_ACCEPT = ".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx,.xls,.xlsx,.txt,application/pdf,image/*";
+
 export interface Vendor {
   id: string;
   category: VendorCategory;
@@ -759,6 +851,8 @@ export interface Vendor {
   arrival: string | null;
   notes: string;
   favorite: boolean;
+  /** contracts / quotes: only the server adds or removes them (a PUT from the browser keeps the stored list) */
+  files: VendorFile[];
 }
 
 export type PaymentMethod = "cash" | "cheque" | "transfer" | "card" | "bit" | "other";
@@ -804,7 +898,7 @@ const urlish = (v: unknown, max = 300) => {
 };
 
 export function emptyVendor(vid = newId()): Vendor {
-  return { id: vid, category: "other", name: "", contact: "", phone: "", whatsapp: "", email: "", website: "", instagram: "", address: "", status: "lead", arrival: null, notes: "", favorite: false };
+  return { id: vid, category: "other", name: "", contact: "", phone: "", whatsapp: "", email: "", website: "", instagram: "", address: "", status: "lead", arrival: null, notes: "", favorite: false, files: [] };
 }
 
 export function sanitizeVendor(input: unknown, vid: string): Vendor {
@@ -825,7 +919,22 @@ export function sanitizeVendor(input: unknown, vid: string): Vendor {
     arrival,
     notes: cleanText(o.notes, 2000, true),
     favorite: bool(o.favorite, false),
+    files: cleanVendorFiles(o.files),
   };
+}
+
+function cleanVendorFiles(v: unknown): VendorFile[] {
+  if (!Array.isArray(v)) return [];
+  const out: VendorFile[] = [];
+  for (const f of v) {
+    const x = obj(f);
+    const fid = typeof x.id === "string" && /^[A-Za-z0-9_-]{10,100}$/.test(x.id) ? x.id : null;
+    const mime = typeof x.mime === "string" && VENDOR_FILE_MIME_RE.test(x.mime) ? x.mime : null;
+    if (!fid || !mime || out.some((y) => y.id === fid)) continue;
+    out.push({ id: fid, name: cleanText(x.name, 120) || "קובץ", mime, size: int(x.size, 0, MAX_VENDOR_FILE_BYTES, 0), at: time(x.at) ?? 0, acc: typeof x.acc === "string" ? cleanText(x.acc, 40) : "self" });
+    if (out.length >= MAX_VENDOR_FILES) break;
+  }
+  return out;
 }
 
 export function emptyExpense(eid = newId()): Expense {

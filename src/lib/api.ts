@@ -85,6 +85,10 @@ const MESSAGES: Record<string, string> = {
   sheets_disabled: "השירות Google Sheets לא מופעל באתר. מנהל/ת האתר צריך/ה להפעיל את Google Sheets API ב-Google Cloud (הסבר בלשונית ההגדרות של ניהול האתר).",
   sheet_missing: "הגיליון לא נמצא ב-Google Drive (אולי נמחק). אפשר ליצור גיליון חדש.",
   sheet_no_access: "אין גישה לגיליון. ייתכן שהוא הועבר לחשבון אחר.",
+  bad_document: "אפשר לצרף רק PDF, תמונה, Word, Excel או קובץ טקסט.",
+  document_too_large: "הקובץ גדול מדי (עד 15MB). אפשר לשמור אותו כ-PDF קטן יותר ולנסות שוב.",
+  too_many_documents: "אפשר לצרף עד 10 קבצים לכל נותן שירות. אפשר למחוק קובץ ישן ולהוסיף חדש.",
+  document_missing: "הקובץ לא נמצא ב-Google Drive (אולי נמחק שם).",
   hook_failed: "Cloudflare לא קיבלה את בקשת העדכון. אם זה חוזר, ייתכן שה-Deploy Hook נמחק: יוצרים חדש ב-Cloudflare ומדביקים אותו כאן.",
 };
 

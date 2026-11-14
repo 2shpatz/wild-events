@@ -3,12 +3,14 @@
  * devices' changes (and guests' RSVP answers), and the Google Sheet sync in the background.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { api, errorMessage } from "../../lib/api";
+import { ApiError, api, errorMessage } from "../../lib/api";
 import { useToast } from "../ui";
 import {
   computeStats,
   fillTemplate,
   fullName,
+  giftDetailsText,
+  hasGiftDetails,
   tableLabelOf,
   tables,
   type ExpenseDTO,
@@ -43,8 +45,13 @@ export interface Planner {
   restoreHouseholds: (ids: string[]) => Promise<void>;
   newLink: (id: string) => Promise<void>;
   /** vendors / expenses */
-  saveRecord: (kind: "vendor" | "expense", rec: VendorDTO | ExpenseDTO | Omit<VendorDTO, "sort" | "updatedAt"> | Omit<ExpenseDTO, "sort" | "updatedAt">, isNew: boolean) => Promise<boolean>;
+  /** the saved record (with its new id when isNew), or null when it failed */
+  saveRecord: (kind: "vendor" | "expense", rec: VendorDTO | ExpenseDTO | Omit<VendorDTO, "sort" | "updatedAt"> | Omit<ExpenseDTO, "sort" | "updatedAt">, isNew: boolean) => Promise<VendorDTO | ExpenseDTO | null>;
   deleteRecord: (kind: "vendor" | "expense", id: string) => Promise<void>;
+  /** vendors' contracts / quotes (Drive of the event's account) */
+  uploadVendorFile: (vendorId: string, file: File, onProgress: (p: number) => void) => Promise<VendorDTO | null>;
+  deleteVendorFile: (vendorId: string, fileId: string) => Promise<void>;
+  vendorFileUrl: (vendorId: string, fileId: string) => string;
   /** Google Sheet */
   sync: (opts?: { create?: boolean; confirmDeletes?: boolean; keepDeleted?: boolean; overwrite?: boolean; quiet?: boolean }) => Promise<void>;
   unlinkSheet: () => Promise<void>;
@@ -307,10 +314,10 @@ export function PlannerProvider({ code, initial, children }: { code: string; ini
           return { ...d, [list]: next, version: d.version + 1 } as PlannerData;
         });
         changed();
-        return true;
+        return r.record;
       } catch (e) {
         toast(errorMessage(e), "error");
-        return false;
+        return null;
       }
     },
     [base, toast, changed],
@@ -331,6 +338,54 @@ export function PlannerProvider({ code, initial, children }: { code: string; ini
     [base, toast, changed],
   );
 
+  const putVendor = (v: VendorDTO) => setData((d) => ({ ...d, vendors: d.vendors.map((x) => (x.id === v.id ? v : x)), version: d.version + 1 }));
+  const uploadVendorFile = useCallback<Planner["uploadVendorFile"]>(
+    (vendorId, file, onProgress) =>
+      new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `/api${base}/records/${vendorId}/files`);
+        xhr.setRequestHeader("Content-Type", fileMime(file));
+        xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name));
+        xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+        xhr.onload = () => {
+          let body: { record?: VendorDTO; error?: string } | null = null;
+          try {
+            body = JSON.parse(xhr.responseText);
+          } catch {
+            /* not JSON */
+          }
+          if (xhr.status >= 200 && xhr.status < 300 && body?.record) {
+            putVendor(body.record);
+            changed();
+            resolve(body.record);
+          } else {
+            toast(errorMessage(new ApiError(xhr.status, body?.error || "server_error")), "error");
+            resolve(null);
+          }
+        };
+        xhr.onerror = () => {
+          toast(errorMessage(new TypeError("network")), "error");
+          resolve(null);
+        };
+        xhr.send(file);
+      }),
+    [base, toast, changed],
+  );
+  const deleteVendorFile = useCallback(
+    async (vendorId: string, fileId: string) => {
+      try {
+        const r = await api<{ record: VendorDTO }>(`${base}/records/${vendorId}/files/${encodeURIComponent(fileId)}`, { method: "DELETE" });
+        putVendor(r.record);
+        changed();
+        toast("הקובץ נמחק");
+      } catch (e) {
+        toast(errorMessage(e), "error");
+      }
+    },
+    [base, toast, changed],
+  );
+  const vendorFileUrl = useCallback((vendorId: string, fileId: string) => `/api${base}/records/${vendorId}/files/${encodeURIComponent(fileId)}`, [base]);
+
   // ------------------------------------------------ derived
   const stats = useMemo(() => computeStats(data.households, data.floor, data.config), [data.households, data.floor, data.config]);
   const tablesById = useMemo(() => new Map(tables(data.floor).map((t) => [t.id, t])), [data.floor]);
@@ -349,6 +404,7 @@ export function PlannerProvider({ code, initial, children }: { code: string; ini
         place: ev.venueName ?? "",
         link: rsvpUrl(h),
         table: tableLabelOf(h, tablesById) || "יפורסם בכניסה",
+        gift: hasGiftDetails(cfg.giftDetails) ? giftDetailsText(cfg.giftDetails) : "",
       });
     },
     [rsvpUrl, tablesById],
@@ -369,6 +425,9 @@ export function PlannerProvider({ code, initial, children }: { code: string; ini
     newLink,
     saveRecord,
     deleteRecord,
+    uploadVendorFile,
+    deleteVendorFile,
+    vendorFileUrl,
     sync,
     unlinkSheet,
     syncState,
@@ -377,6 +436,27 @@ export function PlannerProvider({ code, initial, children }: { code: string; ini
     reload,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+/** Browsers sometimes leave the type empty (e.g. HEIC, some Office files on phones): guess from the extension. */
+function fileMime(f: File): string {
+  if (f.type) return f.type;
+  const ext = f.name.toLowerCase().split(".").pop() ?? "";
+  const map: Record<string, string> = {
+    pdf: "application/pdf",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    heic: "image/heic",
+    heif: "image/heif",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    txt: "text/plain",
+  };
+  return map[ext] ?? "application/octet-stream";
 }
 
 export function sheetError(code: string | null | undefined): string {

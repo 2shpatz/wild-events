@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Armchair, CalendarPlus, CheckCircle2, Clock, HelpCircle, MapPin, PartyPopper, XCircle } from "lucide-react";
+import { Armchair, CalendarPlus, Check, CheckCircle2, Clock, Copy, Gift, HelpCircle, MapPin, PartyPopper, XCircle } from "lucide-react";
 import type { PublicEvent } from "../../shared/types";
-import type { RsvpStatus } from "../../shared/guests";
+import { bankName, giftDetailsText, type GiftDetails, type RsvpStatus } from "../../shared/guests";
 import { api, errorMessage } from "../lib/api";
 import { applyTheme, isDarkBackground } from "../lib/themes";
 import { EventBackdrop, EventStatus, EventTitle } from "../components/EventChrome";
@@ -15,6 +15,7 @@ type View = {
   household: { first: string; last: string; invited: number; invitedKids: number; companions: string[]; status: RsvpStatus; coming: number; comingKids: number; meals: Record<string, number>; note: string; answeredAt: number | null };
   settings: { closed: boolean; deadline: string | null; askKids: boolean; askMeals: boolean; askNote: boolean; maxComing: number; meals: { id: string; name: string }[] };
   table: string | null;
+  gift: Omit<GiftDetails, "onRsvp"> | null;
 };
 
 const CHOICES: { s: Exclude<RsvpStatus, "pending">; label: string; Icon: typeof CheckCircle2; tone: string }[] = [
@@ -210,6 +211,8 @@ export default function Rsvp() {
           )}
         </section>
 
+        {view.gift && <GiftCard gift={view.gift} card={card} dark={dark} />}
+
         {(event.date || dest) && (
           <section className={card} aria-label="פרטי האירוע">
             {event.date && <p className="mb-3 text-center text-lg font-semibold">{whenText(event)}</p>}
@@ -243,5 +246,67 @@ export default function Rsvp() {
         </p>
       </main>
     </EventBackdrop>
+  );
+}
+
+/** The hosts' bank / Bit details for a gift, each number with its own copy button. */
+function GiftCard({ gift, card, dark }: { gift: Omit<GiftDetails, "onRsvp">; card: string; dark: boolean }) {
+  const rows: { label: string; value: string; ltr?: boolean }[] = [];
+  if (gift.account) {
+    if (gift.holder) rows.push({ label: "על שם", value: gift.holder });
+    if (gift.bank) rows.push({ label: "בנק", value: /^\d+$/.test(gift.bank) ? `${bankName(gift.bank)} (${gift.bank})` : gift.bank });
+    if (gift.branch) rows.push({ label: "סניף", value: gift.branch, ltr: true });
+    rows.push({ label: "חשבון", value: gift.account, ltr: true });
+  }
+  if (gift.iban) rows.push({ label: "IBAN", value: gift.iban, ltr: true });
+  if (gift.bitPhone) rows.push({ label: "ביט / פייבוקס", value: gift.bitPhone, ltr: true });
+  return (
+    <section className={card} aria-labelledby="gift-title">
+      <h2 id="gift-title" className="mb-1 flex items-center justify-center gap-2 text-xl font-bold">
+        <Gift className="size-6 text-primary" aria-hidden />
+        למי שרוצה להעביר מתנה
+      </h2>
+      {gift.note && <p className="mb-3 text-center opacity-90">{gift.note}</p>}
+      <dl className="mt-4 space-y-2">
+        {rows.map((r) => (
+          <div key={r.label} className={cx("flex items-center gap-3 rounded-2xl px-4 py-2", dark ? "bg-white/10" : "bg-muted/70")}>
+            <dt className="w-24 shrink-0 text-sm font-semibold opacity-80">{r.label}</dt>
+            <dd className="min-w-0 flex-1 truncate text-lg font-bold" dir={r.ltr ? "ltr" : undefined} style={r.ltr ? { textAlign: "right" } : undefined}>
+              {r.value}
+            </dd>
+            {r.ltr && <CopyBtn text={r.value.replace(/[\s-]/g, "")} label={`העתקת ${r.label}`} />}
+          </div>
+        ))}
+      </dl>
+      <div className="mt-4 flex flex-wrap justify-center gap-2">
+        {gift.payLink && (
+          <a href={gift.payLink} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-primary px-5 font-bold text-on-primary no-underline hover:brightness-110">
+            לתשלום בקישור
+          </a>
+        )}
+        <CopyBtn text={giftDetailsText({ onRsvp: true, ...gift })} label="העתקת כל הפרטים" wide />
+      </div>
+    </section>
+  );
+}
+
+function CopyBtn({ text, label, wide }: { text: string; label: string; wide?: boolean }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={async () => {
+        await navigator.clipboard.writeText(text);
+        setDone(true);
+        setTimeout(() => setDone(false), 1800);
+      }}
+      className={cx("inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-current/30 font-semibold hover:bg-current/10", wide ? "px-4" : "w-11")}
+    >
+      {done ? <Check className="size-5" aria-hidden /> : <Copy className="size-5" aria-hidden />}
+      {wide && <span aria-live="polite">{done ? "הועתק" : label}</span>}
+      {!wide && <span className="sr-only" aria-live="polite">{done ? "הועתק" : ""}</span>}
+    </button>
   );
 }

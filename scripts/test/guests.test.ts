@@ -18,6 +18,7 @@ import {
   splitFullName,
   waNumber,
   budgetSummary,
+  giftDetailsText,
   type FloorItem,
   type Household,
 } from "../../shared/guests.ts";
@@ -159,4 +160,19 @@ test("budget: per-guest deals, due and overdue payments", () => {
   assert.equal(b.overdue.length, 1);
   assert.equal(b.due[0].days, 7);
   assert.equal(b.overBudget, b.total - 50000);
+});
+
+test("gift bank details: cleaned, text for messages, unsafe links dropped", () => {
+  const c = sanitizeConfig({ ...defaultConfig("wedding"), giftDetails: { onRsvp: true, holder: " נועה  ואיתי ", bank: "12", branch: "6-12a", account: "123-456789", iban: "il62 0108 0000 0009 9999 999", bitPhone: "050-1234567", payLink: "javascript:alert(1)" } }, "wedding");
+  const g = c.giftDetails;
+  assert.equal(g.holder, "נועה ואיתי");
+  assert.equal(g.branch, "6-12");
+  assert.equal(g.account, "123-456789");
+  assert.equal(g.iban, "IL62 0108 0000 0009 9999 999");
+  assert.equal(g.payLink, "", "only https links");
+  const text = giftDetailsText(g);
+  assert.match(text, /בנק הפועלים \(12\), סניף 6-12, חשבון 123-456789, על שם נועה ואיתי/);
+  assert.match(text, /ביט \/ פייבוקס: 050-1234567/);
+  assert.equal(fillTemplate("תודה! {פרטים למתנה}", { name: "", fullName: "", event: "", date: "", time: "", place: "", link: "", table: "", gift: "X" }), "תודה! X");
+  assert.equal(sanitizeConfig({ v: 1 }, "general").giftDetails.onRsvp, false, "old configs get empty details");
 });
